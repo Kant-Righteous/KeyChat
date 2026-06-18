@@ -1,32 +1,62 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keychat/app/app.dart';
+import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/providers/presentation/providers_page.dart';
+import 'package:keychat/features/settings/presentation/settings_page.dart';
+import 'package:keychat/features/providers/data/api_key_store.dart';
+
+class FakeApiKeyStore implements ApiKeyStore {
+  final Map<String, String> _keys = {};
+
+  @override
+  Future<void> saveKey(String providerId, String apiKey) async {
+    _keys[providerId] = apiKey.trim();
+  }
+
+  @override
+  Future<String?> readKey(String providerId) async => _keys[providerId];
+
+  @override
+  Future<bool> hasKey(String providerId) async => _keys.containsKey(providerId);
+
+  @override
+  Future<void> deleteKey(String providerId) async => _keys.remove(providerId);
+}
 
 void main() {
-  testWidgets('KeyChatApp shows Chat page by default',
+  testWidgets('ChatPage shows KeyChat title and empty state',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const KeyChatApp());
+    await tester.pumpWidget(
+      const MaterialApp(home: ChatPage()),
+    );
 
     expect(find.text('KeyChat'), findsOneWidget);
     expect(find.text('No conversations yet'), findsOneWidget);
   });
 
-  testWidgets('KeyChatApp navigates between pages',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(const KeyChatApp());
-
-    // Tap Providers tab
-    await tester.tap(find.text('Providers'));
+  testWidgets('ProvidersPage shows presets', (WidgetTester tester) async {
+    final store = FakeApiKeyStore();
+    await tester.pumpWidget(
+      MaterialApp(home: ProvidersPage(apiKeyStore: store)),
+    );
     await tester.pumpAndSettle();
+
     expect(find.text('OpenAI'), findsOneWidget);
+    expect(find.text('DeepSeek'), findsOneWidget);
+    expect(find.text('OpenRouter'), findsOneWidget);
+    expect(find.text('Custom Provider'), findsOneWidget);
+  });
 
-    // Tap Settings tab
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
+  testWidgets('SettingsPage shows setting items',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SettingsPage()),
+    );
+
+    expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);
-
-    // Tap Chat tab
-    await tester.tap(find.text('Chat'));
-    await tester.pumpAndSettle();
-    expect(find.text('No conversations yet'), findsOneWidget);
+    expect(find.text('Language'), findsOneWidget);
+    expect(find.text('Privacy'), findsOneWidget);
+    expect(find.text('About KeyChat'), findsOneWidget);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/providers/data/secure_api_key_store.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
 
@@ -12,17 +13,24 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
+  late final SecureApiKeyStore _apiKeyStore;
 
-  final _pages = const [
-    ChatPage(),
-    ProvidersPage(),
-    SettingsPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _apiKeyStore = SecureApiKeyStore();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const ChatPage(),
+      ProvidersPage(apiKeyStore: _apiKeyStore),
+      const SettingsPage(),
+    ];
+
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

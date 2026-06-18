@@ -2,18 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
+import '../data/fake_api_key_store.dart';
 
 void main() {
   group('ProviderConfigPage', () {
+    late FakeApiKeyStore store;
+
+    setUp(() {
+      store = FakeApiKeyStore();
+    });
+
     testWidgets('OpenAI preset auto-fills Base URL',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
       expect(find.text('https://api.openai.com/v1'), findsOneWidget);
     });
@@ -24,30 +32,29 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
-      // Name field should have "Custom Provider" and be editable
       final nameField = find.widgetWithText(TextFormField, 'Custom Provider');
       expect(nameField, findsOneWidget);
 
-      // Base URL field should be empty and editable
       final urlField = find.widgetWithText(TextFormField, 'Base URL');
       expect(urlField, findsOneWidget);
     });
 
     testWidgets('Empty name shows validation error',
         (WidgetTester tester) async {
-      final preset = providerPresets[3]; // Custom (name is editable)
+      final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
-      // Clear the name field
       final nameField = find.widgetWithText(TextFormField, 'Custom Provider');
       await tester.enterText(nameField, '');
       await tester.tap(find.text('Save'));
@@ -58,15 +65,15 @@ void main() {
 
     testWidgets('Invalid Base URL shows validation error',
         (WidgetTester tester) async {
-      final preset = providerPresets[3]; // Custom (URL is editable)
+      final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
-      // Enter invalid URL
       final urlField = find.widgetWithText(TextFormField, 'Base URL');
       await tester.enterText(urlField, 'not-a-url');
       await tester.tap(find.text('Save'));
@@ -80,9 +87,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
       final apiKeyField = tester.widget<TextField>(
         find.widgetWithText(TextField, 'API Key'),
@@ -96,28 +104,113 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset),
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
         ),
       );
+      await tester.pumpAndSettle();
 
-      // Initially obscured
       var apiKeyField = tester.widget<TextField>(
         find.widgetWithText(TextField, 'API Key'),
       );
       expect(apiKeyField.obscureText, isTrue);
 
-      // Tap toggle button
       await tester.tap(find.byIcon(Icons.visibility));
       await tester.pumpAndSettle();
 
-      // Now visible
       apiKeyField = tester.widget<TextField>(
         find.widgetWithText(TextField, 'API Key'),
       );
       expect(apiKeyField.obscureText, isFalse);
     });
 
-    testWidgets('Valid form submission returns with SnackBar',
+    testWidgets('shows configured status when key exists',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await store.saveKey('openai', 'sk-existing');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('API key is already configured'), findsOneWidget);
+    });
+
+    testWidgets('does not fill existing key into field',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await store.saveKey('openai', 'sk-existing');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final apiKeyField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'New API Key (leave blank to keep)'),
+      );
+      expect(apiKeyField.controller?.text, isEmpty);
+    });
+
+    testWidgets('shows Remove button when configured',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await store.saveKey('openai', 'sk-existing');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Remove API Key'), findsOneWidget);
+    });
+
+    testWidgets('delete confirms and removes key', (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await store.saveKey('openai', 'sk-existing');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProviderConfigPage(
+                          preset: preset, apiKeyStore: store),
+                    ),
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Remove API Key'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsNothing);
+      expect(find.text('API key removed'), findsOneWidget);
+      expect(await store.hasKey('openai'), false);
+    });
+
+    testWidgets('valid submission saves key and returns',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
@@ -130,34 +223,32 @@ void main() {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ProviderConfigPage(preset: preset),
+                      builder: (context) => ProviderConfigPage(
+                          preset: preset, apiKeyStore: store),
                     ),
                   );
                 },
-                child: const Text('Open Config'),
+                child: const Text('Open'),
               ),
             ),
           ),
         ),
       );
 
-      // Open config page
-      await tester.tap(find.text('Open Config'));
+      await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      // Fill in API Key
       await tester.enterText(
         find.widgetWithText(TextFormField, 'API Key'),
-        'test-api-key',
+        'sk-new-key',
       );
 
-      // Submit
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      // Should be back on previous page
       expect(find.byType(ProviderConfigPage), findsNothing);
-      expect(find.text('Provider configuration is ready'), findsOneWidget);
+      expect(find.text('Provider configured'), findsOneWidget);
+      expect(await store.readKey('openai'), 'sk-new-key');
     });
   });
 }

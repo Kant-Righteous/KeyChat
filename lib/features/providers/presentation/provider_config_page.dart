@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
+  final ApiKeyStore apiKeyStore;
 
-  const ProviderConfigPage({super.key, required this.preset});
+  const ProviderConfigPage({
+    super.key,
+    required this.preset,
+    required this.apiKeyStore,
+  });
 
   @override
   State<ProviderConfigPage> createState() => _ProviderConfigPageState();
@@ -16,12 +22,26 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   late final TextEditingController _urlController;
   final _apiKeyController = TextEditingController();
   bool _obscureApiKey = true;
+  bool _hasExistingKey = false;
+  bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.preset.name);
     _urlController = TextEditingController(text: widget.preset.defaultBaseUrl);
+    _checkExistingKey();
+  }
+
+  Future<void> _checkExistingKey() async {
+    final hasKey = await widget.apiKeyStore.hasKey(widget.preset.id);
+    if (mounted) {
+      setState(() {
+        _hasExistingKey = hasKey;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -53,18 +73,69 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   }
 
   String? _validateApiKey(String? value) {
-    if (value == null || value.trim().isEmpty) {
+    if (!_hasExistingKey && (value == null || value.trim().isEmpty)) {
       return 'API Key is required';
     }
     return null;
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final apiKey = _apiKeyController.text.trim();
+    if (apiKey.isEmpty && _hasExistingKey) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provider configuration is ready')),
-      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    try {
+      await widget.apiKeyStore.saveKey(widget.preset.id, apiKey);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Provider configured')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save API key')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteKey() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove API Key'),
+        content: const Text('Are you sure you want to remove the API key?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.apiKeyStore.deleteKey(widget.preset.id);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API key removed')),
+        );
+      }
     }
   }
 
@@ -74,62 +145,92 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       appBar: AppBar(
         title: Text(widget.preset.name),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Provider Name',
-                  border: OutlineInputBorder(),
-                ),
-                validator: _validateName,
-                enabled: widget.preset.isCustom,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _urlController,
-                decoration: const InputDecoration(
-                  labelText: 'Base URL',
-                  border: OutlineInputBorder(),
-                ),
-                validator: _validateUrl,
-                enabled: widget.preset.isCustom,
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _apiKeyController,
-                decoration: InputDecoration(
-                  labelText: 'API Key',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureApiKey ? Icons.visibility : Icons.visibility_off,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Provider Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: _validateName,
+                      enabled: widget.preset.isCustom,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscureApiKey = !_obscureApiKey;
-                      });
-                    },
-                  ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _urlController,
+                      decoration: const InputDecoration(
+                        labelText: 'Base URL',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: _validateUrl,
+                      enabled: widget.preset.isCustom,
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 16),
+                    if (_hasExistingKey)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'API key is already configured',
+                          style: TextStyle(color: Colors.green[700]),
+                        ),
+                      ),
+                    TextFormField(
+                      controller: _apiKeyController,
+                      decoration: InputDecoration(
+                        labelText: _hasExistingKey
+                            ? 'New API Key (leave blank to keep)'
+                            : 'API Key',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureApiKey
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureApiKey = !_obscureApiKey;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: _validateApiKey,
+                      obscureText: _obscureApiKey,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _saving ? null : _submit,
+                      child: _saving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Save'),
+                    ),
+                    if (_hasExistingKey) ...[
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: _deleteKey,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text('Remove API Key'),
+                      ),
+                    ],
+                  ],
                 ),
-                validator: _validateApiKey,
-                obscureText: _obscureApiKey,
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _submit,
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
