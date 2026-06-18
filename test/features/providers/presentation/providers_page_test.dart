@@ -108,5 +108,46 @@ void main() {
 
       expect(find.text('My Custom AI'), findsOneWidget);
     });
+
+    testWidgets('ProvidersPage refreshes after returning from config page',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Provider'), findsOneWidget);
+      expect(find.text('Not configured'), findsNWidgets(4));
+
+      await tester.tap(find.text('Custom Provider'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Provider Name'),
+        'My Custom AI',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Base URL'),
+        'https://custom.example.com/v1',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'test-key-123',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProvidersPage), findsOneWidget);
+      expect(find.text('My Custom AI'), findsOneWidget);
+      expect(find.text('Configured'), findsOneWidget);
+    });
   });
 }

@@ -1,50 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
-import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
-import 'package:keychat/features/providers/data/api_key_store.dart';
-import 'package:keychat/features/providers/data/provider_config_store.dart';
-
-class FakeApiKeyStore implements ApiKeyStore {
-  final Map<String, String> _keys = {};
-
-  @override
-  Future<void> saveKey(String providerId, String apiKey) async {
-    _keys[providerId] = apiKey.trim();
-  }
-
-  @override
-  Future<String?> readKey(String providerId) async => _keys[providerId];
-
-  @override
-  Future<bool> hasKey(String providerId) async => _keys.containsKey(providerId);
-
-  @override
-  Future<void> deleteKey(String providerId) async => _keys.remove(providerId);
-}
-
-class FakeProviderConfigStore implements ProviderConfigStore {
-  final Map<String, ProviderConfigData> _configs = {};
-
-  @override
-  Future<void> saveConfig(ProviderConfigData config) async {
-    _configs[config.providerId] = config;
-  }
-
-  @override
-  Future<ProviderConfigData?> readConfig(String providerId) async =>
-      _configs[providerId];
-
-  @override
-  Future<List<ProviderConfigData>> readAllConfigs() async =>
-      _configs.values.toList();
-
-  @override
-  Future<void> deleteConfig(String providerId) async =>
-      _configs.remove(providerId);
-}
+import 'features/providers/data/fake_api_key_store.dart';
+import 'features/providers/data/fake_provider_config_store.dart';
 
 void main() {
   testWidgets('ChatPage shows KeyChat title and empty state',

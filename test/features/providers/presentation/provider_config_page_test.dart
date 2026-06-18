@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
@@ -10,6 +12,30 @@ class _FailingApiKeyStore extends FakeApiKeyStore {
   @override
   Future<void> saveKey(String providerId, String apiKey) async {
     throw Exception('Storage failure');
+  }
+}
+
+class _SlowApiKeyStore extends FakeApiKeyStore {
+  Completer<void>? _saveCompleter;
+
+  Completer<void> startSave() {
+    _saveCompleter = Completer<void>();
+    return _saveCompleter!;
+  }
+
+  @override
+  Future<void> saveKey(String providerId, String apiKey) async {
+    if (_saveCompleter != null && !_saveCompleter!.isCompleted) {
+      await _saveCompleter!.future;
+    }
+    await super.saveKey(providerId, apiKey);
+  }
+}
+
+class _FailingConfigStore extends FakeProviderConfigStore {
+  @override
+  Future<void> saveConfig(ProviderConfigData config) async {
+    throw Exception('Database failure');
   }
 }
 
@@ -388,6 +414,232 @@ void main() {
       expect(find.text('My Custom AI'), findsOneWidget);
       expect(find.text('https://custom.example.com/v1'), findsOneWidget);
       expect(find.text('gpt-4'), findsOneWidget);
+    });
+
+    testWidgets('save button is disabled while saving',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      final slowStore = _SlowApiKeyStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProviderConfigPage(
+                        preset: preset,
+                        apiKeyStore: slowStore,
+                        configStore: configStore,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'test-marker-123',
+      );
+
+      final completer = slowStore.startSave();
+
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      completer.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsNothing);
+    });
+
+    testWidgets('existing API key is preserved when key field is left empty',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await apiKeyStore.saveKey('openai', 'old-key-value');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('API key is already configured'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextFormField, 'New API Key (leave blank to keep)'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsNothing);
+      expect(await apiKeyStore.readKey('openai'), 'old-key-value');
+    });
+
+    testWidgets('save failure does not leak API key in error message',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      final failingStore = _FailingApiKeyStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: failingStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'test-marker-xyz',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Failed to save configuration'), findsOneWidget);
+      final snackBarText = tester.widget<Text>(
+        find.text('Failed to save configuration'),
+      );
+      expect(snackBarText.data, isNot(contains('test-marker-xyz')));
+    });
+
+    testWidgets(
+        'rollback restores old key when config save fails after new key saved',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await apiKeyStore.saveKey('openai', 'old-key-value');
+      final failingConfig = _FailingConfigStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: failingConfig,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'New API Key (leave blank to keep)'),
+        'new-key-value',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsOneWidget);
+      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(await apiKeyStore.readKey('openai'), 'old-key-value');
+    });
+
+    testWidgets(
+        'rollback deletes new key when config save fails and no old key existed',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      final failingConfig = _FailingConfigStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: failingConfig,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'new-key-value',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsOneWidget);
+      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(await apiKeyStore.hasKey('openai'), false);
+    });
+
+    testWidgets('old key preserved when config save fails with empty key field',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      await apiKeyStore.saveKey('openai', 'old-key-value');
+      final failingConfig = _FailingConfigStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: failingConfig,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsOneWidget);
+      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(await apiKeyStore.readKey('openai'), 'old-key-value');
+    });
+
+    testWidgets('both config and key saved on successful submission',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'new-key-value',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsNothing);
+      expect(await apiKeyStore.readKey('openai'), 'new-key-value');
+      final config = await configStore.readConfig('openai');
+      expect(config, isNotNull);
+      expect(config!.displayName, 'OpenAI');
     });
   });
 }

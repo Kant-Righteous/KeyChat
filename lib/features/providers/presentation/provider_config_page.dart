@@ -96,7 +96,20 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
 
     setState(() => _saving = true);
 
+    final apiKey = _apiKeyController.text.trim();
+    final hasNewKey = apiKey.isNotEmpty;
+    final hadExistingKey = _hasExistingKey;
+    String? oldKeyValue;
+
+    if (hasNewKey && hadExistingKey) {
+      oldKeyValue = await widget.apiKeyStore.readKey(widget.preset.id);
+    }
+
     try {
+      if (hasNewKey) {
+        await widget.apiKeyStore.saveKey(widget.preset.id, apiKey);
+      }
+
       final config = ProviderConfigData(
         providerId: widget.preset.id,
         displayName: _nameController.text.trim(),
@@ -108,11 +121,6 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       );
       await widget.configStore.saveConfig(config);
 
-      final apiKey = _apiKeyController.text.trim();
-      if (apiKey.isNotEmpty) {
-        await widget.apiKeyStore.saveKey(widget.preset.id, apiKey);
-      }
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,6 +128,15 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
         );
       }
     } catch (e) {
+      if (hasNewKey) {
+        try {
+          if (hadExistingKey && oldKeyValue != null) {
+            await widget.apiKeyStore.saveKey(widget.preset.id, oldKeyValue);
+          } else {
+            await widget.apiKeyStore.deleteKey(widget.preset.id);
+          }
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
