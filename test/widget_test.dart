@@ -1,30 +1,32 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:keychat/main.dart';
+import 'package:keychat/app/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('KeyChatApp shows Chat page by default',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const KeyChatApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('KeyChat'), findsOneWidget);
+    expect(find.text('No conversations yet'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('KeyChatApp navigates between pages',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const KeyChatApp());
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Tap Providers tab
+    await tester.tap(find.text('Providers'));
+    await tester.pumpAndSettle();
+    expect(find.text('No providers configured'), findsOneWidget);
+
+    // Tap Settings tab
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Appearance'), findsOneWidget);
+
+    // Tap Chat tab
+    await tester.tap(find.text('Chat'));
+    await tester.pumpAndSettle();
+    expect(find.text('No conversations yet'), findsOneWidget);
   });
 }
