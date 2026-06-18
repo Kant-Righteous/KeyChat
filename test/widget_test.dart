@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
+import 'package:keychat/features/providers/data/provider_config_store.dart';
 
 class FakeApiKeyStore implements ApiKeyStore {
   final Map<String, String> _keys = {};
@@ -23,6 +25,27 @@ class FakeApiKeyStore implements ApiKeyStore {
   Future<void> deleteKey(String providerId) async => _keys.remove(providerId);
 }
 
+class FakeProviderConfigStore implements ProviderConfigStore {
+  final Map<String, ProviderConfigData> _configs = {};
+
+  @override
+  Future<void> saveConfig(ProviderConfigData config) async {
+    _configs[config.providerId] = config;
+  }
+
+  @override
+  Future<ProviderConfigData?> readConfig(String providerId) async =>
+      _configs[providerId];
+
+  @override
+  Future<List<ProviderConfigData>> readAllConfigs() async =>
+      _configs.values.toList();
+
+  @override
+  Future<void> deleteConfig(String providerId) async =>
+      _configs.remove(providerId);
+}
+
 void main() {
   testWidgets('ChatPage shows KeyChat title and empty state',
       (WidgetTester tester) async {
@@ -35,9 +58,15 @@ void main() {
   });
 
   testWidgets('ProvidersPage shows presets', (WidgetTester tester) async {
-    final store = FakeApiKeyStore();
+    final apiKeyStore = FakeApiKeyStore();
+    final configStore = FakeProviderConfigStore();
     await tester.pumpWidget(
-      MaterialApp(home: ProvidersPage(apiKeyStore: store)),
+      MaterialApp(
+        home: ProvidersPage(
+          apiKeyStore: apiKeyStore,
+          configStore: configStore,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -47,8 +76,7 @@ void main() {
     expect(find.text('Custom Provider'), findsOneWidget);
   });
 
-  testWidgets('SettingsPage shows setting items',
-      (WidgetTester tester) async {
+  testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SettingsPage()),
     );

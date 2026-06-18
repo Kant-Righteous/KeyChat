@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
+import '../data/fake_provider_config_store.dart';
+
+class _FailingApiKeyStore extends FakeApiKeyStore {
+  @override
+  Future<void> saveKey(String providerId, String apiKey) async {
+    throw Exception('Storage failure');
+  }
+}
 
 void main() {
   group('ProviderConfigPage', () {
-    late FakeApiKeyStore store;
+    late FakeApiKeyStore apiKeyStore;
+    late FakeProviderConfigStore configStore;
 
     setUp(() {
-      store = FakeApiKeyStore();
+      apiKeyStore = FakeApiKeyStore();
+      configStore = FakeProviderConfigStore();
     });
 
     testWidgets('OpenAI preset auto-fills Base URL',
@@ -18,7 +29,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -32,7 +47,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -50,7 +69,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -69,7 +92,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -87,7 +114,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -104,7 +135,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -126,11 +161,15 @@ void main() {
     testWidgets('shows configured status when key exists',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
-      await store.saveKey('openai', 'sk-existing');
+      await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -141,11 +180,15 @@ void main() {
     testWidgets('does not fill existing key into field',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
-      await store.saveKey('openai', 'sk-existing');
+      await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -159,11 +202,15 @@ void main() {
     testWidgets('shows Remove button when configured',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
-      await store.saveKey('openai', 'sk-existing');
+      await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProviderConfigPage(preset: preset, apiKeyStore: store),
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -173,7 +220,7 @@ void main() {
 
     testWidgets('delete confirms and removes key', (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
-      await store.saveKey('openai', 'sk-existing');
+      await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
         MaterialApp(
@@ -185,7 +232,10 @@ void main() {
                     context,
                     MaterialPageRoute(
                       builder: (context) => ProviderConfigPage(
-                          preset: preset, apiKeyStore: store),
+                        preset: preset,
+                        apiKeyStore: apiKeyStore,
+                        configStore: configStore,
+                      ),
                     ),
                   );
                 },
@@ -207,10 +257,10 @@ void main() {
 
       expect(find.byType(ProviderConfigPage), findsNothing);
       expect(find.text('API key removed'), findsOneWidget);
-      expect(await store.hasKey('openai'), false);
+      expect(await apiKeyStore.hasKey('openai'), false);
     });
 
-    testWidgets('valid submission saves key and returns',
+    testWidgets('valid submission saves config and key',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
@@ -224,7 +274,10 @@ void main() {
                     context,
                     MaterialPageRoute(
                       builder: (context) => ProviderConfigPage(
-                          preset: preset, apiKeyStore: store),
+                        preset: preset,
+                        apiKeyStore: apiKeyStore,
+                        configStore: configStore,
+                      ),
                     ),
                   );
                 },
@@ -248,7 +301,93 @@ void main() {
 
       expect(find.byType(ProviderConfigPage), findsNothing);
       expect(find.text('Provider configured'), findsOneWidget);
-      expect(await store.readKey('openai'), 'sk-new-key');
+      expect(await apiKeyStore.readKey('openai'), 'sk-new-key');
+
+      final config = await configStore.readConfig('openai');
+      expect(config, isNotNull);
+      expect(config!.displayName, 'OpenAI');
+    });
+
+    testWidgets('save failure shows generic error and stays on page',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+      final failingStore = _FailingApiKeyStore();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: failingStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'sk-test',
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProviderConfigPage), findsOneWidget);
+      expect(find.text('Failed to save configuration'), findsOneWidget);
+    });
+
+    testWidgets('save button is enabled before save',
+        (WidgetTester tester) async {
+      final preset = providerPresets[0]; // OpenAI
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'API Key'),
+        'sk-test',
+      );
+
+      final saveButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Save'),
+      );
+      expect(saveButton.onPressed, isNotNull);
+    });
+
+    testWidgets('loads saved config for custom provider',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'custom',
+        displayName: 'My Custom AI',
+        baseUrl: 'https://custom.example.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('My Custom AI'), findsOneWidget);
+      expect(find.text('https://custom.example.com/v1'), findsOneWidget);
+      expect(find.text('gpt-4'), findsOneWidget);
     });
   });
 }

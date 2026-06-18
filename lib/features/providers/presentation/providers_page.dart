@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
+import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 
 class ProvidersPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
+  final ProviderConfigStore configStore;
 
-  const ProvidersPage({super.key, required this.apiKeyStore});
+  const ProvidersPage({
+    super.key,
+    required this.apiKeyStore,
+    required this.configStore,
+  });
 
   @override
   State<ProvidersPage> createState() => _ProvidersPageState();
@@ -14,6 +20,7 @@ class ProvidersPage extends StatefulWidget {
 
 class _ProvidersPageState extends State<ProvidersPage> {
   final Map<String, bool> _keyStatus = {};
+  final Map<String, String> _displayNames = {};
   bool _loading = true;
 
   @override
@@ -23,14 +30,21 @@ class _ProvidersPageState extends State<ProvidersPage> {
   }
 
   Future<void> _loadStatus() async {
-    final statuses = <String, bool>{};
+    final keyStatuses = <String, bool>{};
+    final displayNames = <String, String>{};
+
     for (final preset in providerPresets) {
-      statuses[preset.id] = await widget.apiKeyStore.hasKey(preset.id);
+      keyStatuses[preset.id] = await widget.apiKeyStore.hasKey(preset.id);
+      final config = await widget.configStore.readConfig(preset.id);
+      displayNames[preset.id] = config?.displayName ?? preset.name;
     }
+
     if (mounted) {
       setState(() {
         _keyStatus.clear();
-        _keyStatus.addAll(statuses);
+        _keyStatus.addAll(keyStatuses);
+        _displayNames.clear();
+        _displayNames.addAll(displayNames);
         _loading = false;
       });
     }
@@ -49,13 +63,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
               itemBuilder: (context, index) {
                 final preset = providerPresets[index];
                 final configured = _keyStatus[preset.id] ?? false;
+                final displayName = _displayNames[preset.id] ?? preset.name;
                 return ListTile(
                   leading: Icon(
                     preset.isCustom
                         ? Icons.add_circle_outline
                         : Icons.cloud_outlined,
                   ),
-                  title: Text(preset.name),
+                  title: Text(displayName),
                   subtitle: Text(preset.description),
                   trailing: Text(
                     configured ? 'Configured' : 'Not configured',
@@ -70,6 +85,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
                         builder: (context) => ProviderConfigPage(
                           preset: preset,
                           apiKeyStore: widget.apiKeyStore,
+                          configStore: widget.configStore,
                         ),
                       ),
                     );

@@ -37,6 +37,10 @@ dependencies:
   dio: ^5.9.2
   flutter_secure_storage: ^10.3.1
   flutter_chat_ui: ^1.6.15
+  drift: ^2.27.0
+  drift_flutter: ^0.2.4
+  path: ^1.9.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +52,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  build_runner: ^2.4.0
+  drift_dev: ^2.27.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -27,3 +27,19 @@ class FakeApiKeyStore implements ApiKeyStore {
     _keys.remove(providerId);
   }
 }
+
+class FailingApiKeyStore implements ApiKeyStore {
+  @override
+  Future<void> saveKey(String providerId, String apiKey) async {
+    throw Exception('Storage failure');
+  }
+
+  @override
+  Future<String?> readKey(String providerId) async => null;
+
+  @override
+  Future<bool> hasKey(String providerId) async => false;
+
+  @override
+  Future<void> deleteKey(String providerId) async {}
+}

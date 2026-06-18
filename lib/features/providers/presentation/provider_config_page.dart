@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
+import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
   final ApiKeyStore apiKeyStore;
+  final ProviderConfigStore configStore;
 
   const ProviderConfigPage({
     super.key,
     required this.preset,
     required this.apiKeyStore,
+    required this.configStore,
   });
 
   @override
@@ -20,6 +24,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _urlController;
+  late final TextEditingController _modelController;
   final _apiKeyController = TextEditingController();
   bool _obscureApiKey = true;
   bool _hasExistingKey = false;
@@ -29,15 +34,21 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.preset.name);
-    _urlController = TextEditingController(text: widget.preset.defaultBaseUrl);
-    _checkExistingKey();
+    _nameController = TextEditingController();
+    _urlController = TextEditingController();
+    _modelController = TextEditingController();
+    _loadData();
   }
 
-  Future<void> _checkExistingKey() async {
+  Future<void> _loadData() async {
+    final config = await widget.configStore.readConfig(widget.preset.id);
     final hasKey = await widget.apiKeyStore.hasKey(widget.preset.id);
+
     if (mounted) {
       setState(() {
+        _nameController.text = config?.displayName ?? widget.preset.name;
+        _urlController.text = config?.baseUrl ?? widget.preset.defaultBaseUrl;
+        _modelController.text = config?.defaultModel ?? '';
         _hasExistingKey = hasKey;
         _loading = false;
       });
@@ -48,6 +59,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   void dispose() {
     _nameController.dispose();
     _urlController.dispose();
+    _modelController.dispose();
     _apiKeyController.dispose();
     super.dispose();
   }
@@ -82,16 +94,25 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final apiKey = _apiKeyController.text.trim();
-    if (apiKey.isEmpty && _hasExistingKey) {
-      Navigator.pop(context);
-      return;
-    }
-
     setState(() => _saving = true);
 
     try {
-      await widget.apiKeyStore.saveKey(widget.preset.id, apiKey);
+      final config = ProviderConfigData(
+        providerId: widget.preset.id,
+        displayName: _nameController.text.trim(),
+        baseUrl: _urlController.text.trim(),
+        defaultModel: _modelController.text.trim().isEmpty
+            ? null
+            : _modelController.text.trim(),
+        updatedAt: DateTime.now(),
+      );
+      await widget.configStore.saveConfig(config);
+
+      final apiKey = _apiKeyController.text.trim();
+      if (apiKey.isNotEmpty) {
+        await widget.apiKeyStore.saveKey(widget.preset.id, apiKey);
+      }
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +123,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save API key')),
+          const SnackBar(content: Text('Failed to save configuration')),
         );
       }
     }
@@ -173,6 +194,14 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       validator: _validateUrl,
                       enabled: widget.preset.isCustom,
                       keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _modelController,
+                      decoration: const InputDecoration(
+                        labelText: 'Default Model (optional)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     if (_hasExistingKey)

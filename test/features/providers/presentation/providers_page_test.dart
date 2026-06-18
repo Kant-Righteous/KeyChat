@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
+import '../data/fake_provider_config_store.dart';
 
 void main() {
   group('ProvidersPage', () {
-    late FakeApiKeyStore store;
+    late FakeApiKeyStore apiKeyStore;
+    late FakeProviderConfigStore configStore;
 
     setUp(() {
-      store = FakeApiKeyStore();
+      apiKeyStore = FakeApiKeyStore();
+      configStore = FakeProviderConfigStore();
     });
 
     testWidgets('shows 4 provider presets', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ProvidersPage(apiKeyStore: store),
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -31,7 +38,10 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ProvidersPage(apiKeyStore: store),
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -41,11 +51,14 @@ void main() {
 
     testWidgets('shows Configured when key exists',
         (WidgetTester tester) async {
-      await store.saveKey('openai', 'sk-test');
+      await apiKeyStore.saveKey('openai', 'sk-test');
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ProvidersPage(apiKeyStore: store),
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -58,7 +71,10 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ProvidersPage(apiKeyStore: store),
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -67,6 +83,30 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsOneWidget);
+    });
+
+    testWidgets('shows saved display name for custom provider',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom',
+          displayName: 'My Custom AI',
+          baseUrl: 'https://custom.example.com/v1',
+          updatedAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('My Custom AI'), findsOneWidget);
     });
   });
 }
