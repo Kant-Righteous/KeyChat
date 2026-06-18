@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 
 class ProvidersPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
+  final ProviderConnectionTester? connectionTester;
 
   const ProvidersPage({
     super.key,
     required this.apiKeyStore,
     required this.configStore,
+    this.connectionTester,
   });
 
   @override
@@ -86,6 +89,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
                           preset: preset,
                           apiKeyStore: widget.apiKeyStore,
                           configStore: widget.configStore,
+                          connectionTester: widget.connectionTester,
                         ),
                       ),
                     );

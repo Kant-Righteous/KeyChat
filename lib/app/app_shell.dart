@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/providers/data/dio_provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 import 'package:keychat/features/providers/data/drift/drift_provider_config_store.dart';
 import 'package:keychat/features/providers/data/secure_api_key_store.dart';
@@ -18,6 +19,7 @@ class _AppShellState extends State<AppShell> {
   late final SecureApiKeyStore _apiKeyStore;
   late final AppDatabase _database;
   late final DriftProviderConfigStore _configStore;
+  late final DioProviderConnectionTester _connectionTester;
 
   @override
   void initState() {
@@ -25,6 +27,7 @@ class _AppShellState extends State<AppShell> {
     _apiKeyStore = SecureApiKeyStore();
     _database = AppDatabase();
     _configStore = DriftProviderConfigStore(_database);
+    _connectionTester = DioProviderConnectionTester();
   }
 
   @override
@@ -40,6 +43,7 @@ class _AppShellState extends State<AppShell> {
       ProvidersPage(
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
+        connectionTester: _connectionTester,
       ),
       const SettingsPage(),
     ];

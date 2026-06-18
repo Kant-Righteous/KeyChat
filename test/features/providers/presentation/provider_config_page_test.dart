@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
 import '../data/fake_provider_config_store.dart';
+import '../data/fake_provider_connection_tester.dart';
 
 class _FailingApiKeyStore extends FakeApiKeyStore {
   @override
@@ -640,6 +642,392 @@ void main() {
       final config = await configStore.readConfig('openai');
       expect(config, isNotNull);
       expect(config!.displayName, 'OpenAI');
+    });
+
+    group('Test Connection', () {
+      testWidgets('does not call tester when no API key available',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('API key required'), findsOneWidget);
+        expect(connTester.lastBaseUrl, isNull);
+      });
+
+      testWidgets('uses new key from input when available',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(modelIds: ['gpt-4']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'new-test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(connTester.lastApiKey, 'new-test-key');
+      });
+
+      testWidgets('reads old key when input is empty',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        await apiKeyStore.saveKey('openai', 'old-key-value');
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(modelIds: ['gpt-4']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(connTester.lastApiKey, 'old-key-value');
+      });
+
+      testWidgets('shows loading during test', (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        final completer = connTester.startSlowResponse();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pump();
+
+        expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+        completer.complete();
+        connTester.setResult(
+          const ConnectionTestResult.success(modelIds: ['gpt-4']),
+        );
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('shows success message with model count',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(
+              modelIds: ['gpt-4', 'gpt-3.5-turbo']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Connected: 2 models found'), findsOneWidget);
+      });
+
+      testWidgets('shows failure message on error',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.failure(
+            errorType: ConnectionErrorType.unauthorized,
+            userMessage: 'Invalid API key',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'bad-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Invalid API key'), findsOneWidget);
+      });
+
+      testWidgets('shows model selection when models found',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(
+              modelIds: ['gpt-4', 'gpt-3.5-turbo']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('gpt-4'), findsWidgets);
+        expect(find.text('gpt-3.5-turbo'), findsWidgets);
+      });
+
+      testWidgets('selecting model updates default model field',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(
+              modelIds: ['gpt-4', 'gpt-3.5-turbo']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('gpt-4').last);
+        await tester.pumpAndSettle();
+
+        final modelField = tester.widget<TextFormField>(
+          find.widgetWithText(TextFormField, 'Default Model'),
+        );
+        expect(modelField.controller?.text, 'gpt-4');
+      });
+
+      testWidgets('does not auto-save config or key on test',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.success(modelIds: ['gpt-4']),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        expect(await apiKeyStore.hasKey('openai'), false);
+        expect(await configStore.readConfig('openai'), isNull);
+      });
+
+      testWidgets('failure does not clear default model',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.failure(
+            errorType: ConnectionErrorType.unauthorized,
+            userMessage: 'Invalid API key',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Default Model'),
+          'my-model',
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-key',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        final modelField = tester.widget<TextFormField>(
+          find.widgetWithText(TextFormField, 'Default Model'),
+        );
+        expect(modelField.controller?.text, 'my-model');
+      });
+
+      testWidgets('tester call count is zero on page open',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(connTester.callCount, 0);
+      });
+
+      testWidgets('does not leak server response in userMessage',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final connTester = FakeProviderConnectionTester();
+        connTester.setResult(
+          const ConnectionTestResult.failure(
+            errorType: ConnectionErrorType.serverError,
+            userMessage: 'Provider server error',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              connectionTester: connTester,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'API Key'),
+          'test-marker-abc',
+        );
+
+        await tester.tap(find.text('Test Connection'));
+        await tester.pumpAndSettle();
+
+        final snackBarText = tester.widget<Text>(
+          find.text('Provider server error'),
+        );
+        expect(snackBarText.data, isNot(contains('test-marker-abc')));
+      });
     });
   });
 }

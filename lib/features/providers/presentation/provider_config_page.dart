@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
+  final ProviderConnectionTester? connectionTester;
 
   const ProviderConfigPage({
     super.key,
     required this.preset,
     required this.apiKeyStore,
     required this.configStore,
+    this.connectionTester,
   });
 
   @override
@@ -30,6 +33,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   bool _hasExistingKey = false;
   bool _loading = true;
   bool _saving = false;
+  bool _testing = false;
+  List<String> _discoveredModels = [];
 
   @override
   void initState() {
@@ -89,6 +94,72 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       return 'API Key is required';
     }
     return null;
+  }
+
+  Future<void> _testConnection() async {
+    if (widget.connectionTester == null) return;
+
+    final baseUrl = _urlController.text.trim();
+    if (baseUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid Base URL')),
+      );
+      return;
+    }
+
+    String apiKey = _apiKeyController.text.trim();
+    if (apiKey.isEmpty && _hasExistingKey) {
+      final stored = await widget.apiKeyStore.readKey(widget.preset.id);
+      if (stored != null) apiKey = stored;
+    }
+
+    if (apiKey.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API key required')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _testing = true);
+
+    try {
+      final result = await widget.connectionTester!.testConnection(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+      );
+
+      if (!mounted) return;
+
+      if (result.success) {
+        setState(() {
+          _discoveredModels = result.modelIds;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Connected: ${result.modelIds.length} models found',
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _discoveredModels = [];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.userMessage ?? 'Unable to connect')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to connect')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -216,10 +287,24 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                     TextFormField(
                       controller: _modelController,
                       decoration: const InputDecoration(
-                        labelText: 'Default Model (optional)',
+                        labelText: 'Default Model',
                         border: OutlineInputBorder(),
                       ),
                     ),
+                    if (_discoveredModels.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: _discoveredModels.map((model) {
+                          return ActionChip(
+                            label: Text(model),
+                            onPressed: () {
+                              _modelController.text = model;
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (_hasExistingKey)
                       Padding(
@@ -253,6 +338,20 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       obscureText: _obscureApiKey,
                     ),
                     const SizedBox(height: 24),
+                    if (widget.connectionTester != null)
+                      OutlinedButton.icon(
+                        onPressed: _testing ? null : _testConnection,
+                        icon: _testing
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.wifi_find),
+                        label: const Text('Test Connection'),
+                      ),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _saving ? null : _submit,
                       child: _saving

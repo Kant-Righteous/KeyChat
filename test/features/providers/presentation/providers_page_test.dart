@@ -5,6 +5,7 @@ import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
 import '../data/fake_provider_config_store.dart';
+import '../data/fake_provider_connection_tester.dart';
 
 void main() {
   group('ProvidersPage', () {
@@ -148,6 +149,30 @@ void main() {
       expect(find.byType(ProvidersPage), findsOneWidget);
       expect(find.text('My Custom AI'), findsOneWidget);
       expect(find.text('Configured'), findsOneWidget);
+    });
+
+    testWidgets('passes connectionTester to config page',
+        (WidgetTester tester) async {
+      final connTester = FakeProviderConnectionTester();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            connectionTester: connTester,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('OpenAI'));
+      await tester.pumpAndSettle();
+
+      final configPage = tester.widget<ProviderConfigPage>(
+        find.byType(ProviderConfigPage),
+      );
+      expect(configPage.connectionTester, connTester);
     });
   });
 }
