@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 
 class ProvidersPage extends StatelessWidget {
   const ProvidersPage({super.key});
@@ -9,22 +11,30 @@ class ProvidersPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Providers'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('No providers configured'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Not implemented yet')),
-                );
-              },
-              child: const Text('Add Provider'),
+      body: ListView.builder(
+        itemCount: providerPresets.length,
+        itemBuilder: (context, index) {
+          final preset = providerPresets[index];
+          return ListTile(
+            leading: Icon(
+              preset.isCustom ? Icons.add_circle_outline : Icons.cloud_outlined,
             ),
-          ],
-        ),
+            title: Text(preset.name),
+            subtitle: Text(preset.description),
+            trailing: const Text(
+              'Not configured',
+              style: TextStyle(color: Colors.grey),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProviderConfigPage(preset: preset),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

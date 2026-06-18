@@ -17,7 +17,7 @@ void main() {
     // Tap Providers tab
     await tester.tap(find.text('Providers'));
     await tester.pumpAndSettle();
-    expect(find.text('No providers configured'), findsOneWidget);
+    expect(find.text('OpenAI'), findsOneWidget);
 
     // Tap Settings tab
     await tester.tap(find.text('Settings'));
