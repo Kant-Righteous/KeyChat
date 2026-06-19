@@ -98,4 +98,38 @@ class FakeChatHistoryStore implements ChatHistoryStore {
       latestConversationId = conversationId;
     }
   }
+
+  @override
+  Future<bool> renameConversation({
+    required String conversationId,
+    required String title,
+  }) async {
+    final trimmed = title.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (trimmed.isEmpty) return false;
+    if (trimmed.length > 80) return false;
+
+    final conv = _conversations[conversationId];
+    if (conv == null) return false;
+
+    _conversations[conversationId] = ChatConversation(
+      id: conv.id,
+      title: trimmed,
+      providerId: conv.providerId,
+      model: conv.model,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+    );
+    return true;
+  }
+
+  @override
+  Future<bool> deleteConversation(String conversationId) async {
+    if (!_conversations.containsKey(conversationId)) return false;
+    _conversations.remove(conversationId);
+    _messages.remove(conversationId);
+    if (latestConversationId == conversationId) {
+      latestConversationId = null;
+    }
+    return true;
+  }
 }

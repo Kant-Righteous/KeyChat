@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 
@@ -250,13 +251,13 @@ void main() {
         ),
       );
 
-      String? returnedId;
+      ConversationListResult? returnedResult;
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                returnedId = await Navigator.push<String>(
+                returnedResult = await Navigator.push<ConversationListResult>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => ConversationListPage(
@@ -278,7 +279,9 @@ void main() {
       await tester.tap(find.text('Test'));
       await tester.pumpAndSettle();
 
-      expect(returnedId, 'conv_1');
+      expect(returnedResult, isNotNull);
+      expect(returnedResult!.action, ConversationListAction.selected);
+      expect(returnedResult!.conversationId, 'conv_1');
     });
 
     testWidgets('page does not call ChatCompletionClient',
@@ -326,6 +329,446 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Failed to load conversations'), findsOneWidget);
+    });
+
+    testWidgets('shows action menu for each conversation',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Test',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    });
+
+    testWidgets('rename dialog shows with current title',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename Conversation'), findsOneWidget);
+      expect(find.text('Original Title'), findsWidgets);
+    });
+
+    testWidgets('rename cancel does not change title',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Original Title'), findsOneWidget);
+    });
+
+    testWidgets('rename with empty title shows error',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Title cannot be empty'), findsOneWidget);
+    });
+
+    testWidgets('rename with whitespace-only title shows error',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Title cannot be empty'), findsOneWidget);
+    });
+
+    testWidgets('rename success updates list', (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'New Title');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Title'), findsOneWidget);
+      expect(find.text('Original Title'), findsNothing);
+    });
+
+    testWidgets('delete shows confirmation dialog',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete Conversation'), findsOneWidget);
+      expect(find.text('Delete this conversation and all its messages?'),
+          findsOneWidget);
+    });
+
+    testWidgets('delete cancel keeps conversation',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Keep',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('To Keep'), findsOneWidget);
+    });
+
+    testWidgets('delete non-current conversation refreshes list',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 1),
+          updatedAt: DateTime(2024, 1),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024, 1),
+        ),
+      );
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_2',
+          title: 'To Keep',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 2),
+          updatedAt: DateTime(2024, 2),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_2',
+          role: ChatRole.user,
+          content: 'Hi',
+          createdAt: DateTime(2024, 2),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find and delete the first conversation (conv_1 with older updatedAt)
+      final moreButtons = find.byIcon(Icons.more_vert);
+      await tester.tap(moreButtons.last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Confirm deletion
+      final deleteButton = find.widgetWithText(TextButton, 'Delete');
+      await tester.tap(deleteButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('To Delete'), findsNothing);
+      expect(find.text('To Keep'), findsOneWidget);
+    });
+
+    testWidgets('delete current conversation returns activeConversationDeleted',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Current',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      dynamic returnedResult;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                returnedResult = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ConversationListPage(
+                      historyStore: historyStore,
+                      configStore: configStore,
+                      currentConversationId: 'conv_1',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(returnedResult, isNotNull);
+      expect(returnedResult.action,
+          ConversationListAction.activeConversationDeleted);
     });
   });
 }

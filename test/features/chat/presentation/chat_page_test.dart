@@ -1224,5 +1224,50 @@ void main() {
       expect(convAfter, isNotNull);
       expect(convAfter!.id, convBefore.id);
     });
+
+    testWidgets('unavailable provider - config not exists',
+        (WidgetTester tester) async {
+      // Don't save any ProviderConfig
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_noconfig',
+          title: 'No Config Chat',
+          providerId: 'nonexistent_provider',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Old message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old message'), findsOneWidget);
+      expect(find.text('Provider is no longer available'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsNothing);
+
+      // New chat still works
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      // After new chat, shows empty state (either "Start a conversation" or "No ready provider")
+      expect(find.text('Provider is no longer available'), findsNothing);
+    });
   });
 }

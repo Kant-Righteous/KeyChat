@@ -375,5 +375,279 @@ void main() {
       expect(result.first.id, 'conv_b');
       expect(result.last.id, 'conv_a');
     });
+
+    test('renameConversation updates title', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original Title',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final result = await store.renameConversation(
+        conversationId: 'conv_1',
+        title: 'New Title',
+      );
+
+      expect(result, true);
+      final conv = await store.readConversation('conv_1');
+      expect(conv!.title, 'New Title');
+    });
+
+    test('renameConversation does not modify updatedAt', () async {
+      final originalTime = DateTime(2024, 1);
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: originalTime,
+          updatedAt: originalTime,
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: originalTime,
+        ),
+      );
+
+      await store.renameConversation(
+        conversationId: 'conv_1',
+        title: 'New Title',
+      );
+
+      final conv = await store.readConversation('conv_1');
+      expect(conv!.updatedAt, originalTime);
+    });
+
+    test('renameConversation does not modify providerId and model', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await store.renameConversation(
+        conversationId: 'conv_1',
+        title: 'New Title',
+      );
+
+      final conv = await store.readConversation('conv_1');
+      expect(conv!.providerId, 'openai');
+      expect(conv.model, 'gpt-4');
+    });
+
+    test('renameConversation returns false for nonexistent conversation',
+        () async {
+      final result = await store.renameConversation(
+        conversationId: 'nonexistent',
+        title: 'New Title',
+      );
+      expect(result, false);
+    });
+
+    test('deleteConversation removes specified conversation', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final result = await store.deleteConversation('conv_1');
+      expect(result, true);
+
+      final conv = await store.readConversation('conv_1');
+      expect(conv, isNull);
+    });
+
+    test('deleteConversation returns false for nonexistent conversation',
+        () async {
+      final result = await store.deleteConversation('nonexistent');
+      expect(result, false);
+    });
+
+    test('deleteConversation cascades messages', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      var messages = await store.readMessages('conv_1');
+      expect(messages.length, 1);
+
+      await store.deleteConversation('conv_1');
+
+      messages = await store.readMessages('conv_1');
+      expect(messages, isEmpty);
+    });
+
+    test('deleteConversation does not affect other conversations', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 1),
+          updatedAt: DateTime(2024, 1),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024, 1),
+        ),
+      );
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_2',
+          title: 'To Keep',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 2),
+          updatedAt: DateTime(2024, 2),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_2',
+          role: ChatRole.user,
+          content: 'Hi',
+          createdAt: DateTime(2024, 2),
+        ),
+      );
+
+      await store.deleteConversation('conv_1');
+
+      final remaining = await store.readConversations();
+      expect(remaining.length, 1);
+      expect(remaining.first.id, 'conv_2');
+
+      final messages = await store.readMessages('conv_2');
+      expect(messages.length, 1);
+    });
+
+    test('renameConversation normalizes title', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final result = await store.renameConversation(
+        conversationId: 'conv_1',
+        title: '  New   Title  ',
+      );
+
+      expect(result, true);
+      final conv = await store.readConversation('conv_1');
+      expect(conv!.title, 'New Title');
+    });
+
+    test('renameConversation rejects empty title', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final result = await store.renameConversation(
+        conversationId: 'conv_1',
+        title: '   ',
+      );
+      expect(result, false);
+    });
+
+    test('renameConversation rejects too long title', () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final longTitle = 'A' * 81;
+      final result = await store.renameConversation(
+        conversationId: 'conv_1',
+        title: longTitle,
+      );
+      expect(result, false);
+    });
   });
 }

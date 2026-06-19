@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
@@ -140,7 +141,7 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _openConversationList() async {
     if (_sending) return;
 
-    final conversationId = await Navigator.push<String>(
+    final result = await Navigator.push<ConversationListResult>(
       context,
       MaterialPageRoute(
         builder: (context) => ConversationListPage(
@@ -151,11 +152,23 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
 
-    if (conversationId == null) return;
-    if (conversationId == _activeConversationId) return;
+    if (result == null) return;
     if (!mounted) return;
 
-    await _switchConversation(conversationId);
+    if (result.action == ConversationListAction.activeConversationDeleted) {
+      setState(() {
+        _messages.clear();
+        _activeConversationId = null;
+        _persistWarning = null;
+        _selectedProvider =
+            _readyProviders.isNotEmpty ? _readyProviders.first : null;
+        _messageController.clear();
+      });
+    } else if (result.action == ConversationListAction.selected &&
+        result.conversationId != null &&
+        result.conversationId != _activeConversationId) {
+      await _switchConversation(result.conversationId!);
+    }
   }
 
   Future<void> _switchConversation(String conversationId) async {

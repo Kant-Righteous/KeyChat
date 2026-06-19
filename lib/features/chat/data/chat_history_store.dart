@@ -18,4 +18,9 @@ abstract interface class ChatHistoryStore {
     required String conversationId,
     required DateTime updatedAt,
   });
+  Future<bool> renameConversation({
+    required String conversationId,
+    required String title,
+  });
+  Future<bool> deleteConversation(String conversationId);
 }

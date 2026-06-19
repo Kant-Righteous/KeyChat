@@ -112,6 +112,37 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     ));
   }
 
+  @override
+  Future<bool> renameConversation({
+    required String conversationId,
+    required String title,
+  }) async {
+    final trimmed = title.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (trimmed.isEmpty) return false;
+    if (trimmed.length > 80) return false;
+
+    final existing = await readConversation(conversationId);
+    if (existing == null) return false;
+
+    await (_db.update(_db.conversations)
+          ..where((t) => t.id.equals(conversationId)))
+        .write(ConversationsCompanion(
+      title: Value(trimmed),
+    ));
+    return true;
+  }
+
+  @override
+  Future<bool> deleteConversation(String conversationId) async {
+    final existing = await readConversation(conversationId);
+    if (existing == null) return false;
+
+    await (_db.delete(_db.conversations)
+          ..where((t) => t.id.equals(conversationId)))
+        .go();
+    return true;
+  }
+
   ChatConversation _toConversation(Conversation row) {
     return ChatConversation(
       id: row.id,
