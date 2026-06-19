@@ -52,8 +52,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
             ChatMessagesCompanion(
               id: Value(firstMessage.id),
               conversationId: Value(conversation.id),
-              role: Value(
-                  firstMessage.role == domain.ChatRole.user ? 'user' : 'assistant'),
+              role: Value(firstMessage.role == domain.ChatRole.user
+                  ? 'user'
+                  : 'assistant'),
               content: Value(firstMessage.content),
               createdAt: Value(firstMessage.createdAt),
             ),
@@ -70,8 +71,8 @@ class DriftChatHistoryStore implements ChatHistoryStore {
           ChatMessagesCompanion(
             id: Value(message.id),
             conversationId: Value(conversationId),
-            role:
-                Value(message.role == domain.ChatRole.user ? 'user' : 'assistant'),
+            role: Value(
+                message.role == domain.ChatRole.user ? 'user' : 'assistant'),
             content: Value(message.content),
             createdAt: Value(message.createdAt),
           ),
@@ -104,7 +105,8 @@ class DriftChatHistoryStore implements ChatHistoryStore {
   domain.ChatMessage _toMessage(ChatMessage row) {
     return domain.ChatMessage(
       id: row.id,
-      role: row.role == 'user' ? domain.ChatRole.user : domain.ChatRole.assistant,
+      role:
+          row.role == 'user' ? domain.ChatRole.user : domain.ChatRole.assistant,
       content: row.content,
       createdAt: row.createdAt,
     );

@@ -89,8 +89,7 @@ void main() {
     expect(find.text('Custom Provider'), findsOneWidget);
   });
 
-  testWidgets('SettingsPage shows setting items',
-      (WidgetTester tester) async {
+  testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SettingsPage()),
     );

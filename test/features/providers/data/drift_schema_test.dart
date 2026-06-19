@@ -44,4 +44,63 @@ void main() {
       db.close();
     });
   });
+
+  group('Conversations table schema', () {
+    test('table contains expected columns', () {
+      final db = AppDatabase();
+      final table = db.conversations;
+      final columnNames = table.$columns.map((c) => c.name).toList();
+
+      expect(columnNames, contains('id'));
+      expect(columnNames, contains('title'));
+      expect(columnNames, contains('provider_id'));
+      expect(columnNames, contains('model'));
+      expect(columnNames, contains('created_at'));
+      expect(columnNames, contains('updated_at'));
+      expect(columnNames.length, 6);
+
+      db.close();
+    });
+
+    test('table does not contain API key column', () {
+      final db = AppDatabase();
+      final table = db.conversations;
+      final columnNames = table.$columns.map((c) => c.name).toList();
+
+      expect(columnNames, isNot(contains('api_key')));
+      expect(columnNames, isNot(contains('apiKey')));
+      expect(columnNames, isNot(contains('secret')));
+
+      db.close();
+    });
+  });
+
+  group('ChatMessages table schema', () {
+    test('table contains expected columns', () {
+      final db = AppDatabase();
+      final table = db.chatMessages;
+      final columnNames = table.$columns.map((c) => c.name).toList();
+
+      expect(columnNames, contains('id'));
+      expect(columnNames, contains('conversation_id'));
+      expect(columnNames, contains('role'));
+      expect(columnNames, contains('content'));
+      expect(columnNames, contains('created_at'));
+      expect(columnNames.length, 5);
+
+      db.close();
+    });
+
+    test('table does not contain API key column', () {
+      final db = AppDatabase();
+      final table = db.chatMessages;
+      final columnNames = table.$columns.map((c) => c.name).toList();
+
+      expect(columnNames, isNot(contains('api_key')));
+      expect(columnNames, isNot(contains('apiKey')));
+      expect(columnNames, isNot(contains('secret')));
+
+      db.close();
+    });
+  });
 }

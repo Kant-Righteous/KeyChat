@@ -47,7 +47,7 @@ class ChatMessages extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  AppDatabase.forTesting(DatabaseConnection super.e);
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 2;
@@ -62,6 +62,9 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(conversations);
             await m.createTable(chatMessages);
           }
+        },
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON');
         },
       );
 }
