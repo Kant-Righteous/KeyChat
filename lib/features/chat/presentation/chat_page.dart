@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
+import 'package:keychat/features/chat/data/chat_history_store.dart';
+import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
@@ -18,12 +19,14 @@ class ChatPage extends StatefulWidget {
   final ChatCompletionClient chatClient;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
+  final ChatHistoryStore historyStore;
 
   const ChatPage({
     super.key,
     required this.chatClient,
     required this.apiKeyStore,
     required this.configStore,
+    required this.historyStore,
   });
 
   @override
@@ -38,16 +41,18 @@ class _ChatPageState extends State<ChatPage> {
   _ReadyProvider? _selectedProvider;
   bool _loading = true;
   bool _sending = false;
-  CancelToken? _cancelToken;
+  ChatCancellationToken? _cancellationToken;
   int _idCounter = 0;
+  String? _activeConversationId;
+  String? _persistWarning;
 
   @override
   void initState() {
     super.initState();
-    _loadProviders();
+    _loadData();
   }
 
-  Future<void> _loadProviders() async {
+  Future<void> _loadData() async {
     final configs = await widget.configStore.readAllConfigs();
     final ready = <_ReadyProvider>[];
 
@@ -64,41 +69,143 @@ class _ChatPageState extends State<ChatPage> {
       ready.add(_ReadyProvider(config: config, apiKey: apiKey));
     }
 
+    final conversation = await widget.historyStore.readLatestConversation();
+    List<ChatMessage> historyMessages = [];
+    String? restoredProviderId;
+
+    if (conversation != null) {
+      historyMessages = await widget.historyStore.readMessages(conversation.id);
+      restoredProviderId = conversation.providerId;
+    }
+
+    _ReadyProvider? selectedProvider;
+    if (restoredProviderId != null) {
+      try {
+        selectedProvider = ready.firstWhere(
+          (p) => p.config.providerId == restoredProviderId,
+        );
+      } catch (_) {
+        selectedProvider = null;
+      }
+    }
+
+    if (selectedProvider == null && ready.isNotEmpty) {
+      selectedProvider = ready.first;
+    }
+
     if (mounted) {
       setState(() {
         _readyProviders.clear();
         _readyProviders.addAll(ready);
-        _selectedProvider = ready.isNotEmpty ? ready.first : null;
+        _selectedProvider = selectedProvider;
+        _messages.clear();
+        _messages.addAll(historyMessages);
+        _activeConversationId = conversation?.id;
         _loading = false;
+
+        if (conversation != null && selectedProvider == null) {
+          _persistWarning = 'Provider is no longer available';
+        }
       });
     }
   }
 
+  bool get _isProviderLocked => _activeConversationId != null;
+
+  bool get _canSend {
+    if (_sending) return false;
+    if (_selectedProvider == null) return false;
+    if (_persistWarning != null) return false;
+    return true;
+  }
+
   String _nextId() {
     _idCounter++;
-    return '${DateTime.now().millisecondsSinceEpoch}_$_idCounter';
+    return '${DateTime.now().microsecondsSinceEpoch}_$_idCounter';
+  }
+
+  Future<void> _newChat() async {
+    if (_sending) return;
+    setState(() {
+      _messages.clear();
+      _activeConversationId = null;
+      _persistWarning = null;
+      _selectedProvider =
+          _readyProviders.isNotEmpty ? _readyProviders.first : null;
+    });
   }
 
   Future<void> _send() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
-    if (_selectedProvider == null) return;
-    if (_sending) return;
+    if (!_canSend) return;
 
-    setState(() {
-      _sending = true;
-      _messages.add(ChatMessage(
-        id: _nextId(),
-        role: ChatRole.user,
-        content: text,
+    final isFirstMessage = _activeConversationId == null;
+
+    final userMessage = ChatMessage(
+      id: _nextId(),
+      role: ChatRole.user,
+      content: text,
+      createdAt: DateTime.now(),
+    );
+
+    if (isFirstMessage) {
+      final conversationId = 'conversation_${_nextId()}';
+      final conversation = ChatConversation(
+        id: conversationId,
+        title: ChatConversation.generateTitle(text),
+        providerId: _selectedProvider!.config.providerId,
+        model: _selectedProvider!.config.defaultModel!,
         createdAt: DateTime.now(),
-      ));
-    });
+        updatedAt: DateTime.now(),
+      );
 
-    _messageController.clear();
+      try {
+        await widget.historyStore.createConversationWithFirstMessage(
+          conversation: conversation,
+          firstMessage: userMessage,
+        );
+        setState(() {
+          _activeConversationId = conversationId;
+          _messages.add(userMessage);
+          _sending = true;
+        });
+        _messageController.clear();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save message')),
+          );
+        }
+        return;
+      }
+    } else {
+      try {
+        await widget.historyStore.appendMessage(
+          conversationId: _activeConversationId!,
+          message: userMessage,
+        );
+        await widget.historyStore.updateConversationActivity(
+          conversationId: _activeConversationId!,
+          updatedAt: DateTime.now(),
+        );
+        setState(() {
+          _messages.add(userMessage);
+          _sending = true;
+        });
+        _messageController.clear();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save message')),
+          );
+        }
+        return;
+      }
+    }
+
     _scrollToBottom();
-
-    _cancelToken = CancelToken();
+    _cancellationToken = ChatCancellationToken();
 
     try {
       final requestMessages = _messages
@@ -113,28 +220,54 @@ class _ChatPageState extends State<ChatPage> {
         apiKey: _selectedProvider!.apiKey,
         model: _selectedProvider!.config.defaultModel!,
         messages: requestMessages,
-        cancelToken: _cancelToken,
+        cancellationToken: _cancellationToken,
       );
 
       if (!mounted) return;
 
       if (result.success && result.assistantContent != null) {
+        final assistantMessage = ChatMessage(
+          id: _nextId(),
+          role: ChatRole.assistant,
+          content: result.assistantContent!,
+          createdAt: DateTime.now(),
+        );
+
+        try {
+          await widget.historyStore.appendMessage(
+            conversationId: _activeConversationId!,
+            message: assistantMessage,
+          );
+          await widget.historyStore.updateConversationActivity(
+            conversationId: _activeConversationId!,
+            updatedAt: DateTime.now(),
+          );
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Response received but could not be saved'),
+              ),
+            );
+          }
+        }
+
         setState(() {
-          _messages.add(ChatMessage(
-            id: _nextId(),
-            role: ChatRole.assistant,
-            content: result.assistantContent!,
-            createdAt: DateTime.now(),
-          ));
+          _messages.add(assistantMessage);
         });
         _scrollToBottom();
       } else if (result.errorType != ChatCompletionErrorType.cancelled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(result.userMessage ?? 'Unable to get response')),
-        );
+        _messageController.text = text;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.userMessage ?? 'Unable to get response'),
+            ),
+          );
+        }
       }
     } catch (_) {
+      _messageController.text = text;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to get response')),
@@ -161,7 +294,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    _cancelToken?.cancel();
+    _cancellationToken?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -173,18 +306,20 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         title: const Text('KeyChat'),
         actions: [
-          if (_selectedProvider != null)
+          if (!_isProviderLocked && _selectedProvider != null)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _readyProviders.length > 1
                   ? DropdownButton<_ReadyProvider>(
                       value: _selectedProvider,
                       underline: const SizedBox(),
-                      onChanged: (provider) {
-                        if (provider != null) {
-                          setState(() => _selectedProvider = provider);
-                        }
-                      },
+                      onChanged: _isProviderLocked
+                          ? null
+                          : (provider) {
+                              if (provider != null) {
+                                setState(() => _selectedProvider = provider);
+                              }
+                            },
                       items: _readyProviders.map((p) {
                         return DropdownMenuItem(
                           value: p,
@@ -202,11 +337,26 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                     ),
             ),
+          if (_isProviderLocked)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Text(
+                  _selectedProvider?.config.displayName ?? '',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+          IconButton(
+            onPressed: _sending ? null : _newChat,
+            icon: const Icon(Icons.add_comment),
+            tooltip: 'New Chat',
+          ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedProvider == null
+          : _selectedProvider == null && !_isProviderLocked
               ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -228,6 +378,17 @@ class _ChatPageState extends State<ChatPage> {
                 )
               : Column(
                   children: [
+                    if (_persistWarning != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        color: Colors.orange.shade100,
+                        child: Text(
+                          _persistWarning!,
+                          style: TextStyle(color: Colors.orange.shade900),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     Expanded(
                       child: _messages.isEmpty
                           ? const Center(
@@ -302,12 +463,13 @@ class _ChatPageState extends State<ChatPage> {
                                 ),
                                 maxLines: null,
                                 textInputAction: TextInputAction.send,
-                                onSubmitted: (_) => _send(),
+                                enabled: _canSend,
+                                onSubmitted: _canSend ? (_) => _send() : null,
                               ),
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              onPressed: _sending ? null : _send,
+                              onPressed: _canSend ? _send : null,
                               icon: _sending
                                   ? const SizedBox(
                                       width: 24,

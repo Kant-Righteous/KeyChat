@@ -46,7 +46,7 @@ class DioChatCompletionClient implements ChatCompletionClient {
     required String apiKey,
     required String model,
     required List<ChatRequestMessage> messages,
-    dynamic cancelToken,
+    ChatCancellationToken? cancellationToken,
   }) async {
     final trimmedUrl = baseUrl.trim();
     if (trimmedUrl.isEmpty) {
@@ -80,6 +80,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
     }
 
     final url = buildChatUrl(trimmedUrl);
+    final dioCancelToken = CancelToken();
+    void Function()? removeListener;
+
+    if (cancellationToken != null) {
+      removeListener = cancellationToken.addCancelListener(() {
+        dioCancelToken.cancel('Cancelled by user');
+      });
+    }
 
     try {
       final response = await _dio.post(
@@ -96,7 +104,7 @@ class DioChatCompletionClient implements ChatCompletionClient {
             'Accept': 'application/json',
           },
         ),
-        cancelToken: cancelToken is CancelToken ? cancelToken : null,
+        cancelToken: dioCancelToken,
       );
 
       if (response.statusCode == 200) {
@@ -127,6 +135,8 @@ class DioChatCompletionClient implements ChatCompletionClient {
         errorType: ChatCompletionErrorType.unknown,
         userMessage: 'Unable to get response',
       );
+    } finally {
+      removeListener?.call();
     }
   }
 

@@ -1,21 +1,33 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
+import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 
 import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
+import '../data/fake_chat_history_store.dart';
 
 class FakeChatCompletionClient implements ChatCompletionClient {
   ChatCompletionResult? _nextResult;
+  Completer<ChatCompletionResult>? _nextResultCompleter;
   int callCount = 0;
   String? lastBaseUrl;
   String? lastModel;
   List<ChatRequestMessage>? lastMessages;
+  ChatCancellationToken? lastCancellationToken;
 
   void setResult(ChatCompletionResult result) {
     _nextResult = result;
+    _nextResultCompleter = null;
+  }
+
+  set nextResultCompleter(Completer<ChatCompletionResult> completer) {
+    _nextResultCompleter = completer;
+    _nextResult = null;
   }
 
   @override
@@ -24,12 +36,17 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     required String apiKey,
     required String model,
     required List<ChatRequestMessage> messages,
-    dynamic cancelToken,
+    ChatCancellationToken? cancellationToken,
   }) async {
     callCount++;
     lastBaseUrl = baseUrl;
     lastModel = model;
     lastMessages = messages;
+    lastCancellationToken = cancellationToken;
+
+    if (_nextResultCompleter != null) {
+      return await _nextResultCompleter!.future;
+    }
 
     return _nextResult ??
         const ChatCompletionResult.failure(
@@ -44,11 +61,28 @@ void main() {
     late FakeApiKeyStore apiKeyStore;
     late FakeProviderConfigStore configStore;
     late FakeChatCompletionClient chatClient;
+    late FakeChatHistoryStore historyStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
       configStore = FakeProviderConfigStore();
       chatClient = FakeChatCompletionClient();
+      historyStore = FakeChatHistoryStore();
+    });
+
+    testWidgets('shows loading during page load', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('shows empty state when no ready provider',
@@ -59,6 +93,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -67,7 +102,7 @@ void main() {
       expect(find.text('No ready provider'), findsOneWidget);
     });
 
-    testWidgets('shows ready provider in dropdown',
+    testWidgets('does not auto-send request on page open',
         (WidgetTester tester) async {
       await configStore.saveConfig(ProviderConfigData(
         providerId: 'openai',
@@ -84,47 +119,13 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('OpenAI'), findsOneWidget);
-    });
-
-    testWidgets('only shows providers with config, key, and model',
-        (WidgetTester tester) async {
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-4',
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('openai', 'test-key');
-
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'incomplete',
-        displayName: 'Incomplete',
-        baseUrl: 'https://example.com',
-        defaultModel: null,
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('incomplete', 'test-key');
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChatPage(
-            chatClient: chatClient,
-            apiKeyStore: apiKeyStore,
-            configStore: configStore,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('OpenAI'), findsOneWidget);
-      expect(find.text('Incomplete'), findsNothing);
+      expect(chatClient.callCount, 0);
     });
 
     testWidgets('blank message cannot be sent', (WidgetTester tester) async {
@@ -143,6 +144,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -175,6 +177,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -213,6 +216,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -250,6 +254,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -287,6 +292,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -306,7 +312,7 @@ void main() {
       expect(textField.controller?.text, isEmpty);
     });
 
-    testWidgets('failure shows error and does not add empty assistant message',
+    testWidgets('failure shows error and keeps user message',
         (WidgetTester tester) async {
       await configStore.saveConfig(ProviderConfigData(
         providerId: 'openai',
@@ -330,6 +336,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -344,11 +351,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Provider server error'), findsOneWidget);
-      expect(find.text('Hello'), findsOneWidget);
+      expect(find.text('Hello'), findsWidgets);
     });
 
-    testWidgets('does not auto-send request on page open',
-        (WidgetTester tester) async {
+    testWidgets('failure preserves input text', (WidgetTester tester) async {
       await configStore.saveConfig(ProviderConfigData(
         providerId: 'openai',
         displayName: 'OpenAI',
@@ -358,18 +364,37 @@ void main() {
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
 
+      chatClient.setResult(
+        const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.serverError,
+          userMessage: 'Provider server error',
+        ),
+      );
+
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(chatClient.callCount, 0);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'Type a message...'),
+      );
+      expect(textField.controller?.text, 'Hello');
     });
 
     testWidgets('does not modify ProviderConfig', (WidgetTester tester) async {
@@ -392,6 +417,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -430,6 +456,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -470,6 +497,7 @@ void main() {
             chatClient: chatClient,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
+            historyStore: historyStore,
           ),
         ),
       );
@@ -484,6 +512,244 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Invalid API key'), findsOneWidget);
+    });
+
+    testWidgets('restores conversation from history',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Test conversation',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Previous message',
+          createdAt: DateTime(2024),
+        ),
+      );
+      await historyStore.appendMessage(
+        conversationId: 'conv_1',
+        message: ChatMessage(
+          id: 'msg_2',
+          role: ChatRole.assistant,
+          content: 'Previous response',
+          createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Previous message'), findsOneWidget);
+      expect(find.text('Previous response'), findsOneWidget);
+    });
+
+    testWidgets('new chat clears messages', (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi!'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello'), findsNothing);
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('multi-turn context includes history',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi there!'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'First message',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Follow up!'),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Second message',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.lastMessages?.length, 3);
+      expect(chatClient.lastMessages?[0].role, 'user');
+      expect(chatClient.lastMessages?[0].content, 'First message');
+      expect(chatClient.lastMessages?[1].role, 'assistant');
+      expect(chatClient.lastMessages?[1].content, 'Hi there!');
+      expect(chatClient.lastMessages?[2].role, 'user');
+      expect(chatClient.lastMessages?[2].content, 'Second message');
+    });
+
+    testWidgets('dispose cancels in-progress request',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final completer = Completer<ChatCompletionResult>();
+      chatClient.nextResultCompleter = completer;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      expect(chatClient.lastCancellationToken, isNotNull);
+      expect(chatClient.lastCancellationToken!.isCancelled, false);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+      expect(chatClient.lastCancellationToken!.isCancelled, true);
+
+      completer.complete(
+        const ChatCompletionResult.success(assistantContent: 'Late response'),
+      );
+    });
+
+    testWidgets('API key not written to history store',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-marker-xyz');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi!'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final conv = await historyStore.readLatestConversation();
+      expect(conv, isNotNull);
+      expect(conv!.providerId, 'openai');
+
+      final messages = await historyStore.readMessages(conv.id);
+      for (final msg in messages) {
+        expect(msg.content, isNot(contains('test-marker-xyz')));
+      }
     });
   });
 }

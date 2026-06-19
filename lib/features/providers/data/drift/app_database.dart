@@ -19,14 +19,51 @@ class ProviderConfigs extends Table {
   Set<Column> get primaryKey => {providerId};
 }
 
-@DriftDatabase(tables: [ProviderConfigs])
+class Conversations extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  TextColumn get providerId => text()();
+  TextColumn get model => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ChatMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get conversationId =>
+      text().references(Conversations, #id, onDelete: KeyAction.cascade)();
+  TextColumn get role => text()();
+  TextColumn get content => text()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [ProviderConfigs, Conversations, ChatMessages])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(DatabaseConnection super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) async {
+          await m.createAll();
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            await m.createTable(conversations);
+            await m.createTable(chatMessages);
+          }
+        },
+      );
 }
 
 LazyDatabase _openConnection() {

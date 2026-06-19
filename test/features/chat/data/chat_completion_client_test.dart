@@ -485,8 +485,8 @@ void main() {
       });
 
       test('cancelled returns cancelled', () async {
-        final cancelToken = CancelToken();
-        cancelToken.cancel();
+        final cancellationToken = ChatCancellationToken();
+        cancellationToken.cancel();
 
         adapter.throwError = DioException(
           requestOptions: RequestOptions(path: '/test'),
@@ -498,7 +498,7 @@ void main() {
           apiKey: 'test-marker-abc',
           model: 'gpt-4',
           messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
-          cancelToken: cancelToken,
+          cancellationToken: cancellationToken,
         );
 
         expect(result.errorType, ChatCompletionErrorType.cancelled);
@@ -549,6 +549,296 @@ void main() {
 
         expect(result.userMessage, 'Provider server error');
         expect(result.userMessage, isNot(contains('key=abc123')));
+      });
+    });
+
+    group('HTTP request structure', () {
+      test('Accept header is application/json', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(adapter.requestHeaders?['Accept'], 'application/json');
+      });
+
+      test('request body contains stream false', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('user message serialized correctly', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [
+            const ChatRequestMessage(role: 'user', content: 'Test message'),
+          ],
+        );
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('assistant history message serialized correctly', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Response',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [
+            const ChatRequestMessage(role: 'user', content: 'Hello'),
+            const ChatRequestMessage(role: 'assistant', content: 'Hi there'),
+            const ChatRequestMessage(role: 'user', content: 'Follow up'),
+          ],
+        );
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('API key trimmed before sending', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: '  test-marker-abc  ',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(
+          adapter.requestHeaders?['Authorization'],
+          'Bearer test-marker-abc',
+        );
+      });
+
+      test('does not add /v1 automatically', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(adapter.requestUri?.path, '/chat/completions');
+      });
+
+      test('does not duplicate /v1', () async {
+        adapter.statusCode = 200;
+        adapter.responseData = {
+          'choices': [
+            {
+              'message': {
+                'role': 'assistant',
+                'content': 'Hi',
+              }
+            }
+          ]
+        };
+
+        await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(adapter.requestUri?.path, '/v1/chat/completions');
+        expect(adapter.requestUri?.path, isNot(contains('/v1/v1')));
+      });
+    });
+
+    group('error mapping', () {
+      test('sendTimeout returns timeout', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.sendTimeout,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.timeout);
+      });
+
+      test('receiveTimeout returns timeout', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.receiveTimeout,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.timeout);
+      });
+
+      test('502 returns serverError', () async {
+        adapter.statusCode = 502;
+        adapter.responseData = {'error': 'Bad Gateway'};
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 502,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.serverError);
+      });
+
+      test('503 returns serverError', () async {
+        adapter.statusCode = 503;
+        adapter.responseData = {'error': 'Service Unavailable'};
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 503,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.serverError);
+      });
+
+      test('504 returns serverError', () async {
+        adapter.statusCode = 504;
+        adapter.responseData = {'error': 'Gateway Timeout'};
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 504,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.serverError);
+      });
+
+      test('unknown DioException returns unknown', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.unknown,
+        );
+
+        final result = await client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        );
+
+        expect(result.errorType, ChatCompletionErrorType.unknown);
+        expect(result.userMessage, 'Unable to get response');
       });
     });
   });

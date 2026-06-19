@@ -1,0 +1,19 @@
+import 'package:keychat/features/chat/data/chat_completion_client.dart';
+import 'package:keychat/features/chat/domain/chat_conversation.dart';
+
+abstract interface class ChatHistoryStore {
+  Future<ChatConversation?> readLatestConversation();
+  Future<List<ChatMessage>> readMessages(String conversationId);
+  Future<void> createConversationWithFirstMessage({
+    required ChatConversation conversation,
+    required ChatMessage firstMessage,
+  });
+  Future<void> appendMessage({
+    required String conversationId,
+    required ChatMessage message,
+  });
+  Future<void> updateConversationActivity({
+    required String conversationId,
+    required DateTime updatedAt,
+  });
+}

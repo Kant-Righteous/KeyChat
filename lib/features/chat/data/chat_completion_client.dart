@@ -67,12 +67,36 @@ class ChatCompletionResult {
         assistantContent = null;
 }
 
+final class ChatCancellationToken {
+  bool _isCancelled = false;
+  final _listeners = <void Function()>[];
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() {
+    if (_isCancelled) return;
+    _isCancelled = true;
+    for (final listener in _listeners) {
+      listener();
+    }
+  }
+
+  void Function() addCancelListener(void Function() listener) {
+    if (_isCancelled) {
+      listener();
+      return () {};
+    }
+    _listeners.add(listener);
+    return () => _listeners.remove(listener);
+  }
+}
+
 abstract interface class ChatCompletionClient {
   Future<ChatCompletionResult> complete({
     required String baseUrl,
     required String apiKey,
     required String model,
     required List<ChatRequestMessage> messages,
-    dynamic cancelToken,
+    ChatCancellationToken? cancellationToken,
   });
 }

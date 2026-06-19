@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
+import 'package:keychat/features/chat/data/chat_history_store.dart';
+import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
@@ -14,13 +16,39 @@ class _FakeChatClient implements ChatCompletionClient {
     required String apiKey,
     required String model,
     required List<ChatRequestMessage> messages,
-    dynamic cancelToken,
+    ChatCancellationToken? cancellationToken,
   }) async {
     return const ChatCompletionResult.failure(
       errorType: ChatCompletionErrorType.unknown,
       userMessage: 'Not implemented',
     );
   }
+}
+
+class _FakeHistoryStore implements ChatHistoryStore {
+  @override
+  Future<ChatConversation?> readLatestConversation() async => null;
+
+  @override
+  Future<List<ChatMessage>> readMessages(String conversationId) async => [];
+
+  @override
+  Future<void> createConversationWithFirstMessage({
+    required ChatConversation conversation,
+    required ChatMessage firstMessage,
+  }) async {}
+
+  @override
+  Future<void> appendMessage({
+    required String conversationId,
+    required ChatMessage message,
+  }) async {}
+
+  @override
+  Future<void> updateConversationActivity({
+    required String conversationId,
+    required DateTime updatedAt,
+  }) async {}
 }
 
 void main() {
@@ -32,6 +60,7 @@ void main() {
           chatClient: _FakeChatClient(),
           apiKeyStore: FakeApiKeyStore(),
           configStore: FakeProviderConfigStore(),
+          historyStore: _FakeHistoryStore(),
         ),
       ),
     );
@@ -60,7 +89,8 @@ void main() {
     expect(find.text('Custom Provider'), findsOneWidget);
   });
 
-  testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {
+  testWidgets('SettingsPage shows setting items',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SettingsPage()),
     );

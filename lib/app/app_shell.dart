@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/data/dio_chat_completion_client.dart';
+import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/data/dio_provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
@@ -22,6 +23,7 @@ class _AppShellState extends State<AppShell> {
   late final DriftProviderConfigStore _configStore;
   late final DioProviderConnectionTester _connectionTester;
   late final DioChatCompletionClient _chatClient;
+  late final DriftChatHistoryStore _historyStore;
 
   @override
   void initState() {
@@ -31,6 +33,7 @@ class _AppShellState extends State<AppShell> {
     _configStore = DriftProviderConfigStore(_database);
     _connectionTester = DioProviderConnectionTester();
     _chatClient = DioChatCompletionClient();
+    _historyStore = DriftChatHistoryStore(_database);
   }
 
   @override
@@ -46,6 +49,7 @@ class _AppShellState extends State<AppShell> {
         chatClient: _chatClient,
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
+        historyStore: _historyStore,
       ),
       ProvidersPage(
         apiKeyStore: _apiKeyStore,
