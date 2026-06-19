@@ -8,6 +8,7 @@ class FakeChatHistoryStore implements ChatHistoryStore {
   String? latestConversationId;
   bool shouldFailOnAppend = false;
   bool shouldFailOnCreate = false;
+  bool shouldFailOnRead = false;
 
   void reset() {
     _conversations.clear();
@@ -15,6 +16,7 @@ class FakeChatHistoryStore implements ChatHistoryStore {
     latestConversationId = null;
     shouldFailOnAppend = false;
     shouldFailOnCreate = false;
+    shouldFailOnRead = false;
   }
 
   @override
@@ -24,7 +26,32 @@ class FakeChatHistoryStore implements ChatHistoryStore {
   }
 
   @override
+  Future<List<ChatConversation>> readConversations() async {
+    if (shouldFailOnRead) {
+      throw Exception('Database failure');
+    }
+    final list = _conversations.values.toList();
+    list.sort((a, b) {
+      final cmp = b.updatedAt.compareTo(a.updatedAt);
+      if (cmp != 0) return cmp;
+      return b.id.compareTo(a.id);
+    });
+    return list;
+  }
+
+  @override
+  Future<ChatConversation?> readConversation(String conversationId) async {
+    if (shouldFailOnRead) {
+      throw Exception('Database failure');
+    }
+    return _conversations[conversationId];
+  }
+
+  @override
   Future<List<ChatMessage>> readMessages(String conversationId) async {
+    if (shouldFailOnRead) {
+      throw Exception('Database failure');
+    }
     return _messages[conversationId] ?? [];
   }
 
@@ -68,6 +95,7 @@ class FakeChatHistoryStore implements ChatHistoryStore {
         createdAt: conv.createdAt,
         updatedAt: updatedAt,
       );
+      latestConversationId = conversationId;
     }
   }
 }

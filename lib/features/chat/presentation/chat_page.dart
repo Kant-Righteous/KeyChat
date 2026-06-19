@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
@@ -132,7 +133,79 @@ class _ChatPageState extends State<ChatPage> {
       _persistWarning = null;
       _selectedProvider =
           _readyProviders.isNotEmpty ? _readyProviders.first : null;
+      _messageController.clear();
     });
+  }
+
+  Future<void> _openConversationList() async {
+    if (_sending) return;
+
+    final conversationId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConversationListPage(
+          historyStore: widget.historyStore,
+          configStore: widget.configStore,
+          currentConversationId: _activeConversationId,
+        ),
+      ),
+    );
+
+    if (conversationId == null) return;
+    if (conversationId == _activeConversationId) return;
+    if (!mounted) return;
+
+    await _switchConversation(conversationId);
+  }
+
+  Future<void> _switchConversation(String conversationId) async {
+    setState(() => _loading = true);
+
+    try {
+      final conversation =
+          await widget.historyStore.readConversation(conversationId);
+      if (conversation == null) {
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load conversation')),
+          );
+        }
+        return;
+      }
+
+      final messages = await widget.historyStore.readMessages(conversationId);
+
+      _ReadyProvider? selectedProvider;
+      try {
+        selectedProvider = _readyProviders.firstWhere(
+          (p) => p.config.providerId == conversation.providerId,
+        );
+      } catch (_) {
+        selectedProvider = null;
+      }
+
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+          _messages.addAll(messages);
+          _activeConversationId = conversationId;
+          _selectedProvider = selectedProvider;
+          _persistWarning = selectedProvider == null
+              ? 'Provider is no longer available'
+              : null;
+          _loading = false;
+          _messageController.clear();
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load conversation')),
+        );
+      }
+    }
   }
 
   Future<void> _send() async {
@@ -347,6 +420,11 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             ),
+          IconButton(
+            onPressed: _sending ? null : _openConversationList,
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+          ),
           IconButton(
             onPressed: _sending ? null : _newChat,
             icon: const Icon(Icons.add_comment),

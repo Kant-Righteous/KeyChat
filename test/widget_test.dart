@@ -30,6 +30,13 @@ class _FakeHistoryStore implements ChatHistoryStore {
   Future<ChatConversation?> readLatestConversation() async => null;
 
   @override
+  Future<List<ChatConversation>> readConversations() async => [];
+
+  @override
+  Future<ChatConversation?> readConversation(String conversationId) async =>
+      null;
+
+  @override
   Future<List<ChatMessage>> readMessages(String conversationId) async => [];
 
   @override

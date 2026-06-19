@@ -21,6 +21,27 @@ class DriftChatHistoryStore implements ChatHistoryStore {
   }
 
   @override
+  Future<List<ChatConversation>> readConversations() async {
+    final query = _db.select(_db.conversations)
+      ..orderBy([
+        (t) => OrderingTerm.desc(t.updatedAt),
+        (t) => OrderingTerm.desc(t.id),
+      ]);
+    final rows = await query.get();
+    return rows.map(_toConversation).toList();
+  }
+
+  @override
+  Future<ChatConversation?> readConversation(String conversationId) async {
+    final query = _db.select(_db.conversations)
+      ..where((t) => t.id.equals(conversationId))
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    if (row == null) return null;
+    return _toConversation(row);
+  }
+
+  @override
   Future<List<domain.ChatMessage>> readMessages(String conversationId) async {
     final query = _db.select(_db.chatMessages)
       ..where((t) => t.conversationId.equals(conversationId))

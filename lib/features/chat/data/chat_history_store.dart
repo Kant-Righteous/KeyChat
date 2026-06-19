@@ -3,6 +3,8 @@ import 'package:keychat/features/chat/domain/chat_conversation.dart';
 
 abstract interface class ChatHistoryStore {
   Future<ChatConversation?> readLatestConversation();
+  Future<List<ChatConversation>> readConversations();
+  Future<ChatConversation?> readConversation(String conversationId);
   Future<List<ChatMessage>> readMessages(String conversationId);
   Future<void> createConversationWithFirstMessage({
     required ChatConversation conversation,

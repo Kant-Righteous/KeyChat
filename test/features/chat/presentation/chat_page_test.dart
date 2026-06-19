@@ -751,5 +751,478 @@ void main() {
         expect(msg.content, isNot(contains('test-marker-xyz')));
       }
     });
+
+    testWidgets('history button opens ConversationListPage',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.history));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Conversations'), findsOneWidget);
+    });
+
+    testWidgets('switching conversation loads corresponding messages',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'First',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'First message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('First message'), findsOneWidget);
+    });
+
+    testWidgets('unavailable provider shows warning and disables send',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_old',
+          title: 'Old Chat',
+          providerId: 'deleted_provider',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Old message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old message'), findsOneWidget);
+      expect(find.text('Provider is no longer available'), findsOneWidget);
+    });
+
+    testWidgets('new chat clears messages and input',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi!'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello'), findsNothing);
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('empty new chat does not create database record',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      final conv = await historyStore.readLatestConversation();
+      expect(conv, isNull);
+    });
+
+    testWidgets('switching conversation isolates context',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      // Create conversation A
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_a',
+          title: 'Conversation A',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 1),
+          updatedAt: DateTime(2024, 1),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_a1',
+          role: ChatRole.user,
+          content: 'Message from A',
+          createdAt: DateTime(2024, 1),
+        ),
+      );
+      await historyStore.appendMessage(
+        conversationId: 'conv_a',
+        message: ChatMessage(
+          id: 'msg_a2',
+          role: ChatRole.assistant,
+          content: 'Response A',
+          createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+        ),
+      );
+
+      // Create conversation B
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_b',
+          title: 'Conversation B',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 6),
+          updatedAt: DateTime(2024, 6),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_b1',
+          role: ChatRole.user,
+          content: 'Message from B',
+          createdAt: DateTime(2024, 6),
+        ),
+      );
+      await historyStore.appendMessage(
+        conversationId: 'conv_b',
+        message: ChatMessage(
+          id: 'msg_b2',
+          role: ChatRole.assistant,
+          content: 'Response B',
+          createdAt: DateTime(2024, 6, 1, 0, 0, 1),
+        ),
+      );
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'New response'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show conversation B (most recent)
+      expect(find.text('Message from B'), findsOneWidget);
+      expect(find.text('Response B'), findsOneWidget);
+
+      // Send new message in B
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'New message in B',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      // Verify request only contains B's context
+      expect(chatClient.lastMessages?.length, 3);
+      expect(chatClient.lastMessages?[0].content, 'Message from B');
+      expect(chatClient.lastMessages?[1].content, 'Response B');
+      expect(chatClient.lastMessages?[2].content, 'New message in B');
+
+      // Verify A's messages are NOT in the request
+      for (final msg in chatClient.lastMessages!) {
+        expect(msg.content, isNot(contains('Message from A')));
+        expect(msg.content, isNot(contains('Response A')));
+      }
+    });
+
+    testWidgets('unavailable provider - API key missing',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      // Don't save API key
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_nokey',
+          title: 'No Key Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Old message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old message'), findsOneWidget);
+      expect(find.text('Provider is no longer available'), findsOneWidget);
+    });
+
+    testWidgets('unavailable provider - provider disabled',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        enabled: false,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_disabled',
+          title: 'Disabled Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Old message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old message'), findsOneWidget);
+      expect(find.text('Provider is no longer available'), findsOneWidget);
+    });
+
+    testWidgets('unavailable provider - new chat still works',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_deleted',
+          title: 'Deleted Provider Chat',
+          providerId: 'deleted_provider',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Old message',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show old message and warning
+      expect(find.text('Old message'), findsOneWidget);
+
+      // New chat should clear and allow using available provider
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('old conversation still exists after new chat',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi!'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Send message to create conversation
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final convBefore = await historyStore.readLatestConversation();
+      expect(convBefore, isNotNull);
+
+      // New chat
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      // Old conversation still exists
+      final convAfter = await historyStore.readConversation(convBefore!.id);
+      expect(convAfter, isNotNull);
+      expect(convAfter!.id, convBefore.id);
+    });
   });
 }
