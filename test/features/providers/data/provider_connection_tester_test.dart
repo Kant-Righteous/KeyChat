@@ -112,18 +112,18 @@ void main() {
       expect(DioProviderConnectionTester.parseModelIds(data), isEmpty);
     });
 
-    test('returns empty list for missing data key', () {
+    test('returns null for missing data key', () {
       expect(DioProviderConnectionTester.parseModelIds({'other': 'value'}),
-          isEmpty);
+          isNull);
     });
 
-    test('returns empty list for non-map input', () {
-      expect(DioProviderConnectionTester.parseModelIds('invalid'), isEmpty);
+    test('returns null for non-map input', () {
+      expect(DioProviderConnectionTester.parseModelIds('invalid'), isNull);
     });
 
-    test('returns empty list for non-list data', () {
+    test('returns null for non-list data', () {
       expect(DioProviderConnectionTester.parseModelIds({'data': 'invalid'}),
-          isEmpty);
+          isNull);
     });
   });
 
@@ -269,8 +269,8 @@ void main() {
         apiKey: 'test-marker-abc',
       );
 
-      expect(result.success, true);
-      expect(result.modelIds, isEmpty);
+      expect(result.success, false);
+      expect(result.errorType, ConnectionErrorType.invalidResponse);
     });
 
     test('non-200 status code returns invalidResponse', () async {

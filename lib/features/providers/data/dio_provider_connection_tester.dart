@@ -20,10 +20,10 @@ class DioProviderConnectionTester implements ProviderConnectionTester {
     return '$url/models';
   }
 
-  static List<String> parseModelIds(dynamic data) {
-    if (data is! Map<String, dynamic>) return [];
+  static List<String>? parseModelIds(dynamic data) {
+    if (data is! Map<String, dynamic>) return null;
     final dataList = data['data'];
-    if (dataList is! List) return [];
+    if (dataList is! List) return null;
 
     final ids = <String>[];
     for (final item in dataList) {
@@ -81,6 +81,12 @@ class DioProviderConnectionTester implements ProviderConnectionTester {
 
       if (response.statusCode == 200) {
         final modelIds = parseModelIds(response.data);
+        if (modelIds == null) {
+          return const ConnectionTestResult.failure(
+            errorType: ConnectionErrorType.invalidResponse,
+            userMessage: 'Invalid provider response',
+          );
+        }
         return ConnectionTestResult.success(modelIds: modelIds);
       }
 

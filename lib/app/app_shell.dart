@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:keychat/features/chat/data/dio_chat_completion_client.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/data/dio_provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
@@ -20,6 +21,7 @@ class _AppShellState extends State<AppShell> {
   late final AppDatabase _database;
   late final DriftProviderConfigStore _configStore;
   late final DioProviderConnectionTester _connectionTester;
+  late final DioChatCompletionClient _chatClient;
 
   @override
   void initState() {
@@ -28,6 +30,7 @@ class _AppShellState extends State<AppShell> {
     _database = AppDatabase();
     _configStore = DriftProviderConfigStore(_database);
     _connectionTester = DioProviderConnectionTester();
+    _chatClient = DioChatCompletionClient();
   }
 
   @override
@@ -39,7 +42,11 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const ChatPage(),
+      ChatPage(
+        chatClient: _chatClient,
+        apiKeyStore: _apiKeyStore,
+        configStore: _configStore,
+      ),
       ProvidersPage(
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
