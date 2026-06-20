@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "io.github.kantrighteous.keychat"
-    compileSdk = flutter.compileSdkVersion
+
+    // flutter_secure_storage 要求使用 Android SDK 36 或更高版本。
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,7 +26,9 @@ android {
         applicationId = "io.github.kantrighteous.keychat"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+
+        // flutter_secure_storage 最低要求 Android API 23。
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
