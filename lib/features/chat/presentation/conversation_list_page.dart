@@ -87,7 +87,6 @@ class _ConversationListPageState extends State<ConversationListPage> {
                   errorText: errorText,
                   border: const OutlineInputBorder(),
                 ),
-                maxLength: 80,
               ),
               actions: [
                 TextButton(

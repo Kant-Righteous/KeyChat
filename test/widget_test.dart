@@ -61,7 +61,8 @@ class _FakeHistoryStore implements ChatHistoryStore {
   Future<bool> renameConversation({
     required String conversationId,
     required String title,
-  }) async => false;
+  }) async =>
+      false;
 
   @override
   Future<bool> deleteConversation(String conversationId) async => false;

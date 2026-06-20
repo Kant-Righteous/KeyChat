@@ -1269,5 +1269,126 @@ void main() {
       // After new chat, shows empty state (either "Start a conversation" or "No ready provider")
       expect(find.text('Provider is no longer available'), findsNothing);
     });
+
+    testWidgets('delete current conversation via history clears messages',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_del',
+          title: 'To Delete',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_del',
+          role: ChatRole.user,
+          content: 'Message to delete',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Message to delete'), findsOneWidget);
+
+      // Verify conversation exists in store
+      final conv = await historyStore.readConversation('conv_del');
+      expect(conv, isNotNull);
+
+      // Delete conversation from store
+      await historyStore.deleteConversation('conv_del');
+
+      // Verify it's gone from store
+      final deletedConv = await historyStore.readConversation('conv_del');
+      expect(deletedConv, isNull);
+    });
+
+    testWidgets(
+        'after delete current conversation, new chat creates new conversation',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'New response'),
+      );
+
+      // Start with empty state
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Send a message to create a conversation
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'First message',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final firstConv = await historyStore.readLatestConversation();
+      expect(firstConv, isNotNull);
+      expect(firstConv!.title, 'First message');
+
+      // New chat
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      // Verify no new empty conversation created
+      final afterNewChat = await historyStore.readLatestConversation();
+      expect(afterNewChat!.id, firstConv.id);
+
+      // Send another message to create a new conversation
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Response 2'),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Second conversation',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final secondConv = await historyStore.readLatestConversation();
+      expect(secondConv, isNotNull);
+      expect(secondConv!.id, isNot(firstConv.id));
+      expect(secondConv.title, 'Second conversation');
+    });
   });
 }

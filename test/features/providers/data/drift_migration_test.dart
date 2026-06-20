@@ -166,5 +166,73 @@ void main() {
       messages = await db.select(db.chatMessages).get();
       expect(messages.length, 0);
     });
+
+    test('delete conversation does not affect ProviderConfigs', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('openai'),
+              displayName: const Value('OpenAI'),
+              baseUrl: const Value('https://api.openai.com/v1'),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_del'),
+              title: const Value('To Delete'),
+              providerId: const Value('openai'),
+              model: const Value('gpt-4'),
+              createdAt: Value(DateTime(2024)),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      await (db.delete(db.conversations)..where((t) => t.id.equals('conv_del')))
+          .go();
+
+      final configs = await db.select(db.providerConfigs).get();
+      expect(configs.length, 1);
+      expect(configs.first.providerId, 'openai');
+    });
+
+    test('delete one conversation does not affect others', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_1'),
+              title: const Value('To Delete'),
+              providerId: const Value('test'),
+              model: const Value('model'),
+              createdAt: Value(DateTime(2024, 1)),
+              updatedAt: Value(DateTime(2024, 1)),
+            ),
+          );
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_2'),
+              title: const Value('To Keep'),
+              providerId: const Value('test'),
+              model: const Value('model'),
+              createdAt: Value(DateTime(2024, 2)),
+              updatedAt: Value(DateTime(2024, 2)),
+            ),
+          );
+
+      await (db.delete(db.conversations)..where((t) => t.id.equals('conv_1')))
+          .go();
+
+      final remaining = await db.select(db.conversations).get();
+      expect(remaining.length, 1);
+      expect(remaining.first.id, 'conv_2');
+    });
   });
 }

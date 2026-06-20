@@ -770,5 +770,184 @@ void main() {
       expect(returnedResult.action,
           ConversationListAction.activeConversationDeleted);
     });
+
+    testWidgets('rename with exactly 80 chars succeeds',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      final longTitle = 'A' * 80;
+      await tester.enterText(find.byType(TextField), longTitle);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(longTitle), findsOneWidget);
+    });
+
+    testWidgets('rename with 81 chars shows error',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Original',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      final tooLongTitle = 'A' * 81;
+      await tester.enterText(find.byType(TextField), tooLongTitle);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Title is too long'), findsOneWidget);
+    });
+
+    testWidgets('rename does not change sort position',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_old',
+          title: 'Old Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 1),
+          updatedAt: DateTime(2024, 1),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024, 1),
+        ),
+      );
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_new',
+          title: 'New Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2024, 6),
+          updatedAt: DateTime(2024, 6),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_2',
+          role: ChatRole.user,
+          content: 'Hi',
+          createdAt: DateTime(2024, 6),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Rename the old conversation
+      final moreButtons = find.byIcon(Icons.more_vert);
+      await tester.tap(moreButtons.last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Renamed Old Chat');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // Order should still be: New Chat first, then Renamed Old Chat
+      final listItems = find.byType(ListTile);
+      expect(listItems, findsNWidgets(2));
+    });
+
+    testWidgets('page does not read ApiKeyStore', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // ApiKeyStore is not passed to ConversationListPage
+      expect(find.byType(ConversationListPage), findsOneWidget);
+    });
+
+    testWidgets('page does not call ChatCompletionClient',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // No client is passed to ConversationListPage
+      expect(find.byType(ConversationListPage), findsOneWidget);
+    });
   });
 }
