@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
+import 'package:keychat/features/chat/data/openai_sse_parser.dart';
 
 class DioChatCompletionClient implements ChatCompletionClient {
   final Dio _dio;
@@ -137,6 +141,232 @@ class DioChatCompletionClient implements ChatCompletionClient {
       );
     } finally {
       removeListener?.call();
+    }
+  }
+
+  @override
+  Stream<ChatStreamEvent> streamComplete({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<ChatRequestMessage> messages,
+    ChatCancellationToken? cancellationToken,
+  }) async* {
+    final trimmedUrl = baseUrl.trim();
+    if (trimmedUrl.isEmpty) {
+      yield const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.invalidUrl,
+        userMessage: 'Invalid Base URL',
+      );
+      return;
+    }
+
+    final trimmedKey = apiKey.trim();
+    if (trimmedKey.isEmpty) {
+      yield const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.apiKeyRequired,
+        userMessage: 'API key required',
+      );
+      return;
+    }
+
+    final trimmedModel = model.trim();
+    if (trimmedModel.isEmpty) {
+      yield const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.modelRequired,
+        userMessage: 'Model required',
+      );
+      return;
+    }
+
+    if (messages.isEmpty) {
+      yield const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.emptyMessage,
+        userMessage: 'Message cannot be empty',
+      );
+      return;
+    }
+
+    final url = buildChatUrl(trimmedUrl);
+    final dioCancelToken = CancelToken();
+    void Function()? removeListener;
+
+    if (cancellationToken != null) {
+      removeListener = cancellationToken.addCancelListener(() {
+        dioCancelToken.cancel('Cancelled by user');
+      });
+    }
+
+    try {
+      final response = await _dio.post<ResponseBody>(
+        url,
+        data: {
+          'model': trimmedModel,
+          'messages': messages.map((m) => m.toJson()).toList(),
+          'stream': true,
+        },
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: {
+            'Authorization': 'Bearer $trimmedKey',
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+          },
+        ),
+        cancelToken: dioCancelToken,
+      );
+
+      if (response.statusCode != 200) {
+        yield ChatStreamFailure(
+          errorType: _mapStatusCodeToError(response.statusCode),
+          userMessage: _mapStatusCodeToMessage(response.statusCode),
+        );
+        return;
+      }
+
+      final parser = OpenAiSseParser();
+      bool hasContent = false;
+      bool completed = false;
+
+      await for (final sseEvent in parser.stream) {
+        if (sseEvent.data == '[DONE]') {
+          completed = true;
+          yield const ChatStreamCompleted();
+          continue;
+        }
+
+        if (sseEvent.data == null) continue;
+
+        final parsed = _parseDelta(sseEvent.data!);
+        if (parsed != null && parsed.isNotEmpty) {
+          hasContent = true;
+          yield ChatStreamDelta(parsed);
+        }
+      }
+
+      if (!completed) {
+        if (hasContent) {
+          yield const ChatStreamCompleted();
+        } else {
+          yield const ChatStreamFailure(
+            errorType: ChatCompletionErrorType.invalidResponse,
+            userMessage: 'Invalid provider response',
+          );
+        }
+      }
+
+      response.data!.stream.listen(
+        (data) {
+          parser.addBytes(data);
+        },
+        onDone: () {
+          parser.close();
+        },
+        onError: (error) {
+          parser.close();
+        },
+        cancelOnError: true,
+      );
+    } on DioException catch (e) {
+      if (CancelToken.isCancel(e)) {
+        yield const ChatStreamFailure(
+          errorType: ChatCompletionErrorType.cancelled,
+          userMessage: 'Request cancelled',
+        );
+      } else {
+        yield _mapDioErrorToStream(e);
+      }
+    } catch (_) {
+      yield const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.unknown,
+        userMessage: 'Unable to get response',
+      );
+    } finally {
+      removeListener?.call();
+    }
+  }
+
+  static String? _parseDelta(String data) {
+    try {
+      final json = jsonDecode(data);
+      if (json is! Map<String, dynamic>) return null;
+
+      final choices = json['choices'];
+      if (choices is! List || choices.isEmpty) return null;
+
+      final first = choices.first;
+      if (first is! Map<String, dynamic>) return null;
+
+      final delta = first['delta'];
+      if (delta is! Map<String, dynamic>) return null;
+
+      final content = delta['content'];
+      if (content is String && content.isNotEmpty) {
+        return content;
+      }
+
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ChatCompletionErrorType _mapStatusCodeToError(int? statusCode) {
+    switch (statusCode) {
+      case 401:
+        return ChatCompletionErrorType.unauthorized;
+      case 403:
+        return ChatCompletionErrorType.forbidden;
+      case 429:
+        return ChatCompletionErrorType.rateLimited;
+      default:
+        if (statusCode != null && statusCode >= 500) {
+          return ChatCompletionErrorType.serverError;
+        }
+        return ChatCompletionErrorType.invalidResponse;
+    }
+  }
+
+  String _mapStatusCodeToMessage(int? statusCode) {
+    switch (statusCode) {
+      case 401:
+        return 'Invalid API key';
+      case 403:
+        return 'Access forbidden';
+      case 429:
+        return 'Rate limit exceeded';
+      default:
+        if (statusCode != null && statusCode >= 500) {
+          return 'Provider server error';
+        }
+        return 'Invalid provider response';
+    }
+  }
+
+  ChatStreamFailure _mapDioErrorToStream(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return const ChatStreamFailure(
+          errorType: ChatCompletionErrorType.timeout,
+          userMessage: 'Request timed out',
+        );
+      case DioExceptionType.connectionError:
+        return const ChatStreamFailure(
+          errorType: ChatCompletionErrorType.networkUnavailable,
+          userMessage: 'Network unavailable',
+        );
+      case DioExceptionType.badResponse:
+        return ChatStreamFailure(
+          errorType: _mapStatusCodeToError(e.response?.statusCode),
+          userMessage: _mapStatusCodeToMessage(e.response?.statusCode),
+        );
+      default:
+        return const ChatStreamFailure(
+          errorType: ChatCompletionErrorType.unknown,
+          userMessage: 'Unable to get response',
+        );
     }
   }
 

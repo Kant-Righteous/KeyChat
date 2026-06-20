@@ -47,6 +47,8 @@ class _ChatPageState extends State<ChatPage> {
   int _idCounter = 0;
   String? _activeConversationId;
   String? _persistWarning;
+  String _streamingAssistantText = '';
+  StreamSubscription<ChatStreamEvent>? _streamSubscription;
 
   @override
   void initState() {
@@ -135,6 +137,7 @@ class _ChatPageState extends State<ChatPage> {
       _selectedProvider =
           _readyProviders.isNotEmpty ? _readyProviders.first : null;
       _messageController.clear();
+      _streamingAssistantText = '';
     });
   }
 
@@ -209,6 +212,7 @@ class _ChatPageState extends State<ChatPage> {
               : null;
           _loading = false;
           _messageController.clear();
+          _streamingAssistantText = '';
         });
       }
     } catch (_) {
@@ -292,6 +296,7 @@ class _ChatPageState extends State<ChatPage> {
 
     _scrollToBottom();
     _cancellationToken = ChatCancellationToken();
+    _streamingAssistantText = '';
 
     try {
       final requestMessages = _messages
@@ -301,7 +306,7 @@ class _ChatPageState extends State<ChatPage> {
               ))
           .toList();
 
-      final result = await widget.chatClient.complete(
+      final stream = widget.chatClient.streamComplete(
         baseUrl: _selectedProvider!.config.baseUrl,
         apiKey: _selectedProvider!.apiKey,
         model: _selectedProvider!.config.defaultModel!,
@@ -309,59 +314,132 @@ class _ChatPageState extends State<ChatPage> {
         cancellationToken: _cancellationToken,
       );
 
-      if (!mounted) return;
+      bool hasContent = false;
 
-      if (result.success && result.assistantContent != null) {
-        final assistantMessage = ChatMessage(
-          id: _nextId(),
-          role: ChatRole.assistant,
-          content: result.assistantContent!,
-          createdAt: DateTime.now(),
-        );
+      _streamSubscription = stream.listen(
+        (event) {
+          if (!mounted) return;
 
-        try {
-          await widget.historyStore.appendMessage(
-            conversationId: _activeConversationId!,
-            message: assistantMessage,
-          );
-          await widget.historyStore.updateConversationActivity(
-            conversationId: _activeConversationId!,
-            updatedAt: DateTime.now(),
-          );
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Response received but could not be saved'),
-              ),
-            );
+          if (event is ChatStreamDelta) {
+            hasContent = true;
+            setState(() {
+              _streamingAssistantText += event.content;
+            });
+            _scrollToBottom();
+          } else if (event is ChatStreamCompleted) {
+            _handleStreamCompleted(hasContent);
+          } else if (event is ChatStreamFailure) {
+            _handleStreamFailure(event, hasContent, text);
           }
-        }
-
-        setState(() {
-          _messages.add(assistantMessage);
-        });
-        _scrollToBottom();
-      } else if (result.errorType != ChatCompletionErrorType.cancelled) {
-        _messageController.text = text;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.userMessage ?? 'Unable to get response'),
-            ),
-          );
-        }
-      }
+        },
+        onError: (error) {
+          if (mounted) {
+            _handleStreamError(hasContent, text);
+          }
+        },
+        onDone: () {
+          if (mounted && _sending) {
+            setState(() => _sending = false);
+          }
+        },
+      );
     } catch (_) {
       _messageController.text = text;
       if (mounted) {
+        setState(() => _sending = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to get response')),
         );
       }
-    } finally {
+    }
+  }
+
+  Future<void> _handleStreamCompleted(bool hasContent) async {
+    if (!hasContent) {
       if (mounted) {
-        setState(() => _sending = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid provider response')),
+        );
+      }
+      return;
+    }
+
+    final assistantMessage = ChatMessage(
+      id: _nextId(),
+      role: ChatRole.assistant,
+      content: _streamingAssistantText,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      await widget.historyStore.appendMessage(
+        conversationId: _activeConversationId!,
+        message: assistantMessage,
+      );
+      await widget.historyStore.updateConversationActivity(
+        conversationId: _activeConversationId!,
+        updatedAt: DateTime.now(),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Response received but could not be saved'),
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _messages.add(assistantMessage);
+        _streamingAssistantText = '';
+      });
+      _scrollToBottom();
+    }
+  }
+
+  void _handleStreamFailure(
+      ChatStreamFailure event, bool hasContent, String originalText) {
+    if (hasContent) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Response interrupted and was not saved'),
+          ),
+        );
+        setState(() {
+          _streamingAssistantText = '';
+        });
+      }
+    } else {
+      _messageController.text = originalText;
+      if (mounted && event.errorType != ChatCompletionErrorType.cancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(event.userMessage)),
+        );
+      }
+    }
+  }
+
+  void _handleStreamError(bool hasContent, String originalText) {
+    if (hasContent) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Response interrupted and was not saved'),
+          ),
+        );
+        setState(() {
+          _streamingAssistantText = '';
+        });
+      }
+    } else {
+      _messageController.text = originalText;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to get response')),
+        );
       }
     }
   }
@@ -380,6 +458,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    _streamSubscription?.cancel();
     _cancellationToken?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
@@ -481,7 +560,8 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                       ),
                     Expanded(
-                      child: _messages.isEmpty
+                      child: _messages.isEmpty &&
+                              _streamingAssistantText.isEmpty
                           ? const Center(
                               child: Text(
                                 'Start a conversation',
@@ -491,10 +571,16 @@ class _ChatPageState extends State<ChatPage> {
                           : ListView.builder(
                               controller: _scrollController,
                               padding: const EdgeInsets.all(16),
-                              itemCount: _messages.length,
+                              itemCount: _messages.length +
+                                  (_streamingAssistantText.isNotEmpty ? 1 : 0),
                               itemBuilder: (context, index) {
-                                final msg = _messages[index];
-                                final isUser = msg.role == ChatRole.user;
+                                final isStreaming = index == _messages.length;
+                                final isUser = !isStreaming &&
+                                    _messages[index].role == ChatRole.user;
+                                final content = isStreaming
+                                    ? _streamingAssistantText
+                                    : _messages[index].content;
+
                                 return Align(
                                   alignment: isUser
                                       ? Alignment.centerRight
@@ -520,7 +606,7 @@ class _ChatPageState extends State<ChatPage> {
                                               .surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Text(msg.content),
+                                    child: Text(content),
                                   ),
                                 );
                               },

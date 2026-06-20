@@ -99,4 +99,36 @@ abstract interface class ChatCompletionClient {
     required List<ChatRequestMessage> messages,
     ChatCancellationToken? cancellationToken,
   });
+
+  Stream<ChatStreamEvent> streamComplete({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<ChatRequestMessage> messages,
+    ChatCancellationToken? cancellationToken,
+  });
+}
+
+sealed class ChatStreamEvent {
+  const ChatStreamEvent();
+}
+
+final class ChatStreamDelta extends ChatStreamEvent {
+  const ChatStreamDelta(this.content);
+
+  final String content;
+}
+
+final class ChatStreamCompleted extends ChatStreamEvent {
+  const ChatStreamCompleted();
+}
+
+final class ChatStreamFailure extends ChatStreamEvent {
+  const ChatStreamFailure({
+    required this.errorType,
+    required this.userMessage,
+  });
+
+  final ChatCompletionErrorType errorType;
+  final String userMessage;
 }

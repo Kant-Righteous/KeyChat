@@ -23,6 +23,22 @@ class _FakeChatClient implements ChatCompletionClient {
       userMessage: 'Not implemented',
     );
   }
+
+  @override
+  Stream<ChatStreamEvent> streamComplete({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<ChatRequestMessage> messages,
+    ChatCancellationToken? cancellationToken,
+  }) {
+    return Stream.fromIterable([
+      const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.unknown,
+        userMessage: 'Not implemented',
+      ),
+    ]);
+  }
 }
 
 class _FakeHistoryStore implements ChatHistoryStore {

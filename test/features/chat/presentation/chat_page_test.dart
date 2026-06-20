@@ -14,7 +14,9 @@ import '../data/fake_chat_history_store.dart';
 class FakeChatCompletionClient implements ChatCompletionClient {
   ChatCompletionResult? _nextResult;
   Completer<ChatCompletionResult>? _nextResultCompleter;
+  StreamController<ChatStreamEvent>? _streamController;
   int callCount = 0;
+  int streamCallCount = 0;
   String? lastBaseUrl;
   String? lastModel;
   List<ChatRequestMessage>? lastMessages;
@@ -28,6 +30,11 @@ class FakeChatCompletionClient implements ChatCompletionClient {
   set nextResultCompleter(Completer<ChatCompletionResult> completer) {
     _nextResultCompleter = completer;
     _nextResult = null;
+  }
+
+  StreamController<ChatStreamEvent> startStream() {
+    _streamController = StreamController<ChatStreamEvent>();
+    return _streamController!;
   }
 
   @override
@@ -53,6 +60,50 @@ class FakeChatCompletionClient implements ChatCompletionClient {
           errorType: ChatCompletionErrorType.unknown,
           userMessage: 'No result configured',
         );
+  }
+
+  @override
+  Stream<ChatStreamEvent> streamComplete({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<ChatRequestMessage> messages,
+    ChatCancellationToken? cancellationToken,
+  }) {
+    streamCallCount++;
+    lastBaseUrl = baseUrl;
+    lastModel = model;
+    lastMessages = messages;
+    lastCancellationToken = cancellationToken;
+
+    if (_streamController != null) {
+      return _streamController!.stream;
+    }
+
+    // Default: emit success based on _nextResult
+    if (_nextResult != null) {
+      final result = _nextResult!;
+      if (result.success && result.assistantContent != null) {
+        return Stream.fromIterable([
+          ChatStreamDelta(result.assistantContent!),
+          const ChatStreamCompleted(),
+        ]);
+      } else {
+        return Stream.fromIterable([
+          ChatStreamFailure(
+            errorType: result.errorType ?? ChatCompletionErrorType.unknown,
+            userMessage: result.userMessage ?? 'Unknown error',
+          ),
+        ]);
+      }
+    }
+
+    return Stream.fromIterable([
+      const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.unknown,
+        userMessage: 'No result configured',
+      ),
+    ]);
   }
 }
 
@@ -191,7 +242,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.send));
       await tester.pumpAndSettle();
 
-      expect(chatClient.callCount, 1);
+      expect(chatClient.streamCallCount, 1);
       expect(chatClient.lastModel, 'gpt-4');
     });
 
