@@ -841,5 +841,899 @@ void main() {
         expect(result.userMessage, 'Unable to get response');
       });
     });
+
+    group('streamComplete', () {
+      test('uses POST method', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestMethod, 'POST');
+      });
+
+      test('URL is correct', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestUri?.path, '/v1/chat/completions');
+      });
+
+      test('trailing slash does not produce double slash', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1/',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestUri?.path, '/v1/chat/completions');
+        expect(adapter.requestUri?.path, isNot(contains('//')));
+      });
+
+      test('does not add /v1 automatically', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestUri?.path, '/chat/completions');
+      });
+
+      test('does not duplicate /v1', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestUri?.path, '/v1/chat/completions');
+        expect(adapter.requestUri?.path, isNot(contains('/v1/v1')));
+      });
+
+      test('Authorization header uses trimmed key', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: '  test-marker-abc  ',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(
+          adapter.requestHeaders?['Authorization'],
+          'Bearer test-marker-abc',
+        );
+      });
+
+      test('Content-Type is application/json', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('Accept is text/event-stream', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Accept'], 'text/event-stream');
+      });
+
+      test('request body contains stream: true', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('API key not in BaseOptions headers', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(
+            adapter.requestHeaders?['Authorization'], 'Bearer test-marker-abc');
+      });
+
+      test('normal SSE deltas produce events in order', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":" World"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 3);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect((events[0] as ChatStreamDelta).content, 'Hello');
+        expect(events[1], isA<ChatStreamDelta>());
+        expect((events[1] as ChatStreamDelta).content, ' World');
+        expect(events[2], isA<ChatStreamCompleted>());
+      });
+
+      test('[DONE] produces exactly one Completed', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        final completedCount = events.whereType<ChatStreamCompleted>().length;
+        expect(completedCount, 1);
+      });
+
+      test('content without [DONE] still completes on EOF', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect(events[1], isA<ChatStreamCompleted>());
+      });
+
+      test('no content EOF returns invalidResponse', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 1);
+        expect(events[0], isA<ChatStreamFailure>());
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('malformed JSON returns invalidResponse', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {invalid json}\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 1);
+        expect(events[0], isA<ChatStreamFailure>());
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('invalid choices structure returns invalidResponse', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":"invalid"}\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 1);
+        expect(events[0], isA<ChatStreamFailure>());
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('role-only delta is ignored', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"role":"assistant"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect(events[1], isA<ChatStreamCompleted>());
+      });
+
+      test('null content is ignored', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":null}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect(events[1], isA<ChatStreamCompleted>());
+      });
+
+      test('empty content is ignored', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":""}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect(events[1], isA<ChatStreamCompleted>());
+      });
+
+      test('text whitespace is preserved', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":" Hello "}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect((events[0] as ChatStreamDelta).content, ' Hello ');
+      });
+
+      test('newlines are preserved', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"line1\\nline2"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect((events[0] as ChatStreamDelta).content, 'line1\nline2');
+      });
+
+      test('401 returns unauthorized', () async {
+        adapter.statusCode = 401;
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 401,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.unauthorized);
+      });
+
+      test('403 returns forbidden', () async {
+        adapter.statusCode = 403;
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 403,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.forbidden);
+      });
+
+      test('429 returns rateLimited', () async {
+        adapter.statusCode = 429;
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 429,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.rateLimited);
+      });
+
+      test('5xx returns serverError', () async {
+        for (final code in [500, 502, 503, 504]) {
+          adapter.statusCode = code;
+          adapter.throwError = DioException(
+            requestOptions: RequestOptions(path: '/test'),
+            response: Response(
+              statusCode: code,
+              requestOptions: RequestOptions(path: '/test'),
+            ),
+            type: DioExceptionType.badResponse,
+          );
+
+          final events = <ChatStreamEvent>[];
+          client.streamComplete(
+            baseUrl: 'https://api.example.com/v1',
+            apiKey: 'test-marker-abc',
+            model: 'gpt-4',
+            messages: [
+              const ChatRequestMessage(role: 'user', content: 'Hello')
+            ],
+          ).listen(events.add);
+
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          expect(events.length, 1);
+          expect((events[0] as ChatStreamFailure).errorType,
+              ChatCompletionErrorType.serverError);
+        }
+      });
+
+      test('timeout returns timeout', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.connectionTimeout,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.timeout);
+      });
+
+      test('connectionError returns networkUnavailable', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.connectionError,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.networkUnavailable);
+      });
+
+      test('userMessage does not contain API key', () async {
+        adapter.statusCode = 401;
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 401,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-secret-xyz',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        final failure = events[0] as ChatStreamFailure;
+        expect(failure.userMessage, isNot(contains('test-marker-secret-xyz')));
+      });
+
+      test('userMessage does not contain server response body', () async {
+        adapter.statusCode = 500;
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          response: Response(
+            statusCode: 500,
+            requestOptions: RequestOptions(path: '/test'),
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        final failure = events[0] as ChatStreamFailure;
+        expect(failure.userMessage, 'Provider server error');
+      });
+
+      test('empty baseUrl returns invalidUrl', () async {
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: '',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.invalidUrl);
+        expect(adapter.wasCalled, false);
+      });
+
+      test('empty apiKey returns apiKeyRequired', () async {
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: '',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.apiKeyRequired);
+        expect(adapter.wasCalled, false);
+      });
+
+      test('empty model returns modelRequired', () async {
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: '',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.modelRequired);
+        expect(adapter.wasCalled, false);
+      });
+
+      test('empty messages returns emptyMessage', () async {
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.emptyMessage);
+        expect(adapter.wasCalled, false);
+      });
+
+      test('uses ResponseType.stream', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Accept'], 'text/event-stream');
+      });
+
+      test('request body contains correct model', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4-turbo',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('request body contains messages', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [
+            const ChatRequestMessage(role: 'user', content: 'Hello world'),
+          ],
+        ).listen((_) {});
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(adapter.requestHeaders?['Content-Type'], 'application/json');
+      });
+
+      test('[DONE] after extra data produces only one Completed', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+          'data: [DONE]\n\n',
+          'data: {"choices":[{"delta":{"content":"extra"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        final completedCount = events.whereType<ChatStreamCompleted>().length;
+        expect(completedCount, 1);
+      });
+
+      test('malformed JSON returns invalidResponse and stops parsing',
+          () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {invalid}\n\n',
+          'data: {"choices":[{"delta":{"content":"Valid"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 1);
+        expect(events[0], isA<ChatStreamFailure>());
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('final event is only one terminal event', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"A"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"B"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        final terminalEvents = events
+            .where((e) => e is ChatStreamCompleted || e is ChatStreamFailure)
+            .toList();
+        expect(terminalEvents.length, 1);
+      });
+
+      test('cancelled returns cancelled', () async {
+        final cancellationToken = ChatCancellationToken();
+        cancellationToken.cancel();
+
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.cancel,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client
+            .streamComplete(
+              baseUrl: 'https://api.example.com/v1',
+              apiKey: 'test-marker-abc',
+              model: 'gpt-4',
+              messages: [
+                const ChatRequestMessage(role: 'user', content: 'Hello')
+              ],
+              cancellationToken: cancellationToken,
+            )
+            .listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.cancelled);
+      });
+
+      test('unknown DioException returns unknown', () async {
+        adapter.throwError = DioException(
+          requestOptions: RequestOptions(path: '/test'),
+          type: DioExceptionType.unknown,
+        );
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(events.length, 1);
+        expect((events[0] as ChatStreamFailure).errorType,
+            ChatCompletionErrorType.unknown);
+      });
+    });
   });
 }

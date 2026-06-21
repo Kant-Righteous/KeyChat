@@ -151,39 +151,65 @@ class DioChatCompletionClient implements ChatCompletionClient {
     required String model,
     required List<ChatRequestMessage> messages,
     ChatCancellationToken? cancellationToken,
-  }) async* {
+  }) {
+    final controller = StreamController<ChatStreamEvent>();
+
+    _runStream(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      model: model,
+      messages: messages,
+      cancellationToken: cancellationToken,
+      controller: controller,
+    );
+
+    return controller.stream;
+  }
+
+  Future<void> _runStream({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<ChatRequestMessage> messages,
+    ChatCancellationToken? cancellationToken,
+    required StreamController<ChatStreamEvent> controller,
+  }) async {
     final trimmedUrl = baseUrl.trim();
     if (trimmedUrl.isEmpty) {
-      yield const ChatStreamFailure(
+      controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.invalidUrl,
         userMessage: 'Invalid Base URL',
-      );
+      ));
+      controller.close();
       return;
     }
 
     final trimmedKey = apiKey.trim();
     if (trimmedKey.isEmpty) {
-      yield const ChatStreamFailure(
+      controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.apiKeyRequired,
         userMessage: 'API key required',
-      );
+      ));
+      controller.close();
       return;
     }
 
     final trimmedModel = model.trim();
     if (trimmedModel.isEmpty) {
-      yield const ChatStreamFailure(
+      controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.modelRequired,
         userMessage: 'Model required',
-      );
+      ));
+      controller.close();
       return;
     }
 
     if (messages.isEmpty) {
-      yield const ChatStreamFailure(
+      controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.emptyMessage,
         userMessage: 'Message cannot be empty',
-      );
+      ));
+      controller.close();
       return;
     }
 
@@ -196,6 +222,8 @@ class DioChatCompletionClient implements ChatCompletionClient {
         dioCancelToken.cancel('Cancelled by user');
       });
     }
+
+    bool terminated = false;
 
     try {
       final response = await _dio.post<ResponseBody>(
@@ -217,43 +245,78 @@ class DioChatCompletionClient implements ChatCompletionClient {
       );
 
       if (response.statusCode != 200) {
-        yield ChatStreamFailure(
-          errorType: _mapStatusCodeToError(response.statusCode),
-          userMessage: _mapStatusCodeToMessage(response.statusCode),
-        );
+        _terminate(controller, terminated, () {
+          controller.add(ChatStreamFailure(
+            errorType: _mapStatusCodeToError(response.statusCode),
+            userMessage: _mapStatusCodeToMessage(response.statusCode),
+          ));
+        });
+        terminated = true;
+        controller.close();
+        removeListener?.call();
         return;
       }
 
       final parser = OpenAiSseParser();
       bool hasContent = false;
-      bool completed = false;
+      bool gotDone = false;
 
-      await for (final sseEvent in parser.stream) {
-        if (sseEvent.data == '[DONE]') {
-          completed = true;
-          yield const ChatStreamCompleted();
-          continue;
-        }
+      parser.stream.listen(
+        (sseEvent) {
+          if (terminated) return;
 
-        if (sseEvent.data == null) continue;
+          if (sseEvent.data == '[DONE]') {
+            gotDone = true;
+            controller.add(const ChatStreamCompleted());
+            terminated = true;
+            return;
+          }
 
-        final parsed = _parseDelta(sseEvent.data!);
-        if (parsed != null && parsed.isNotEmpty) {
-          hasContent = true;
-          yield ChatStreamDelta(parsed);
-        }
-      }
+          if (sseEvent.data == null) return;
 
-      if (!completed) {
-        if (hasContent) {
-          yield const ChatStreamCompleted();
-        } else {
-          yield const ChatStreamFailure(
-            errorType: ChatCompletionErrorType.invalidResponse,
-            userMessage: 'Invalid provider response',
-          );
-        }
-      }
+          try {
+            final parsed = _parseDelta(sseEvent.data!);
+            if (parsed != null && parsed.isNotEmpty) {
+              hasContent = true;
+              controller.add(ChatStreamDelta(parsed));
+            }
+          } on FormatException {
+            if (!terminated) {
+              terminated = true;
+              controller.add(const ChatStreamFailure(
+                errorType: ChatCompletionErrorType.invalidResponse,
+                userMessage: 'Invalid provider response',
+              ));
+            }
+          }
+        },
+        onDone: () {
+          if (terminated) return;
+
+          if (!gotDone) {
+            if (hasContent) {
+              controller.add(const ChatStreamCompleted());
+            } else {
+              controller.add(const ChatStreamFailure(
+                errorType: ChatCompletionErrorType.invalidResponse,
+                userMessage: 'Invalid provider response',
+              ));
+            }
+          }
+          controller.close();
+          removeListener?.call();
+        },
+        onError: (error) {
+          if (terminated) return;
+          controller.add(const ChatStreamFailure(
+            errorType: ChatCompletionErrorType.unknown,
+            userMessage: 'Unable to get response',
+          ));
+          terminated = true;
+          controller.close();
+          removeListener?.call();
+        },
+      );
 
       response.data!.stream.listen(
         (data) {
@@ -268,46 +331,119 @@ class DioChatCompletionClient implements ChatCompletionClient {
         cancelOnError: true,
       );
     } on DioException catch (e) {
+      if (terminated) {
+        removeListener?.call();
+        return;
+      }
+      terminated = true;
       if (CancelToken.isCancel(e)) {
-        yield const ChatStreamFailure(
+        controller.add(const ChatStreamFailure(
           errorType: ChatCompletionErrorType.cancelled,
           userMessage: 'Request cancelled',
-        );
+        ));
       } else {
-        yield _mapDioErrorToStream(e);
+        controller.add(_mapDioErrorToStream(e));
       }
+      controller.close();
+      removeListener?.call();
     } catch (_) {
-      yield const ChatStreamFailure(
+      if (terminated) {
+        removeListener?.call();
+        return;
+      }
+      terminated = true;
+      controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.unknown,
         userMessage: 'Unable to get response',
-      );
-    } finally {
+      ));
+      controller.close();
       removeListener?.call();
     }
   }
 
+  void _terminate(
+    StreamController<ChatStreamEvent> controller,
+    bool terminated,
+    void Function() action,
+  ) {
+    if (!terminated) {
+      action();
+    }
+  }
+
   static String? _parseDelta(String data) {
-    try {
-      final json = jsonDecode(data);
-      if (json is! Map<String, dynamic>) return null;
+    final json = jsonDecode(data);
+    if (json is! Map<String, dynamic>) return null;
 
-      final choices = json['choices'];
-      if (choices is! List || choices.isEmpty) return null;
+    final choices = json['choices'];
+    if (choices is! List || choices.isEmpty) return null;
 
-      final first = choices.first;
-      if (first is! Map<String, dynamic>) return null;
+    final first = choices.first;
+    if (first is! Map<String, dynamic>) return null;
 
-      final delta = first['delta'];
-      if (delta is! Map<String, dynamic>) return null;
+    final delta = first['delta'];
+    if (delta is! Map<String, dynamic>) return null;
 
-      final content = delta['content'];
-      if (content is String && content.isNotEmpty) {
-        return content;
-      }
+    final content = delta['content'];
+    if (content is String && content.isNotEmpty) {
+      return content;
+    }
 
-      return null;
-    } catch (_) {
-      return null;
+    return null;
+  }
+
+  ChatCompletionResult _mapDioError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.timeout,
+          userMessage: 'Request timed out',
+        );
+      case DioExceptionType.connectionError:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.networkUnavailable,
+          userMessage: 'Network unavailable',
+        );
+      case DioExceptionType.badResponse:
+        return _mapStatusCode(e.response?.statusCode);
+      default:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.unknown,
+          userMessage: 'Unable to get response',
+        );
+    }
+  }
+
+  ChatCompletionResult _mapStatusCode(int? statusCode) {
+    switch (statusCode) {
+      case 401:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.unauthorized,
+          userMessage: 'Invalid API key',
+        );
+      case 403:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.forbidden,
+          userMessage: 'Access forbidden',
+        );
+      case 429:
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.rateLimited,
+          userMessage: 'Rate limit exceeded',
+        );
+      default:
+        if (statusCode != null && statusCode >= 500) {
+          return const ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.serverError,
+            userMessage: 'Provider server error',
+          );
+        }
+        return const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.invalidResponse,
+          userMessage: 'Invalid provider response',
+        );
     }
   }
 
@@ -366,61 +502,6 @@ class DioChatCompletionClient implements ChatCompletionClient {
         return const ChatStreamFailure(
           errorType: ChatCompletionErrorType.unknown,
           userMessage: 'Unable to get response',
-        );
-    }
-  }
-
-  ChatCompletionResult _mapDioError(DioException e) {
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.timeout,
-          userMessage: 'Request timed out',
-        );
-      case DioExceptionType.connectionError:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.networkUnavailable,
-          userMessage: 'Network unavailable',
-        );
-      case DioExceptionType.badResponse:
-        return _mapStatusCode(e.response?.statusCode);
-      default:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.unknown,
-          userMessage: 'Unable to get response',
-        );
-    }
-  }
-
-  ChatCompletionResult _mapStatusCode(int? statusCode) {
-    switch (statusCode) {
-      case 401:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.unauthorized,
-          userMessage: 'Invalid API key',
-        );
-      case 403:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.forbidden,
-          userMessage: 'Access forbidden',
-        );
-      case 429:
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.rateLimited,
-          userMessage: 'Rate limit exceeded',
-        );
-      default:
-        if (statusCode != null && statusCode >= 500) {
-          return const ChatCompletionResult.failure(
-            errorType: ChatCompletionErrorType.serverError,
-            userMessage: 'Provider server error',
-          );
-        }
-        return const ChatCompletionResult.failure(
-          errorType: ChatCompletionErrorType.invalidResponse,
-          userMessage: 'Invalid provider response',
         );
     }
   }

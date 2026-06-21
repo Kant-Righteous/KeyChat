@@ -11,6 +11,24 @@ import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_history_store.dart';
 
+class _FailingHistoryStore extends FakeChatHistoryStore {
+  @override
+  Future<void> appendMessage({
+    required String conversationId,
+    required ChatMessage message,
+  }) async {
+    throw Exception('DB failure');
+  }
+
+  @override
+  Future<void> updateConversationActivity({
+    required String conversationId,
+    required DateTime updatedAt,
+  }) async {
+    throw Exception('DB failure');
+  }
+}
+
 class FakeChatCompletionClient implements ChatCompletionClient {
   ChatCompletionResult? _nextResult;
   Completer<ChatCompletionResult>? _nextResultCompleter;
@@ -1440,6 +1458,498 @@ void main() {
       expect(secondConv, isNotNull);
       expect(secondConv!.id, isNot(firstConv.id));
       expect(secondConv.title, 'Second conversation');
+    });
+
+    testWidgets('uses streamComplete not complete',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.streamCallCount, 1);
+      expect(chatClient.callCount, 0);
+    });
+
+    testWidgets('delta does not write to history store',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial'));
+      await tester.pump();
+
+      final conv = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conv!.id);
+      final assistantMessages =
+          messages.where((m) => m.role == ChatRole.assistant).toList();
+      expect(assistantMessages.length, 0);
+
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('completed persists exactly one assistant message',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Hi'));
+      await tester.pump();
+      streamController.add(const ChatStreamDelta(' there'));
+      await tester.pump();
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      final conv = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conv!.id);
+      final assistantMessages =
+          messages.where((m) => m.role == ChatRole.assistant).toList();
+      expect(assistantMessages.length, 1);
+      expect(assistantMessages.first.content, 'Hi there');
+    });
+
+    testWidgets('no-text completed shows error', (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid provider response'), findsOneWidget);
+    });
+
+    testWidgets('pre-delta failure does not create assistant message',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.serverError,
+        userMessage: 'Provider server error',
+      ));
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Provider server error'), findsOneWidget);
+
+      final conv = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conv!.id);
+      final assistantMessages =
+          messages.where((m) => m.role == ChatRole.assistant).toList();
+      expect(assistantMessages.length, 0);
+    });
+
+    testWidgets('pre-delta failure preserves input',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.serverError,
+        userMessage: 'Provider server error',
+      ));
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'Type a message...'),
+      );
+      expect(textField.controller?.text, 'Hello');
+    });
+
+    testWidgets('partial output failure shows interrupted message',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial'));
+      await tester.pump();
+
+      streamController.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.serverError,
+        userMessage: 'Provider server error',
+      ));
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text('Response interrupted and was not saved'), findsOneWidget);
+    });
+
+    testWidgets('partial output not written to database',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial text'));
+      await tester.pump();
+
+      streamController.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.serverError,
+        userMessage: 'Error',
+      ));
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      final conv = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conv!.id);
+      final assistantMessages =
+          messages.where((m) => m.role == ChatRole.assistant).toList();
+      expect(assistantMessages.length, 0);
+    });
+
+    testWidgets('new chat clears streaming text', (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial'));
+      await tester.pump();
+
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('completed content equals all deltas combined',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Hello'));
+      await tester.pump();
+      streamController.add(const ChatStreamDelta(' World'));
+      await tester.pump();
+      streamController.add(const ChatStreamDelta('!'));
+      await tester.pump();
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      final conv = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conv!.id);
+      final assistantMessages =
+          messages.where((m) => m.role == ChatRole.assistant).toList();
+      expect(assistantMessages.length, 1);
+      expect(assistantMessages.first.content, 'Hello World!');
+    });
+
+    testWidgets('save failure still shows reply and message',
+        (WidgetTester tester) async {
+      final failingHistoryStore = _FailingHistoryStore();
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Response'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClient: chatClient,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: failingHistoryStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Response'), findsOneWidget);
+      expect(find.text('Response received but could not be saved'),
+          findsOneWidget);
     });
   });
 }
