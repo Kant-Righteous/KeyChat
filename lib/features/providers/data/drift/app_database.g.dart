@@ -54,7 +54,9 @@ class $ProviderConfigsTable extends ProviderConfigs
   @override
   late final GeneratedColumn<String> protocol = GeneratedColumn<String>(
       'protocol', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('openai_compatible'));
   @override
   List<GeneratedColumn> get $columns => [
         providerId,
@@ -116,8 +118,6 @@ class $ProviderConfigsTable extends ProviderConfigs
     if (data.containsKey('protocol')) {
       context.handle(_protocolMeta,
           protocol.isAcceptableOrUnknown(data['protocol']!, _protocolMeta));
-    } else if (isInserting) {
-      context.missing(_protocolMeta);
     }
     return context;
   }
@@ -313,13 +313,12 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     this.defaultModel = const Value.absent(),
     this.enabled = const Value.absent(),
     required DateTime updatedAt,
-    required String protocol,
+    this.protocol = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : providerId = Value(providerId),
         displayName = Value(displayName),
         baseUrl = Value(baseUrl),
-        updatedAt = Value(updatedAt),
-        protocol = Value(protocol);
+        updatedAt = Value(updatedAt);
   static Insertable<ProviderConfig> custom({
     Expression<String>? providerId,
     Expression<String>? displayName,
@@ -1107,7 +1106,7 @@ typedef $$ProviderConfigsTableCreateCompanionBuilder = ProviderConfigsCompanion
   Value<String?> defaultModel,
   Value<bool> enabled,
   required DateTime updatedAt,
-  required String protocol,
+  Value<String> protocol,
   Value<int> rowid,
 });
 typedef $$ProviderConfigsTableUpdateCompanionBuilder = ProviderConfigsCompanion
@@ -1269,7 +1268,7 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             Value<String?> defaultModel = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
             required DateTime updatedAt,
-            required String protocol,
+            Value<String> protocol = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProviderConfigsCompanion.insert(

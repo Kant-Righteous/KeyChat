@@ -79,4 +79,28 @@ void main() {
       expect(parsed, original);
     });
   });
+
+  group('ProviderProtocol unknown value handling', () {
+    test('unknown value returns null, not openAiCompatible', () {
+      final result = ProviderProtocol.tryParse('some_random_protocol');
+      expect(result, isNull);
+      expect(result, isNot(ProviderProtocol.openAiCompatible));
+    });
+
+    test('SQL injection attempt returns null', () {
+      expect(ProviderProtocol.tryParse("'; DROP TABLE--"), isNull);
+    });
+
+    test('whitespace-only string returns null', () {
+      expect(ProviderProtocol.tryParse('   '), isNull);
+    });
+
+    test('case-sensitive - OpenAI_Compatible returns null', () {
+      expect(ProviderProtocol.tryParse('OpenAI_Compatible'), isNull);
+    });
+
+    test('partial match returns null', () {
+      expect(ProviderProtocol.tryParse('openai'), isNull);
+    });
+  });
 }

@@ -1,10 +1,20 @@
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 void main() {
   group('ProviderConfigs table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
     test('table contains expected columns including protocol', () {
-      final db = AppDatabase();
       final table = db.providerConfigs;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
@@ -16,12 +26,9 @@ void main() {
       expect(columnNames, contains('updated_at'));
       expect(columnNames, contains('protocol'));
       expect(columnNames.length, 7);
-
-      db.close();
     });
 
     test('table does not contain API key column', () {
-      final db = AppDatabase();
       final table = db.providerConfigs;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
@@ -30,25 +37,67 @@ void main() {
       expect(columnNames, isNot(contains('key')));
       expect(columnNames, isNot(contains('secret')));
       expect(columnNames, isNot(contains('token')));
-
-      db.close();
     });
 
     test('provider_id is primary key', () {
-      final db = AppDatabase();
       final table = db.providerConfigs;
       final primaryKey = table.primaryKey;
 
       expect(primaryKey.length, 1);
       expect(primaryKey.first.name, 'provider_id');
+    });
 
-      db.close();
+    test('protocol column is TEXT NOT NULL via PRAGMA', () async {
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      final result = await db
+          .customSelect(
+            "PRAGMA table_info(provider_configs)",
+          )
+          .get();
+
+      final protocolCol = result.firstWhere(
+        (row) => row.data['name'] == 'protocol',
+      );
+
+      expect(protocolCol.data['type'], 'TEXT');
+      expect(protocolCol.data['notnull'], 1);
+    });
+
+    test('protocol column has SQL default value via PRAGMA', () async {
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      final result = await db
+          .customSelect(
+            "PRAGMA table_info(provider_configs)",
+          )
+          .get();
+
+      final protocolCol = result.firstWhere(
+        (row) => row.data['name'] == 'protocol',
+      );
+
+      // The default value should be 'openai_compatible'
+      expect(protocolCol.data['dflt_value'], "'openai_compatible'");
+    });
+
+    test('schemaVersion is 3', () {
+      expect(db.schemaVersion, 3);
     });
   });
 
   group('Conversations table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
     test('table contains expected columns', () {
-      final db = AppDatabase();
       final table = db.conversations;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
@@ -59,26 +108,30 @@ void main() {
       expect(columnNames, contains('created_at'));
       expect(columnNames, contains('updated_at'));
       expect(columnNames.length, 6);
-
-      db.close();
     });
 
     test('table does not contain API key column', () {
-      final db = AppDatabase();
       final table = db.conversations;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
       expect(columnNames, isNot(contains('api_key')));
       expect(columnNames, isNot(contains('apiKey')));
       expect(columnNames, isNot(contains('secret')));
-
-      db.close();
     });
   });
 
   group('ChatMessages table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
     test('table contains expected columns', () {
-      final db = AppDatabase();
       final table = db.chatMessages;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
@@ -88,20 +141,15 @@ void main() {
       expect(columnNames, contains('content'));
       expect(columnNames, contains('created_at'));
       expect(columnNames.length, 5);
-
-      db.close();
     });
 
     test('table does not contain API key column', () {
-      final db = AppDatabase();
       final table = db.chatMessages;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
       expect(columnNames, isNot(contains('api_key')));
       expect(columnNames, isNot(contains('apiKey')));
       expect(columnNames, isNot(contains('secret')));
-
-      db.close();
     });
   });
 }

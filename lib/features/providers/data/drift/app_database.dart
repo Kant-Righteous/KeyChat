@@ -14,7 +14,8 @@ class ProviderConfigs extends Table {
   TextColumn get defaultModel => text().nullable()();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   DateTimeColumn get updatedAt => dateTime()();
-  TextColumn get protocol => text()();
+  TextColumn get protocol =>
+      text().withDefault(const Constant('openai_compatible'))();
 
   @override
   Set<Column> get primaryKey => {providerId};
@@ -65,9 +66,6 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await m.addColumn(providerConfigs, providerConfigs.protocol);
-            await customStatement(
-              "UPDATE provider_configs SET protocol = 'openai_compatible' WHERE protocol IS NULL OR protocol = ''",
-            );
           }
         },
         beforeOpen: (details) async {

@@ -1,6 +1,9 @@
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/data/drift/app_database.dart';
+import 'package:keychat/features/providers/data/drift/drift_provider_config_store.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'fake_provider_config_store.dart';
 
@@ -167,6 +170,63 @@ void main() {
       );
 
       expect(config.protocol.storageValue, isNot(contains('sk-')));
+    });
+  });
+
+  group('DriftProviderConfigStore unknown protocol handling', () {
+    late AppDatabase db;
+    late DriftProviderConfigStore store;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      store = DriftProviderConfigStore(db);
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('reading config with unknown protocol throws StateError', () async {
+      // Insert a row with unknown protocol directly via SQL
+      await db.customStatement(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, enabled, updated_at, protocol) "
+        "VALUES ('bad', 'Bad', 'https://bad.com', 1, 1704067200000, 'unknown_protocol')",
+      );
+
+      expect(
+        () => store.readConfig('bad'),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('StateError message does not contain sensitive data', () async {
+      await db.customStatement(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, enabled, updated_at, protocol) "
+        "VALUES ('bad', 'Bad', 'https://bad.com', 1, 1704067200000, 'unknown_protocol')",
+      );
+
+      try {
+        await store.readConfig('bad');
+        fail('Should have thrown StateError');
+      } on StateError catch (e) {
+        expect(e.message, isNot(contains('sk-')));
+        expect(e.message, contains('unknown_protocol'));
+        expect(e.message, contains('bad'));
+      }
+    });
+
+    test('unknown protocol does not fall back to openAiCompatible', () async {
+      await db.customStatement(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, enabled, updated_at, protocol) "
+        "VALUES ('bad', 'Bad', 'https://bad.com', 1, 1704067200000, 'unknown_protocol')",
+      );
+
+      try {
+        await store.readConfig('bad');
+        fail('Should have thrown StateError');
+      } on StateError {
+        // Expected - should throw, not silently return openAiCompatible
+      }
     });
   });
 }

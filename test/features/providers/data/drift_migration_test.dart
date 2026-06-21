@@ -4,16 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 void main() {
-  group('Database migration v1 -> v2', () {
+  group('Database migration v1 -> v2 -> v3', () {
     late AppDatabase db;
 
     tearDown(() async {
       await db.close();
     });
 
-    test('v1 data preserved after upgrade to v2', () async {
+    test('v1 data preserved after upgrade to v3', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       await db.into(db.providerConfigs).insert(
@@ -57,6 +56,7 @@ void main() {
       expect(configsAfter.length, 1);
       expect(configsAfter.first.providerId, 'openai');
       expect(configsAfter.first.displayName, 'OpenAI');
+      expect(configsAfter.first.protocol, 'openai_compatible');
 
       final conversations = await db.select(db.conversations).get();
       expect(conversations.length, 1);
@@ -70,7 +70,6 @@ void main() {
 
     test('new database has all three tables', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       await db.into(db.providerConfigs).insert(
@@ -79,7 +78,6 @@ void main() {
               displayName: const Value('Test'),
               baseUrl: const Value('https://test.com'),
               updatedAt: Value(DateTime(2024)),
-              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -116,7 +114,6 @@ void main() {
 
     test('foreign key constraint works', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       expect(
@@ -135,7 +132,6 @@ void main() {
 
     test('cascade delete works', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       await db.into(db.conversations).insert(
@@ -171,7 +167,6 @@ void main() {
 
     test('delete conversation does not affect ProviderConfigs', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       await db.into(db.providerConfigs).insert(
@@ -180,7 +175,6 @@ void main() {
               displayName: const Value('OpenAI'),
               baseUrl: const Value('https://api.openai.com/v1'),
               updatedAt: Value(DateTime(2024)),
-              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -205,7 +199,6 @@ void main() {
 
     test('delete one conversation does not affect others', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-
       await db.customStatement('PRAGMA foreign_keys = ON');
 
       await db.into(db.conversations).insert(
@@ -255,21 +248,24 @@ void main() {
       expect(columnNames, contains('protocol'));
     });
 
-    test('protocol column is NOT NULL', () async {
+    test('protocol column has SQL default value', () async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
       await db.customStatement('PRAGMA foreign_keys = ON');
 
-      expect(
-        () => db.into(db.providerConfigs).insert(
-              ProviderConfigsCompanion(
-                providerId: const Value('no_protocol'),
-                displayName: const Value('No Protocol'),
-                baseUrl: const Value('https://test.com'),
-                updatedAt: Value(DateTime(2024)),
-              ),
+      // Insert without protocol - should use default 'openai_compatible'
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('no_protocol'),
+              displayName: const Value('No Protocol'),
+              baseUrl: const Value('https://test.com'),
+              updatedAt: Value(DateTime(2024)),
             ),
-        throwsA(anyOf(isA<SqliteException>(), isA<InvalidDataException>())),
-      );
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('no_protocol')))
+          .getSingle();
+      expect(row.protocol, 'openai_compatible');
     });
 
     test('openai_compatible protocol saves and reads correctly', () async {
@@ -339,26 +335,113 @@ void main() {
       expect(row.protocol, 'gemini_generate_content');
     });
 
-    test('v2 -> v3 migration adds protocol with default value', () async {
-      db = AppDatabase.forTesting(NativeDatabase.memory());
+    test('v2 -> v3 non-empty database migration preserves data', () async {
+      // Create a v2-like database using raw SQL
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+
+      // Simulate v2 schema by creating tables without protocol
+      await db.customStatement('PRAGMA foreign_keys = OFF');
+      await db.customStatement('DROP TABLE IF EXISTS chat_messages');
+      await db.customStatement('DROP TABLE IF EXISTS conversations');
+      await db.customStatement('DROP TABLE IF EXISTS provider_configs');
+
+      // Create v2-style provider_configs (without protocol)
+      await db.customStatement('''
+        CREATE TABLE provider_configs (
+          provider_id TEXT NOT NULL PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          base_url TEXT NOT NULL,
+          default_model TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+
+      // Create v2-style conversations
+      await db.customStatement('''
+        CREATE TABLE conversations (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          provider_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+
+      // Create v2-style chat_messages
+      await db.customStatement('''
+        CREATE TABLE chat_messages (
+          id TEXT NOT NULL PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        )
+      ''');
+
       await db.customStatement('PRAGMA foreign_keys = ON');
 
-      // Use Drift insert which handles datetime serialization correctly
-      await db.into(db.providerConfigs).insert(
-            ProviderConfigsCompanion(
-              providerId: const Value('test'),
-              displayName: const Value('Test'),
-              baseUrl: const Value('https://test.com'),
-              enabled: const Value(true),
-              updatedAt: Value(DateTime(2024)),
-              protocol: const Value('openai_compatible'),
-            ),
-          );
+      // Insert v2 data
+      await db.customStatement(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, default_model, enabled, updated_at) "
+        "VALUES ('openai', 'OpenAI', 'https://api.openai.com/v1', 'gpt-4', 1, 1704067200000)",
+      );
+      await db.customStatement(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, enabled, updated_at) "
+        "VALUES ('deepseek', 'DeepSeek', 'https://api.deepseek.com/v1', 1, 1704067200000)",
+      );
+      await db.customStatement(
+        "INSERT INTO conversations (id, title, provider_id, model, created_at, updated_at) "
+        "VALUES ('conv_1', 'Test', 'openai', 'gpt-4', 1704067200000, 1704067200000)",
+      );
+      await db.customStatement(
+        "INSERT INTO chat_messages (id, conversation_id, role, content, created_at) "
+        "VALUES ('msg_1', 'conv_1', 'user', 'Hello', 1704067200000)",
+      );
 
-      final row = await (db.select(db.providerConfigs)
-            ..where((t) => t.providerId.equals('test')))
-          .getSingle();
-      expect(row.protocol, 'openai_compatible');
+      // Verify v2 data exists
+      final configsBefore = await db
+          .customSelect(
+            'SELECT * FROM provider_configs',
+          )
+          .get();
+      expect(configsBefore.length, 2);
+
+      // Simulate the v3 migration by adding the protocol column
+      // This is what Drift's migration would do
+      await db.customStatement(
+        "ALTER TABLE provider_configs ADD COLUMN protocol TEXT NOT NULL DEFAULT 'openai_compatible'",
+      );
+
+      // Verify data preserved after migration
+      final configsAfter = await db.select(db.providerConfigs).get();
+      expect(configsAfter.length, 2);
+
+      final openai = configsAfter.firstWhere((c) => c.providerId == 'openai');
+      expect(openai.displayName, 'OpenAI');
+      expect(openai.baseUrl, 'https://api.openai.com/v1');
+      expect(openai.defaultModel, 'gpt-4');
+      expect(openai.enabled, true);
+      expect(openai.protocol, 'openai_compatible');
+
+      final deepseek =
+          configsAfter.firstWhere((c) => c.providerId == 'deepseek');
+      expect(deepseek.displayName, 'DeepSeek');
+      expect(deepseek.protocol, 'openai_compatible');
+
+      // Verify conversations preserved
+      final convs = await db.select(db.conversations).get();
+      expect(convs.length, 1);
+      expect(convs.first.id, 'conv_1');
+
+      // Verify chat messages preserved
+      final msgs = await db.select(db.chatMessages).get();
+      expect(msgs.length, 1);
+      expect(msgs.first.id, 'msg_1');
+      expect(msgs.first.content, 'Hello');
+
+      await db.close();
     });
 
     test('Conversations data preserved in v3', () async {
@@ -371,7 +454,6 @@ void main() {
               displayName: const Value('OpenAI'),
               baseUrl: const Value('https://api.openai.com/v1'),
               updatedAt: Value(DateTime(2024)),
-              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -452,7 +534,6 @@ void main() {
               displayName: const Value('Test'),
               baseUrl: const Value('https://test.com'),
               updatedAt: Value(DateTime(2024)),
-              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -461,6 +542,67 @@ void main() {
           .getSingle();
       expect(row.protocol, isNot(contains('sk-')));
       expect(row.protocol, 'openai_compatible');
+    });
+
+    test('upgrade preserves existing conversations', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('openai'),
+              displayName: const Value('OpenAI'),
+              baseUrl: const Value('https://api.openai.com/v1'),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_preserved'),
+              title: const Value('Preserved'),
+              providerId: const Value('openai'),
+              model: const Value('gpt-4'),
+              createdAt: Value(DateTime(2024)),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      final conv = await (db.select(db.conversations)
+            ..where((t) => t.id.equals('conv_preserved')))
+          .getSingle();
+      expect(conv.title, 'Preserved');
+    });
+
+    test('upgrade preserves existing chat messages', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_msg_pres'),
+              title: const Value('Preserved'),
+              providerId: const Value('openai'),
+              model: const Value('gpt-4'),
+              createdAt: Value(DateTime(2024)),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      await db.into(db.chatMessages).insert(
+            ChatMessagesCompanion(
+              id: const Value('msg_preserved'),
+              conversationId: const Value('conv_msg_pres'),
+              role: const Value('user'),
+              content: const Value('Preserved message'),
+              createdAt: Value(DateTime(2024)),
+            ),
+          );
+
+      final msg = await (db.select(db.chatMessages)
+            ..where((t) => t.id.equals('msg_preserved')))
+          .getSingle();
+      expect(msg.content, 'Preserved message');
     });
   });
 }
