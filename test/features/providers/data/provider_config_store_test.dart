@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'fake_provider_config_store.dart';
 
 void main() {
@@ -15,6 +17,7 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       );
 
@@ -32,6 +35,7 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       );
       await store.saveConfig(config1);
@@ -40,6 +44,7 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI Updated',
         baseUrl: 'https://api.openai.com/v2',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024, 2),
       );
       await store.saveConfig(config2);
@@ -54,12 +59,14 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await store.saveConfig(ProviderConfigData(
         providerId: 'deepseek',
         displayName: 'DeepSeek',
         baseUrl: 'https://api.deepseek.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
 
@@ -72,6 +79,7 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
 
@@ -90,10 +98,75 @@ void main() {
         providerId: 'openai',
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       );
 
       expect(config.providerId, isNot(contains('sk-')));
+    });
+
+    test('config saves and reads protocol', () async {
+      final config = ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      );
+
+      await store.saveConfig(config);
+      final result = await store.readConfig('openai');
+
+      expect(result, isNotNull);
+      expect(result!.protocol, ProviderProtocol.openAiCompatible);
+    });
+
+    test('updating other fields preserves protocol', () async {
+      final config1 = ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      );
+      await store.saveConfig(config1);
+
+      final config2 = ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI v2',
+        baseUrl: 'https://api.openai.com/v2',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024, 2),
+      );
+      await store.saveConfig(config2);
+
+      final result = await store.readConfig('openai');
+      expect(result!.protocol, ProviderProtocol.openAiCompatible);
+      expect(result.displayName, 'OpenAI v2');
+    });
+
+    test('unconfig uses preset protocol', () {
+      final preset = providerPresets[0];
+      expect(preset.protocol, ProviderProtocol.openAiCompatible);
+    });
+
+    test('all current presets use openAiCompatible', () {
+      for (final preset in providerPresets) {
+        expect(preset.protocol, ProviderProtocol.openAiCompatible);
+      }
+    });
+
+    test('ProviderConfigData protocol does not contain API key', () {
+      final config = ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      );
+
+      expect(config.protocol.storageValue, isNot(contains('sk-')));
     });
   });
 }

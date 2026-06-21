@@ -6,9 +6,11 @@ import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
 import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
+import '../data/fake_chat_client_resolver.dart';
 import '../data/fake_chat_history_store.dart';
 
 class _FailingHistoryStore extends FakeChatHistoryStore {
@@ -130,12 +132,16 @@ void main() {
     late FakeApiKeyStore apiKeyStore;
     late FakeProviderConfigStore configStore;
     late FakeChatCompletionClient chatClient;
+    late FakeChatClientResolver chatClientResolver;
     late FakeChatHistoryStore historyStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
       configStore = FakeProviderConfigStore();
       chatClient = FakeChatCompletionClient();
+      chatClientResolver = FakeChatClientResolver(
+        openAiCompatibleClient: chatClient,
+      );
       historyStore = FakeChatHistoryStore();
     });
 
@@ -143,7 +149,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -159,7 +165,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -178,6 +184,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -185,7 +192,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -203,6 +210,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -210,7 +218,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -232,6 +240,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -243,7 +252,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -271,6 +280,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -282,7 +292,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -309,6 +319,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -320,7 +331,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -347,6 +358,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -358,7 +370,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -388,6 +400,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -402,7 +415,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -429,6 +442,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -443,7 +457,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -472,6 +486,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -483,7 +498,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -511,6 +526,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -522,7 +538,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -549,6 +565,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-marker-secret-xyz');
@@ -563,7 +580,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -590,6 +607,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -623,7 +641,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -642,6 +660,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -653,7 +672,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -685,6 +704,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -696,7 +716,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -739,6 +759,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -749,7 +770,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -784,6 +805,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-marker-xyz');
@@ -795,7 +817,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -828,6 +850,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -835,7 +858,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -857,6 +880,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -881,7 +905,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -915,7 +939,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -935,6 +959,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -946,7 +971,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -978,6 +1003,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -985,7 +1011,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1008,6 +1034,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1073,7 +1100,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1114,6 +1141,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       // Don't save API key
@@ -1138,7 +1166,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1159,6 +1187,7 @@ void main() {
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
         enabled: false,
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1183,7 +1212,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1203,6 +1232,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1227,7 +1257,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1253,6 +1283,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1264,7 +1295,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1318,7 +1349,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1346,6 +1377,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1370,7 +1402,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1401,6 +1433,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1413,7 +1446,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1467,6 +1500,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1478,7 +1512,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1505,6 +1539,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1514,7 +1549,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1551,6 +1586,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1560,7 +1596,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1598,6 +1634,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1607,7 +1644,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1637,6 +1674,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1646,7 +1684,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1685,6 +1723,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1694,7 +1733,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1730,6 +1769,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1739,7 +1779,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1776,6 +1816,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1785,7 +1826,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1824,6 +1865,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1833,7 +1875,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1869,6 +1911,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1878,7 +1921,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
@@ -1920,6 +1963,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
       await apiKeyStore.saveKey('openai', 'test-key');
@@ -1931,7 +1975,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ChatPage(
-            chatClient: chatClient,
+            chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: failingHistoryStore,

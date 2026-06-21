@@ -5,6 +5,7 @@ import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_history_store.dart';
@@ -134,6 +135,7 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
 

@@ -14,6 +14,7 @@ class ProviderConfigs extends Table {
   TextColumn get defaultModel => text().nullable()();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   DateTimeColumn get updatedAt => dateTime()();
+  TextColumn get protocol => text()();
 
   @override
   Set<Column> get primaryKey => {providerId};
@@ -50,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,6 +62,12 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.createTable(conversations);
             await m.createTable(chatMessages);
+          }
+          if (from < 3) {
+            await m.addColumn(providerConfigs, providerConfigs.protocol);
+            await customStatement(
+              "UPDATE provider_configs SET protocol = 'openai_compatible' WHERE protocol IS NULL OR protocol = ''",
+            );
           }
         },
         beforeOpen: (details) async {

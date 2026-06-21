@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
 import '../data/fake_provider_config_store.dart';
 import '../data/fake_provider_connection_tester.dart';
+import '../data/fake_connection_tester_resolver.dart';
 
 void main() {
   group('ProvidersPage', () {
@@ -93,6 +95,7 @@ void main() {
           providerId: 'custom',
           displayName: 'My Custom AI',
           baseUrl: 'https://custom.example.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
           updatedAt: DateTime(2024),
         ),
       );
@@ -151,16 +154,19 @@ void main() {
       expect(find.text('Configured'), findsOneWidget);
     });
 
-    testWidgets('passes connectionTester to config page',
+    testWidgets('passes connectionTesterResolver to config page',
         (WidgetTester tester) async {
       final connTester = FakeProviderConnectionTester();
+      final resolver = FakeConnectionTesterResolver(
+        openAiCompatibleTester: connTester,
+      );
 
       await tester.pumpWidget(
         MaterialApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
-            connectionTester: connTester,
+            connectionTesterResolver: resolver,
           ),
         ),
       );
@@ -172,7 +178,7 @@ void main() {
       final configPage = tester.widget<ProviderConfigPage>(
         find.byType(ProviderConfigPage),
       );
-      expect(configPage.connectionTester, connTester);
+      expect(configPage.connectionTesterResolver, resolver);
     });
   });
 }

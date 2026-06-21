@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/dio_chat_completion_client.dart';
 import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/dio_provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 import 'package:keychat/features/providers/data/drift/drift_provider_config_store.dart';
@@ -24,6 +26,8 @@ class _AppShellState extends State<AppShell> {
   late final DioProviderConnectionTester _connectionTester;
   late final DioChatCompletionClient _chatClient;
   late final DriftChatHistoryStore _historyStore;
+  late final DefaultChatClientResolver _chatClientResolver;
+  late final DefaultConnectionTesterResolver _connectionTesterResolver;
 
   @override
   void initState() {
@@ -34,6 +38,12 @@ class _AppShellState extends State<AppShell> {
     _connectionTester = DioProviderConnectionTester();
     _chatClient = DioChatCompletionClient();
     _historyStore = DriftChatHistoryStore(_database);
+    _chatClientResolver = DefaultChatClientResolver(
+      openAiCompatibleClient: _chatClient,
+    );
+    _connectionTesterResolver = DefaultConnectionTesterResolver(
+      openAiCompatibleTester: _connectionTester,
+    );
   }
 
   @override
@@ -46,7 +56,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final pages = [
       ChatPage(
-        chatClient: _chatClient,
+        chatClientResolver: _chatClientResolver,
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
         historyStore: _historyStore,
@@ -54,7 +64,7 @@ class _AppShellState extends State<AppShell> {
       ProvidersPage(
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
-        connectionTester: _connectionTester,
+        connectionTesterResolver: _connectionTesterResolver,
       ),
       const SettingsPage(),
     ];

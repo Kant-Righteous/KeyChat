@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
 class DriftProviderConfigStore implements ProviderConfigStore {
   final AppDatabase _db;
@@ -18,6 +19,7 @@ class DriftProviderConfigStore implements ProviderConfigStore {
             defaultModel: Value(config.defaultModel),
             enabled: Value(config.enabled),
             updatedAt: Value(config.updatedAt),
+            protocol: Value(config.protocol.storageValue),
           ),
         );
   }
@@ -45,6 +47,12 @@ class DriftProviderConfigStore implements ProviderConfigStore {
   }
 
   ProviderConfigData _toConfig(ProviderConfig row) {
+    final protocol = ProviderProtocol.tryParse(row.protocol);
+    if (protocol == null) {
+      throw StateError(
+        'Unknown protocol "${row.protocol}" for provider "${row.providerId}"',
+      );
+    }
     return ProviderConfigData(
       providerId: row.providerId,
       displayName: row.displayName,
@@ -52,6 +60,7 @@ class DriftProviderConfigStore implements ProviderConfigStore {
       defaultModel: row.defaultModel,
       enabled: row.enabled,
       updatedAt: row.updatedAt,
+      protocol: protocol,
     );
   }
 }

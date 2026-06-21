@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
+import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
@@ -9,14 +10,14 @@ class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
-  final ProviderConnectionTester? connectionTester;
+  final ConnectionTesterResolver? connectionTesterResolver;
 
   const ProviderConfigPage({
     super.key,
     required this.preset,
     required this.apiKeyStore,
     required this.configStore,
-    this.connectionTester,
+    this.connectionTesterResolver,
   });
 
   @override
@@ -35,6 +36,16 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   bool _saving = false;
   bool _testing = false;
   List<String> _discoveredModels = [];
+
+  ProviderConnectionTester? get _connectionTester {
+    if (widget.connectionTesterResolver == null) return null;
+    return widget.connectionTesterResolver!.resolve(widget.preset.protocol);
+  }
+
+  bool get _connectionTestSupported {
+    if (widget.connectionTesterResolver == null) return false;
+    return widget.connectionTesterResolver!.supports(widget.preset.protocol);
+  }
 
   @override
   void initState() {
@@ -97,7 +108,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   }
 
   Future<void> _testConnection() async {
-    if (widget.connectionTester == null) return;
+    final tester = _connectionTester;
+    if (tester == null) return;
 
     final baseUrl = _urlController.text.trim();
     if (baseUrl.isEmpty) {
@@ -125,7 +137,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     setState(() => _testing = true);
 
     try {
-      final result = await widget.connectionTester!.testConnection(
+      final result = await tester.testConnection(
         baseUrl: baseUrl,
         apiKey: apiKey,
       );
@@ -188,6 +200,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
         defaultModel: _modelController.text.trim().isEmpty
             ? null
             : _modelController.text.trim(),
+        protocol: widget.preset.protocol,
         updatedAt: DateTime.now(),
       );
       await widget.configStore.saveConfig(config);
@@ -338,7 +351,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       obscureText: _obscureApiKey,
                     ),
                     const SizedBox(height: 24),
-                    if (widget.connectionTester != null)
+                    if (_connectionTestSupported)
                       OutlinedButton.icon(
                         onPressed: _testing ? null : _testConnection,
                         icon: _testing
@@ -350,6 +363,14 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                               )
                             : const Icon(Icons.wifi_find),
                         label: const Text('Test Connection'),
+                      ),
+                    if (!_connectionTestSupported)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Connection test is not supported for this protocol',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
                       ),
                     const SizedBox(height: 16),
                     ElevatedButton(

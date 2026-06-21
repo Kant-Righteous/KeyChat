@@ -24,6 +24,7 @@ void main() {
               defaultModel: const Value('gpt-4'),
               enabled: const Value(true),
               updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -78,6 +79,7 @@ void main() {
               displayName: const Value('Test'),
               baseUrl: const Value('https://test.com'),
               updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -178,6 +180,7 @@ void main() {
               displayName: const Value('OpenAI'),
               baseUrl: const Value('https://api.openai.com/v1'),
               updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
             ),
           );
 
@@ -233,6 +236,231 @@ void main() {
       final remaining = await db.select(db.conversations).get();
       expect(remaining.length, 1);
       expect(remaining.first.id, 'conv_2');
+    });
+  });
+
+  group('Database schema v3 - protocol column', () {
+    late AppDatabase db;
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('new v3 database contains protocol column', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      final columnNames =
+          db.providerConfigs.$columns.map((c) => c.name).toList();
+      expect(columnNames, contains('protocol'));
+    });
+
+    test('protocol column is NOT NULL', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      expect(
+        () => db.into(db.providerConfigs).insert(
+              ProviderConfigsCompanion(
+                providerId: const Value('no_protocol'),
+                displayName: const Value('No Protocol'),
+                baseUrl: const Value('https://test.com'),
+                updatedAt: Value(DateTime(2024)),
+              ),
+            ),
+        throwsA(anyOf(isA<SqliteException>(), isA<InvalidDataException>())),
+      );
+    });
+
+    test('openai_compatible protocol saves and reads correctly', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('openai'),
+              displayName: const Value('OpenAI'),
+              baseUrl: const Value('https://api.openai.com/v1'),
+              defaultModel: const Value('gpt-4'),
+              enabled: const Value(true),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
+            ),
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('openai')))
+          .getSingle();
+      expect(row.protocol, 'openai_compatible');
+    });
+
+    test('anthropic_messages protocol saves and reads correctly', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('anthropic'),
+              displayName: const Value('Anthropic'),
+              baseUrl: const Value('https://api.anthropic.com'),
+              defaultModel: const Value('claude-3'),
+              enabled: const Value(true),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('anthropic_messages'),
+            ),
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('anthropic')))
+          .getSingle();
+      expect(row.protocol, 'anthropic_messages');
+    });
+
+    test('gemini_generate_content protocol saves and reads correctly',
+        () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('gemini'),
+              displayName: const Value('Gemini'),
+              baseUrl: const Value('https://generativelanguage.googleapis.com'),
+              defaultModel: const Value('gemini-pro'),
+              enabled: const Value(true),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('gemini_generate_content'),
+            ),
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('gemini')))
+          .getSingle();
+      expect(row.protocol, 'gemini_generate_content');
+    });
+
+    test('v2 -> v3 migration adds protocol with default value', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      // Use Drift insert which handles datetime serialization correctly
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('test'),
+              displayName: const Value('Test'),
+              baseUrl: const Value('https://test.com'),
+              enabled: const Value(true),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
+            ),
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('test')))
+          .getSingle();
+      expect(row.protocol, 'openai_compatible');
+    });
+
+    test('Conversations data preserved in v3', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('openai'),
+              displayName: const Value('OpenAI'),
+              baseUrl: const Value('https://api.openai.com/v1'),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
+            ),
+          );
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_v3'),
+              title: const Value('V3 Conv'),
+              providerId: const Value('openai'),
+              model: const Value('gpt-4'),
+              createdAt: Value(DateTime(2024)),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      final conv = await (db.select(db.conversations)
+            ..where((t) => t.id.equals('conv_v3')))
+          .getSingle();
+      expect(conv.title, 'V3 Conv');
+      expect(conv.providerId, 'openai');
+    });
+
+    test('ChatMessages data preserved in v3', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.conversations).insert(
+            ConversationsCompanion(
+              id: const Value('conv_msg'),
+              title: const Value('Msg Conv'),
+              providerId: const Value('openai'),
+              model: const Value('gpt-4'),
+              createdAt: Value(DateTime(2024)),
+              updatedAt: Value(DateTime(2024)),
+            ),
+          );
+
+      await db.into(db.chatMessages).insert(
+            ChatMessagesCompanion(
+              id: const Value('msg_v3'),
+              conversationId: const Value('conv_msg'),
+              role: const Value('user'),
+              content: const Value('Hello v3'),
+              createdAt: Value(DateTime(2024)),
+            ),
+          );
+
+      final msg = await (db.select(db.chatMessages)
+            ..where((t) => t.id.equals('msg_v3')))
+          .getSingle();
+      expect(msg.content, 'Hello v3');
+    });
+
+    test('foreign key still works in v3', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      expect(
+        () => db.into(db.chatMessages).insert(
+              ChatMessagesCompanion(
+                id: const Value('orphan_v3'),
+                conversationId: const Value('nonexistent'),
+                role: const Value('user'),
+                content: const Value('Orphan'),
+                createdAt: Value(DateTime(2024)),
+              ),
+            ),
+        throwsA(isA<SqliteException>()),
+      );
+    });
+
+    test('API key not stored in protocol column', () async {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.customStatement('PRAGMA foreign_keys = ON');
+
+      await db.into(db.providerConfigs).insert(
+            ProviderConfigsCompanion(
+              providerId: const Value('test'),
+              displayName: const Value('Test'),
+              baseUrl: const Value('https://test.com'),
+              updatedAt: Value(DateTime(2024)),
+              protocol: const Value('openai_compatible'),
+            ),
+          );
+
+      final row = await (db.select(db.providerConfigs)
+            ..where((t) => t.providerId.equals('test')))
+          .getSingle();
+      expect(row.protocol, isNot(contains('sk-')));
+      expect(row.protocol, 'openai_compatible');
     });
   });
 }

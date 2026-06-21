@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import '../data/fake_api_key_store.dart';
 import '../data/fake_provider_config_store.dart';
 import '../data/fake_provider_connection_tester.dart';
+import '../data/fake_connection_tester_resolver.dart';
 
 class _FailingApiKeyStore extends FakeApiKeyStore {
   @override
@@ -399,6 +401,7 @@ void main() {
         displayName: 'My Custom AI',
         baseUrl: 'https://custom.example.com/v1',
         defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
         updatedAt: DateTime(2024),
       ));
 
@@ -656,7 +659,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -683,7 +687,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -715,7 +720,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -738,7 +744,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -776,7 +783,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -810,7 +818,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -842,7 +851,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -875,7 +885,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -912,7 +923,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -947,7 +959,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -983,7 +996,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );
@@ -1009,7 +1023,8 @@ void main() {
               preset: preset,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
-              connectionTester: connTester,
+              connectionTesterResolver: FakeConnectionTesterResolver(
+                  openAiCompatibleTester: connTester),
             ),
           ),
         );

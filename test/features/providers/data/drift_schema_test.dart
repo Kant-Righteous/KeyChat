@@ -3,7 +3,7 @@ import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 void main() {
   group('ProviderConfigs table schema', () {
-    test('table contains only expected columns', () {
+    test('table contains expected columns including protocol', () {
       final db = AppDatabase();
       final table = db.providerConfigs;
       final columnNames = table.$columns.map((c) => c.name).toList();
@@ -14,7 +14,8 @@ void main() {
       expect(columnNames, contains('default_model'));
       expect(columnNames, contains('enabled'));
       expect(columnNames, contains('updated_at'));
-      expect(columnNames.length, 6);
+      expect(columnNames, contains('protocol'));
+      expect(columnNames.length, 7);
 
       db.close();
     });

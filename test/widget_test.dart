@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
@@ -87,10 +88,13 @@ class _FakeHistoryStore implements ChatHistoryStore {
 void main() {
   testWidgets('ChatPage shows empty state when no provider',
       (WidgetTester tester) async {
+    final chatClient = _FakeChatClient();
     await tester.pumpWidget(
       MaterialApp(
         home: ChatPage(
-          chatClient: _FakeChatClient(),
+          chatClientResolver: DefaultChatClientResolver(
+            openAiCompatibleClient: chatClient,
+          ),
           apiKeyStore: FakeApiKeyStore(),
           configStore: FakeProviderConfigStore(),
           historyStore: _FakeHistoryStore(),

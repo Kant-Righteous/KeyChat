@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
@@ -13,19 +14,24 @@ import 'package:keychat/features/providers/data/provider_config_store.dart';
 class _ReadyProvider {
   final ProviderConfigData config;
   final String apiKey;
+  final ChatCompletionClient client;
 
-  const _ReadyProvider({required this.config, required this.apiKey});
+  const _ReadyProvider({
+    required this.config,
+    required this.apiKey,
+    required this.client,
+  });
 }
 
 class ChatPage extends StatefulWidget {
-  final ChatCompletionClient chatClient;
+  final ChatClientResolver chatClientResolver;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
   final ChatHistoryStore historyStore;
 
   const ChatPage({
     super.key,
-    required this.chatClient,
+    required this.chatClientResolver,
     required this.apiKeyStore,
     required this.configStore,
     required this.historyStore,
@@ -47,6 +53,7 @@ class _ChatPageState extends State<ChatPage> {
   int _idCounter = 0;
   String? _activeConversationId;
   String? _persistWarning;
+  String? _protocolWarning;
   String _streamingAssistantText = '';
   StreamSubscription<ChatStreamEvent>? _streamSubscription;
 
@@ -70,7 +77,11 @@ class _ChatPageState extends State<ChatPage> {
       if (!hasKey) continue;
       final apiKey = await widget.apiKeyStore.readKey(config.providerId);
       if (apiKey == null || apiKey.trim().isEmpty) continue;
-      ready.add(_ReadyProvider(config: config, apiKey: apiKey));
+
+      final client = widget.chatClientResolver.resolve(config.protocol);
+      if (client == null) continue;
+
+      ready.add(_ReadyProvider(config: config, apiKey: apiKey, client: client));
     }
 
     final conversation = await widget.historyStore.readLatestConversation();
@@ -97,6 +108,18 @@ class _ChatPageState extends State<ChatPage> {
       selectedProvider = ready.first;
     }
 
+    String? protocolWarning;
+    if (conversation != null && selectedProvider == null) {
+      final convConfig =
+          await widget.configStore.readConfig(conversation.providerId);
+      if (convConfig != null &&
+          !widget.chatClientResolver.supports(convConfig.protocol)) {
+        protocolWarning = 'Provider protocol is not supported yet';
+      } else {
+        _persistWarning = 'Provider is no longer available';
+      }
+    }
+
     if (mounted) {
       setState(() {
         _readyProviders.clear();
@@ -106,8 +129,12 @@ class _ChatPageState extends State<ChatPage> {
         _messages.addAll(historyMessages);
         _activeConversationId = conversation?.id;
         _loading = false;
+        _protocolWarning = protocolWarning;
 
-        if (conversation != null && selectedProvider == null) {
+        if (conversation != null &&
+            selectedProvider == null &&
+            _persistWarning == null &&
+            _protocolWarning == null) {
           _persistWarning = 'Provider is no longer available';
         }
       });
@@ -120,6 +147,7 @@ class _ChatPageState extends State<ChatPage> {
     if (_sending) return false;
     if (_selectedProvider == null) return false;
     if (_persistWarning != null) return false;
+    if (_protocolWarning != null) return false;
     return true;
   }
 
@@ -134,6 +162,7 @@ class _ChatPageState extends State<ChatPage> {
       _messages.clear();
       _activeConversationId = null;
       _persistWarning = null;
+      _protocolWarning = null;
       _selectedProvider =
           _readyProviders.isNotEmpty ? _readyProviders.first : null;
       _messageController.clear();
@@ -163,6 +192,7 @@ class _ChatPageState extends State<ChatPage> {
         _messages.clear();
         _activeConversationId = null;
         _persistWarning = null;
+        _protocolWarning = null;
         _selectedProvider =
             _readyProviders.isNotEmpty ? _readyProviders.first : null;
         _messageController.clear();
@@ -201,15 +231,27 @@ class _ChatPageState extends State<ChatPage> {
         selectedProvider = null;
       }
 
+      String? protocolWarning;
+      String? persistWarning;
+      if (selectedProvider == null) {
+        final convConfig =
+            await widget.configStore.readConfig(conversation.providerId);
+        if (convConfig != null &&
+            !widget.chatClientResolver.supports(convConfig.protocol)) {
+          protocolWarning = 'Provider protocol is not supported yet';
+        } else {
+          persistWarning = 'Provider is no longer available';
+        }
+      }
+
       if (mounted) {
         setState(() {
           _messages.clear();
           _messages.addAll(messages);
           _activeConversationId = conversationId;
           _selectedProvider = selectedProvider;
-          _persistWarning = selectedProvider == null
-              ? 'Provider is no longer available'
-              : null;
+          _persistWarning = persistWarning;
+          _protocolWarning = protocolWarning;
           _loading = false;
           _messageController.clear();
           _streamingAssistantText = '';
@@ -306,7 +348,7 @@ class _ChatPageState extends State<ChatPage> {
               ))
           .toList();
 
-      final stream = widget.chatClient.streamComplete(
+      final stream = _selectedProvider!.client.streamComplete(
         baseUrl: _selectedProvider!.config.baseUrl,
         apiKey: _selectedProvider!.apiKey,
         model: _selectedProvider!.config.defaultModel!,
@@ -555,6 +597,17 @@ class _ChatPageState extends State<ChatPage> {
                         color: Colors.orange.shade100,
                         child: Text(
                           _persistWarning!,
+                          style: TextStyle(color: Colors.orange.shade900),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    if (_protocolWarning != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        color: Colors.orange.shade100,
+                        child: Text(
+                          _protocolWarning!,
                           style: TextStyle(color: Colors.orange.shade900),
                           textAlign: TextAlign.center,
                         ),

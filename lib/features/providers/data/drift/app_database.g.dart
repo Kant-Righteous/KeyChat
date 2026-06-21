@@ -49,9 +49,22 @@ class $ProviderConfigsTable extends ProviderConfigs
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
       'updated_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _protocolMeta =
+      const VerificationMeta('protocol');
   @override
-  List<GeneratedColumn> get $columns =>
-      [providerId, displayName, baseUrl, defaultModel, enabled, updatedAt];
+  late final GeneratedColumn<String> protocol = GeneratedColumn<String>(
+      'protocol', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        providerId,
+        displayName,
+        baseUrl,
+        defaultModel,
+        enabled,
+        updatedAt,
+        protocol
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -100,6 +113,12 @@ class $ProviderConfigsTable extends ProviderConfigs
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('protocol')) {
+      context.handle(_protocolMeta,
+          protocol.isAcceptableOrUnknown(data['protocol']!, _protocolMeta));
+    } else if (isInserting) {
+      context.missing(_protocolMeta);
+    }
     return context;
   }
 
@@ -121,6 +140,8 @@ class $ProviderConfigsTable extends ProviderConfigs
           .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+      protocol: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}protocol'])!,
     );
   }
 
@@ -137,13 +158,15 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
   final String? defaultModel;
   final bool enabled;
   final DateTime updatedAt;
+  final String protocol;
   const ProviderConfig(
       {required this.providerId,
       required this.displayName,
       required this.baseUrl,
       this.defaultModel,
       required this.enabled,
-      required this.updatedAt});
+      required this.updatedAt,
+      required this.protocol});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -155,6 +178,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
     }
     map['enabled'] = Variable<bool>(enabled);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['protocol'] = Variable<String>(protocol);
     return map;
   }
 
@@ -168,6 +192,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           : Value(defaultModel),
       enabled: Value(enabled),
       updatedAt: Value(updatedAt),
+      protocol: Value(protocol),
     );
   }
 
@@ -181,6 +206,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       defaultModel: serializer.fromJson<String?>(json['defaultModel']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      protocol: serializer.fromJson<String>(json['protocol']),
     );
   }
   @override
@@ -193,6 +219,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       'defaultModel': serializer.toJson<String?>(defaultModel),
       'enabled': serializer.toJson<bool>(enabled),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'protocol': serializer.toJson<String>(protocol),
     };
   }
 
@@ -202,7 +229,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           String? baseUrl,
           Value<String?> defaultModel = const Value.absent(),
           bool? enabled,
-          DateTime? updatedAt}) =>
+          DateTime? updatedAt,
+          String? protocol}) =>
       ProviderConfig(
         providerId: providerId ?? this.providerId,
         displayName: displayName ?? this.displayName,
@@ -211,6 +239,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
             defaultModel.present ? defaultModel.value : this.defaultModel,
         enabled: enabled ?? this.enabled,
         updatedAt: updatedAt ?? this.updatedAt,
+        protocol: protocol ?? this.protocol,
       );
   ProviderConfig copyWithCompanion(ProviderConfigsCompanion data) {
     return ProviderConfig(
@@ -224,6 +253,7 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           : this.defaultModel,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      protocol: data.protocol.present ? data.protocol.value : this.protocol,
     );
   }
 
@@ -235,14 +265,15 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           ..write('baseUrl: $baseUrl, ')
           ..write('defaultModel: $defaultModel, ')
           ..write('enabled: $enabled, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('protocol: $protocol')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      providerId, displayName, baseUrl, defaultModel, enabled, updatedAt);
+  int get hashCode => Object.hash(providerId, displayName, baseUrl,
+      defaultModel, enabled, updatedAt, protocol);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -252,7 +283,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           other.baseUrl == this.baseUrl &&
           other.defaultModel == this.defaultModel &&
           other.enabled == this.enabled &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.protocol == this.protocol);
 }
 
 class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
@@ -262,6 +294,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
   final Value<String?> defaultModel;
   final Value<bool> enabled;
   final Value<DateTime> updatedAt;
+  final Value<String> protocol;
   final Value<int> rowid;
   const ProviderConfigsCompanion({
     this.providerId = const Value.absent(),
@@ -270,6 +303,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     this.defaultModel = const Value.absent(),
     this.enabled = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.protocol = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProviderConfigsCompanion.insert({
@@ -279,11 +313,13 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     this.defaultModel = const Value.absent(),
     this.enabled = const Value.absent(),
     required DateTime updatedAt,
+    required String protocol,
     this.rowid = const Value.absent(),
   })  : providerId = Value(providerId),
         displayName = Value(displayName),
         baseUrl = Value(baseUrl),
-        updatedAt = Value(updatedAt);
+        updatedAt = Value(updatedAt),
+        protocol = Value(protocol);
   static Insertable<ProviderConfig> custom({
     Expression<String>? providerId,
     Expression<String>? displayName,
@@ -291,6 +327,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     Expression<String>? defaultModel,
     Expression<bool>? enabled,
     Expression<DateTime>? updatedAt,
+    Expression<String>? protocol,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -300,6 +337,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       if (defaultModel != null) 'default_model': defaultModel,
       if (enabled != null) 'enabled': enabled,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (protocol != null) 'protocol': protocol,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -311,6 +349,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       Value<String?>? defaultModel,
       Value<bool>? enabled,
       Value<DateTime>? updatedAt,
+      Value<String>? protocol,
       Value<int>? rowid}) {
     return ProviderConfigsCompanion(
       providerId: providerId ?? this.providerId,
@@ -319,6 +358,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       defaultModel: defaultModel ?? this.defaultModel,
       enabled: enabled ?? this.enabled,
       updatedAt: updatedAt ?? this.updatedAt,
+      protocol: protocol ?? this.protocol,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -344,6 +384,9 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (protocol.present) {
+      map['protocol'] = Variable<String>(protocol.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -359,6 +402,7 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
           ..write('defaultModel: $defaultModel, ')
           ..write('enabled: $enabled, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('protocol: $protocol, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1063,6 +1107,7 @@ typedef $$ProviderConfigsTableCreateCompanionBuilder = ProviderConfigsCompanion
   Value<String?> defaultModel,
   Value<bool> enabled,
   required DateTime updatedAt,
+  required String protocol,
   Value<int> rowid,
 });
 typedef $$ProviderConfigsTableUpdateCompanionBuilder = ProviderConfigsCompanion
@@ -1073,6 +1118,7 @@ typedef $$ProviderConfigsTableUpdateCompanionBuilder = ProviderConfigsCompanion
   Value<String?> defaultModel,
   Value<bool> enabled,
   Value<DateTime> updatedAt,
+  Value<String> protocol,
   Value<int> rowid,
 });
 
@@ -1102,6 +1148,9 @@ class $$ProviderConfigsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get protocol => $composableBuilder(
+      column: $table.protocol, builder: (column) => ColumnFilters(column));
 }
 
 class $$ProviderConfigsTableOrderingComposer
@@ -1131,6 +1180,9 @@ class $$ProviderConfigsTableOrderingComposer
 
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get protocol => $composableBuilder(
+      column: $table.protocol, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProviderConfigsTableAnnotationComposer
@@ -1159,6 +1211,9 @@ class $$ProviderConfigsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get protocol =>
+      $composableBuilder(column: $table.protocol, builder: (column) => column);
 }
 
 class $$ProviderConfigsTableTableManager extends RootTableManager<
@@ -1194,6 +1249,7 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             Value<String?> defaultModel = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
+            Value<String> protocol = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProviderConfigsCompanion(
@@ -1203,6 +1259,7 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             defaultModel: defaultModel,
             enabled: enabled,
             updatedAt: updatedAt,
+            protocol: protocol,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -1212,6 +1269,7 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             Value<String?> defaultModel = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
             required DateTime updatedAt,
+            required String protocol,
             Value<int> rowid = const Value.absent(),
           }) =>
               ProviderConfigsCompanion.insert(
@@ -1221,6 +1279,7 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             defaultModel: defaultModel,
             enabled: enabled,
             updatedAt: updatedAt,
+            protocol: protocol,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
