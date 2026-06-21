@@ -10,7 +10,9 @@ android {
 
     // flutter_secure_storage 要求使用 Android SDK 36 或更高版本。
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+
+    // 当前 Flutter 插件统一要求使用 NDK 27。
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
