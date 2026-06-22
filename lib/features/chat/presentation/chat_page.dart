@@ -827,12 +827,13 @@ class _ChatPageState extends State<ChatPage> {
                                               const Icon(Icons.copy, size: 16),
                                           tooltip: 'Copy response',
                                           onPressed: () async {
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
                                             await Clipboard.setData(
                                               ClipboardData(text: content),
                                             );
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
+                                              messenger.showSnackBar(
                                                 const SnackBar(
                                                   content: Text('Copied'),
                                                   duration:

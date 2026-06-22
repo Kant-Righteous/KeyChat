@@ -1,14 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+typedef LinkOpener = Future<bool> Function(Uri uri);
+
+Future<bool> _defaultLinkOpener(Uri uri) async {
+  if (uri.scheme != 'http' && uri.scheme != 'https') return false;
+  try {
+    return await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    return false;
+  }
+}
 
 class AssistantMessageContent extends StatelessWidget {
   const AssistantMessageContent({
     required this.source,
+    this.linkOpener,
     super.key,
   });
 
   final String source;
+  final LinkOpener? linkOpener;
+
+  LinkOpener get _opener => linkOpener ?? _defaultLinkOpener;
 
   static final _codeBlockDecoration = BoxDecoration(
     borderRadius: BorderRadius.circular(8),
@@ -34,7 +51,7 @@ class AssistantMessageContent extends StatelessWidget {
         final uri = Uri.tryParse(href);
         if (uri == null) return;
         if (uri.scheme != 'http' && uri.scheme != 'https') return;
-        launchUrl(uri, mode: LaunchMode.externalApplication);
+        Future.sync(() => _opener(uri)).catchError((_) => false);
       },
       styleSheet: MarkdownStyleSheet(
         p: theme.textTheme.bodyMedium?.copyWith(fontSize: 15),
@@ -89,6 +106,15 @@ class AssistantMessageContent extends StatelessWidget {
           fontStyle: FontStyle.italic,
         ),
       ),
+      imageBuilder: (uri, title, alt) {
+        return Text(
+          alt ?? '[Image]',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontStyle: FontStyle.italic,
+          ),
+        );
+      },
     );
   }
 }

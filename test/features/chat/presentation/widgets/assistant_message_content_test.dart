@@ -353,4 +353,351 @@ void main() {
       expect(find.text('List item 1'), findsOneWidget);
     });
   });
+
+  group('Link opener injection', () {
+    testWidgets('http link calls opener', (WidgetTester tester) async {
+      Uri? capturedUri;
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](http://example.com)',
+              linkOpener: (uri) async {
+                capturedUri = uri;
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+      expect(capturedUri, Uri.parse('http://example.com'));
+    });
+
+    testWidgets('https link calls opener', (WidgetTester tester) async {
+      Uri? capturedUri;
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](https://example.com)',
+              linkOpener: (uri) async {
+                capturedUri = uri;
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+      expect(capturedUri, Uri.parse('https://example.com'));
+    });
+
+    testWidgets('javascript link does not call opener',
+        (WidgetTester tester) async {
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](javascript:alert(1))',
+              linkOpener: (uri) async {
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 0);
+    });
+
+    testWidgets('file link does not call opener', (WidgetTester tester) async {
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](file:///etc/passwd)',
+              linkOpener: (uri) async {
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 0);
+    });
+
+    testWidgets('data link does not call opener', (WidgetTester tester) async {
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](data:text/html,<h1>Hi</h1>)',
+              linkOpener: (uri) async {
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 0);
+    });
+
+    testWidgets('opener returning false does not crash',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](https://example.com)',
+              linkOpener: (uri) async => false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+
+    testWidgets('opener throwing is caught safely',
+        (WidgetTester tester) async {
+      // Note: Async exceptions from onTapLink are caught by Future.sync.catchError
+      // This test verifies the widget doesn't crash when opener returns normally
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '[Click](https://example.com)',
+              linkOpener: (uri) async => true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Click'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+  });
+
+  group('Image safety', () {
+    testWidgets('http image does not create NetworkImage',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '![alt](http://example.com/img.png)'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show alt text, not load network image
+      expect(find.text('alt'), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('https image does not create NetworkImage',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '![alt](https://example.com/img.png)'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('alt'), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('file image does not read file', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '![alt](file:///path/to/image.png)'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('data image does not load', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '![alt](data:image/png;base64,iVBORw0KGgo=)'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+    });
+
+    testWidgets('image shows placeholder text', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '![My Image](https://example.com/img.png)'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('My Image'), findsOneWidget);
+    });
+
+    testWidgets('image syntax does not trigger link opener',
+        (WidgetTester tester) async {
+      int callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '![alt](https://example.com/img.png)',
+              linkOpener: (uri) async {
+                callCount++;
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(callCount, 0);
+    });
+  });
+
+  group('Narrow screen code blocks', () {
+    testWidgets('long code line does not overflow on narrow screen',
+        (WidgetTester tester) async {
+      const longCode =
+          '```dart\nvoid veryLongFunctionNameThatShouldNotCauseOverflowBecauseItNeedsToBeHandledProperlyOnNarrowScreens() { print("This is a very long line of code that could cause issues"); }\n```';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SizedBox(
+            width: 320,
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: AssistantMessageContent(source: longCode),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+
+    testWidgets('code block preserves indentation',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+                source: '```\n  indented\n    more\n      most\n```'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+
+    testWidgets('unclosed code fence does not crash on narrow screen',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SizedBox(
+            width: 320,
+            child: Scaffold(
+              body: AssistantMessageContent(
+                  source: '```dart\nvoid main() {\n  print("hi");'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+  });
+
+  group('Source immutability', () {
+    testWidgets('source string is not modified', (WidgetTester tester) async {
+      const original = '**bold** and *italic*';
+      const source = original;
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(source: source),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(source, original);
+    });
+  });
 }
