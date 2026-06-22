@@ -64,7 +64,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _loadData() async {
-    final configs = await widget.configStore.readAllConfigs();
+    List<ProviderConfigData> configs;
+    try {
+      configs = await widget.configStore.readAllConfigs();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _persistWarning = 'Provider configuration is invalid';
+        });
+      }
+      return;
+    }
     final ready = <_ReadyProvider>[];
 
     for (final config in configs) {
@@ -110,13 +121,17 @@ class _ChatPageState extends State<ChatPage> {
 
     String? protocolWarning;
     if (conversation != null && selectedProvider == null) {
-      final convConfig =
-          await widget.configStore.readConfig(conversation.providerId);
-      if (convConfig != null &&
-          !widget.chatClientResolver.supports(convConfig.protocol)) {
-        protocolWarning = 'Provider protocol is not supported yet';
-      } else {
-        _persistWarning = 'Provider is no longer available';
+      try {
+        final convConfig =
+            await widget.configStore.readConfig(conversation.providerId);
+        if (convConfig != null &&
+            !widget.chatClientResolver.supports(convConfig.protocol)) {
+          protocolWarning = 'Provider protocol is not supported yet';
+        } else {
+          _persistWarning = 'Provider is no longer available';
+        }
+      } catch (_) {
+        _persistWarning = 'Provider configuration is invalid';
       }
     }
 
@@ -234,13 +249,17 @@ class _ChatPageState extends State<ChatPage> {
       String? protocolWarning;
       String? persistWarning;
       if (selectedProvider == null) {
-        final convConfig =
-            await widget.configStore.readConfig(conversation.providerId);
-        if (convConfig != null &&
-            !widget.chatClientResolver.supports(convConfig.protocol)) {
-          protocolWarning = 'Provider protocol is not supported yet';
-        } else {
-          persistWarning = 'Provider is no longer available';
+        try {
+          final convConfig =
+              await widget.configStore.readConfig(conversation.providerId);
+          if (convConfig != null &&
+              !widget.chatClientResolver.supports(convConfig.protocol)) {
+            protocolWarning = 'Provider protocol is not supported yet';
+          } else {
+            persistWarning = 'Provider is no longer available';
+          }
+        } catch (_) {
+          persistWarning = 'Provider configuration is invalid';
         }
       }
 
@@ -568,7 +587,9 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedProvider == null && !_isProviderLocked
+          : _selectedProvider == null &&
+                  !_isProviderLocked &&
+                  _persistWarning == null
               ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

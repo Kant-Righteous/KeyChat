@@ -35,6 +35,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
+  bool _configLoadError = false;
   List<String> _discoveredModels = [];
 
   ProviderConnectionTester? get _connectionTester {
@@ -57,17 +58,30 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   }
 
   Future<void> _loadData() async {
-    final config = await widget.configStore.readConfig(widget.preset.id);
-    final hasKey = await widget.apiKeyStore.hasKey(widget.preset.id);
+    try {
+      final config = await widget.configStore.readConfig(widget.preset.id);
+      final hasKey = await widget.apiKeyStore.hasKey(widget.preset.id);
 
-    if (mounted) {
-      setState(() {
-        _nameController.text = config?.displayName ?? widget.preset.name;
-        _urlController.text = config?.baseUrl ?? widget.preset.defaultBaseUrl;
-        _modelController.text = config?.defaultModel ?? '';
-        _hasExistingKey = hasKey;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _nameController.text = config?.displayName ?? widget.preset.name;
+          _urlController.text = config?.baseUrl ?? widget.preset.defaultBaseUrl;
+          _modelController.text = config?.defaultModel ?? '';
+          _hasExistingKey = hasKey;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _nameController.text = widget.preset.name;
+          _urlController.text = widget.preset.defaultBaseUrl;
+          _modelController.text = '';
+          _hasExistingKey = false;
+          _loading = false;
+          _configLoadError = true;
+        });
+      }
     }
   }
 
@@ -269,134 +283,160 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Provider Name',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: _validateName,
-                      enabled: widget.preset.isCustom,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _urlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Base URL',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: _validateUrl,
-                      enabled: widget.preset.isCustom,
-                      keyboardType: TextInputType.url,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _modelController,
-                      decoration: const InputDecoration(
-                        labelText: 'Default Model',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    if (_discoveredModels.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: _discoveredModels.map((model) {
-                          return ActionChip(
-                            label: Text(model),
-                            onPressed: () {
-                              _modelController.text = model;
-                            },
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    if (_hasExistingKey)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'API key is already configured',
-                          style: TextStyle(color: Colors.green[700]),
-                        ),
-                      ),
-                    TextFormField(
-                      controller: _apiKeyController,
-                      decoration: InputDecoration(
-                        labelText: _hasExistingKey
-                            ? 'New API Key (leave blank to keep)'
-                            : 'API Key',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureApiKey
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _obscureApiKey = !_obscureApiKey;
-                            });
-                          },
-                        ),
-                      ),
-                      validator: _validateApiKey,
-                      obscureText: _obscureApiKey,
-                    ),
-                    const SizedBox(height: 24),
-                    if (_connectionTestSupported)
-                      OutlinedButton.icon(
-                        onPressed: _testing ? null : _testConnection,
-                        icon: _testing
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.wifi_find),
-                        label: const Text('Test Connection'),
-                      ),
-                    if (!_connectionTestSupported)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'Connection test is not supported for this protocol',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _saving ? null : _submit,
-                      child: _saving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save'),
-                    ),
-                    if (_hasExistingKey) ...[
+          : _configLoadError
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          size: 48, color: Colors.red),
                       const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _deleteKey,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                        ),
-                        child: const Text('Remove API Key'),
+                      const Text(
+                        'Provider configuration is invalid',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'The saved configuration could not be loaded.',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Go Back'),
                       ),
                     ],
-                  ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Provider Name',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: _validateName,
+                          enabled: widget.preset.isCustom,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _urlController,
+                          decoration: const InputDecoration(
+                            labelText: 'Base URL',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: _validateUrl,
+                          enabled: widget.preset.isCustom,
+                          keyboardType: TextInputType.url,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _modelController,
+                          decoration: const InputDecoration(
+                            labelText: 'Default Model',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        if (_discoveredModels.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: _discoveredModels.map((model) {
+                              return ActionChip(
+                                label: Text(model),
+                                onPressed: () {
+                                  _modelController.text = model;
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        if (_hasExistingKey)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'API key is already configured',
+                              style: TextStyle(color: Colors.green[700]),
+                            ),
+                          ),
+                        TextFormField(
+                          controller: _apiKeyController,
+                          decoration: InputDecoration(
+                            labelText: _hasExistingKey
+                                ? 'New API Key (leave blank to keep)'
+                                : 'API Key',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureApiKey
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscureApiKey = !_obscureApiKey;
+                                });
+                              },
+                            ),
+                          ),
+                          validator: _validateApiKey,
+                          obscureText: _obscureApiKey,
+                        ),
+                        const SizedBox(height: 24),
+                        if (_connectionTestSupported)
+                          OutlinedButton.icon(
+                            onPressed: _testing ? null : _testConnection,
+                            icon: _testing
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.wifi_find),
+                            label: const Text('Test Connection'),
+                          ),
+                        if (!_connectionTestSupported)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Connection test is not supported for this protocol',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _saving ? null : _submit,
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Save'),
+                        ),
+                        if (_hasExistingKey) ...[
+                          const SizedBox(height: 16),
+                          OutlinedButton(
+                            onPressed: _deleteKey,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            child: const Text('Remove API Key'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 }

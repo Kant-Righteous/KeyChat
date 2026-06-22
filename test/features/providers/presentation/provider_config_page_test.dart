@@ -1043,6 +1043,54 @@ void main() {
         );
         expect(snackBarText.data, isNot(contains('test-marker-abc')));
       });
+
+      testWidgets('unknown protocol shows invalid config error',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final throwingStore = _ThrowingConfigStore();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: throwingStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Provider configuration is invalid'), findsOneWidget);
+        expect(find.text('Go Back'), findsOneWidget);
+      });
+
+      testWidgets('unknown protocol does not show form fields',
+          (WidgetTester tester) async {
+        final preset = providerPresets[0]; // OpenAI
+        final throwingStore = _ThrowingConfigStore();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ProviderConfigPage(
+              preset: preset,
+              apiKeyStore: apiKeyStore,
+              configStore: throwingStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Provider Name'), findsNothing);
+        expect(find.text('Base URL'), findsNothing);
+        expect(find.text('API Key'), findsNothing);
+      });
     });
   });
+}
+
+class _ThrowingConfigStore extends FakeProviderConfigStore {
+  @override
+  Future<ProviderConfigData?> readConfig(String providerId) async {
+    throw StateError('Unknown protocol for provider: $providerId');
+  }
 }

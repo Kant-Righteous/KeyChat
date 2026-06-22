@@ -1995,5 +1995,163 @@ void main() {
       expect(find.text('Response received but could not be saved'),
           findsOneWidget);
     });
+
+    testWidgets(
+        'unsupported protocol shows "Provider protocol is not supported yet"',
+        (WidgetTester tester) async {
+      // Config exists with anthropicMessages protocol, but resolver doesn't support it
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'anthropic',
+        displayName: 'Anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        defaultModel: 'claude-3',
+        protocol: ProviderProtocol.anthropicMessages,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('anthropic', 'test-key');
+
+      // Create a conversation with the unsupported provider
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_anthropic',
+          title: 'Anthropic Chat',
+          providerId: 'anthropic',
+          model: 'claude-3',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show the unsupported protocol warning
+      expect(
+          find.text('Provider protocol is not supported yet'), findsOneWidget);
+      // Should NOT show the unavailable provider warning
+      expect(find.text('Provider is no longer available'), findsNothing);
+      // Should show history
+      expect(find.text('Hello'), findsOneWidget);
+      // Send should be disabled
+      final sendButton = tester.widget<IconButton>(
+        find.ancestor(
+            of: find.byIcon(Icons.send), matching: find.byType(IconButton)),
+      );
+      expect(sendButton.onPressed, isNull);
+    });
+
+    testWidgets('invalid config shows "Provider configuration is invalid"',
+        (WidgetTester tester) async {
+      // Create a config store that throws on readConfig
+      final throwingStore = _ThrowingConfigStore();
+
+      // Create a conversation with a provider that has bad config
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_bad',
+          title: 'Bad Config Chat',
+          providerId: 'bad_provider',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: throwingStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show the invalid config warning
+      expect(find.text('Provider configuration is invalid'), findsOneWidget);
+      // Should NOT show the unavailable provider warning
+      expect(find.text('Provider is no longer available'), findsNothing);
+      // Should NOT show the unsupported protocol warning
+      expect(find.text('Provider protocol is not supported yet'), findsNothing);
+      // Send should be disabled
+      final sendButton = tester.widget<IconButton>(
+        find.ancestor(
+            of: find.byIcon(Icons.send), matching: find.byType(IconButton)),
+      );
+      expect(sendButton.onPressed, isNull);
+    });
+
+    testWidgets('invalid config does not call ChatCompletionClient',
+        (WidgetTester tester) async {
+      final throwingStore = _ThrowingConfigStore();
+
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_bad',
+          title: 'Bad Config Chat',
+          providerId: 'bad_provider',
+          model: 'gpt-4',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: throwingStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // No client calls should be made
+      expect(chatClient.callCount, 0);
+      expect(chatClient.streamCallCount, 0);
+    });
   });
+}
+
+class _ThrowingConfigStore extends FakeProviderConfigStore {
+  @override
+  Future<ProviderConfigData?> readConfig(String providerId) async {
+    throw StateError('Unknown protocol for provider: $providerId');
+  }
+
+  @override
+  Future<List<ProviderConfigData>> readAllConfigs() async {
+    throw StateError('Unknown protocol in configs');
+  }
 }
