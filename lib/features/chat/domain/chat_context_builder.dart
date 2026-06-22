@@ -53,7 +53,15 @@ final class _Turn {
 final class ChatContextBuilder {
   ChatContextBuilder({
     this.maxEstimatedTokens = 12000,
-  }) : assert(maxEstimatedTokens > 0, 'maxEstimatedTokens must be > 0');
+  }) {
+    if (maxEstimatedTokens <= 0) {
+      throw ArgumentError.value(
+        maxEstimatedTokens,
+        'maxEstimatedTokens',
+        'must be greater than zero',
+      );
+    }
+  }
 
   final int maxEstimatedTokens;
 

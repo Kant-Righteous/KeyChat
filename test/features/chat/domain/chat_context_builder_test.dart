@@ -492,17 +492,17 @@ void main() {
       expect(result.messages.length, 1);
     });
 
-    test('budget of 0 throws assertion error', () {
+    test('budget of 0 throws ArgumentError', () {
       expect(
         () => ChatContextBuilder(maxEstimatedTokens: 0),
-        throwsA(isA<AssertionError>()),
+        throwsA(isA<ArgumentError>()),
       );
     });
 
-    test('negative budget throws assertion error', () {
+    test('negative budget throws ArgumentError', () {
       expect(
         () => ChatContextBuilder(maxEstimatedTokens: -1),
-        throwsA(isA<AssertionError>()),
+        throwsA(isA<ArgumentError>()),
       );
     });
   });

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_context_builder.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
@@ -3573,6 +3574,965 @@ void main() {
         expect(token.isCancelled, true);
 
         streamController.close();
+      });
+    });
+
+    group('Context trimming', () {
+      testWidgets('sends builder output to stream client',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Small budget to force trimming
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 20);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Builder output was sent to client
+        expect(chatClient.lastMessages, isNotNull);
+        expect(chatClient.lastMessages!.last.content, 'Hello');
+        expect(chatClient.lastMessages!.last.role, 'user');
+      });
+
+      testWidgets('omits oldest complete turn when over budget',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Very small budget to force trimming
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        // First message
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Second message - budget should trim first turn
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply2'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // First turn should be omitted from request
+        final sentMessages = chatClient.lastMessages!;
+        expect(sentMessages.any((m) => m.content == 'First'), false);
+        expect(sentMessages.last.content, 'Second');
+      });
+
+      testWidgets('preserves most recent complete turn',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Budget that allows recent turn but not old turn
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 30);
+
+        // First turn
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Old reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Old question',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Second turn
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'New question',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Third turn - should include second turn but not first
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Final reply'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Final question',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        final sentMessages = chatClient.lastMessages!;
+        expect(sentMessages.any((m) => m.content == 'Old question'), false);
+        expect(sentMessages.any((m) => m.content == 'Old reply'), false);
+        expect(sentMessages.any((m) => m.content == 'New question'), true);
+        expect(sentMessages.any((m) => m.content == 'New reply'), true);
+      });
+
+      testWidgets('keeps current user as final message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: ChatContextBuilder(maxEstimatedTokens: 20),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'My question',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(chatClient.lastMessages!.last.content, 'My question');
+        expect(chatClient.lastMessages!.last.role, 'user');
+      });
+
+      testWidgets('includes current user exactly once',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Unique question',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        final userMsgs = chatClient.lastMessages!
+            .where((m) => m.content == 'Unique question')
+            .toList();
+        expect(userMsgs.length, 1);
+      });
+
+      testWidgets('preserves original roles and content',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(
+              assistantContent: '**bold** and `code`'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          '# Heading',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Next'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Next',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        final sent = chatClient.lastMessages!;
+        expect(sent.any((m) => m.content == '# Heading'), true);
+        expect(sent.any((m) => m.content == '**bold** and `code`'), true);
+      });
+
+      testWidgets('sends raw markdown source', (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(
+              assistantContent: '```dart\nvoid main() {}\n```'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Show code',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Next'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Next',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        final sent = chatClient.lastMessages!;
+        expect(
+            sent.any((m) => m.content == '```dart\nvoid main() {}\n```'), true);
+      });
+
+      testWidgets('keeps omitted messages visible in UI',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // First message should still be visible in UI
+        expect(find.text('First'), findsOneWidget);
+      });
+
+      testWidgets('keeps omitted messages in history store',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Message still in store
+        final conv = await historyStore.readLatestConversation();
+        final messages = await historyStore.readMessages(conv!.id);
+        expect(messages.any((m) => m.content == 'First'), true);
+      });
+
+      testWidgets('stopped partial text excluded from next request',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // Send second message
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Partial text not in request
+        final sent = chatClient.lastMessages!;
+        expect(sent.any((m) => m.content == 'Partial'), false);
+        expect(sent.any((m) => m.content == 'Stopped'), false);
+      });
+
+      testWidgets('trimming notice shows when context is trimmed',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Second message should trigger trimming
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R2'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Earlier messages were omitted for this request'),
+            findsOneWidget);
+      });
+
+      testWidgets('untrimmed request does not show notice',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Earlier messages were omitted for this request'),
+            findsNothing);
+      });
+
+      testWidgets('New Chat clears trimming notice',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R2'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Earlier messages were omitted for this request'),
+            findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.add_comment));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Earlier messages were omitted for this request'),
+            findsNothing);
+      });
+
+      testWidgets('trimming notice not persisted as ChatMessage',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 15);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'R2'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Check store doesn't contain the notice text
+        final conv = await historyStore.readLatestConversation();
+        final messages = await historyStore.readMessages(conv!.id);
+        expect(
+            messages.any((m) =>
+                m.content == 'Earlier messages were omitted for this request'),
+            false);
+      });
+
+      testWidgets('oversized current message still starts request',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 5);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'This is a very long message that exceeds the tiny budget',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(chatClient.streamCallCount, 1);
+      });
+
+      testWidgets('oversized current message sent without truncation',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 5);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final longText =
+            'This is a very long message that exceeds the tiny budget';
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          longText,
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(chatClient.lastMessages!.last.content, longText);
+        expect(chatClient.lastMessages!.length, 1);
+      });
+
+      testWidgets('oversized current message shows notice',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final contextBuilder = ChatContextBuilder(maxEstimatedTokens: 5);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: contextBuilder,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'This is a very long message that exceeds the tiny budget',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Current message exceeds the local context estimate'),
+            findsOneWidget);
+      });
+
+      testWidgets('context is rebuilt after normal completion',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply1'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        final firstCallMessages =
+            List<ChatRequestMessage>.from(chatClient.lastMessages!);
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply2'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Second call should have more messages than first
+        expect(chatClient.lastMessages!.length,
+            greaterThan(firstCallMessages.length));
+      });
+
+      testWidgets('context is rebuilt after user stop',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'First',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // Send second - should rebuild context
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'OK'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Second',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // User message still in context
+        expect(chatClient.lastMessages!.any((m) => m.content == 'First'), true);
+        expect(chatClient.lastMessages!.last.content, 'Second');
+        // Stopped partial not in context
+        expect(
+            chatClient.lastMessages!.any((m) => m.content == 'Partial'), false);
       });
     });
   });
