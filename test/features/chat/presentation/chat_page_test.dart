@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
@@ -2342,13 +2343,13 @@ void main() {
         streamController.add(const ChatStreamDelta('Partial '));
         await tester.pump();
 
-        expect(find.text('Partial '), findsOneWidget);
+        expect(find.byType(AssistantMessageContent), findsOneWidget);
 
         await tester.tap(find.byIcon(Icons.stop_rounded));
         await tester.pump();
 
-        // Partial text preserved
-        expect(find.text('Partial '), findsOneWidget);
+        // Partial text preserved (still rendered by AssistantMessageContent)
+        expect(find.byType(AssistantMessageContent), findsOneWidget);
         // Stopped indicator shown
         expect(find.text('Stopped'), findsOneWidget);
         // No error snackbar

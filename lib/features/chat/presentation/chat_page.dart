@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
+import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
@@ -769,6 +771,8 @@ class _ChatPageState extends State<ChatPage> {
                                 final isStreaming = index == _messages.length;
                                 final isUser = !isStreaming &&
                                     _messages[index].role == ChatRole.user;
+                                final isAssistant = !isStreaming &&
+                                    _messages[index].role == ChatRole.assistant;
                                 final content = isStreaming
                                     ? _streamingAssistantText
                                     : _messages[index].content;
@@ -806,9 +810,39 @@ class _ChatPageState extends State<ChatPage> {
                                           borderRadius:
                                               BorderRadius.circular(12),
                                         ),
-                                        child: Text(content),
+                                        child: isUser
+                                            ? Text(content)
+                                            : AssistantMessageContent(
+                                                source: content,
+                                                key: ValueKey(
+                                                    'msg_${isStreaming ? 'streaming' : _messages[index].id}'),
+                                              ),
                                       ),
                                     ),
+                                    if (isAssistant)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 4),
+                                        child: IconButton(
+                                          icon:
+                                              const Icon(Icons.copy, size: 16),
+                                          tooltip: 'Copy response',
+                                          onPressed: () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(text: content),
+                                            );
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Copied'),
+                                                  duration:
+                                                      Duration(seconds: 1),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      ),
                                     if (isStreaming && _userStopped)
                                       Padding(
                                         padding: const EdgeInsets.only(
