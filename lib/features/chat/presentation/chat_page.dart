@@ -601,7 +601,7 @@ class _ChatPageState extends State<ChatPage> {
             setState(() {
               _streamingAssistantText += event.content;
             });
-            _scrollToBottom();
+            _scrollIfNearBottom();
           } else if (event is ChatStreamCompleted) {
             _handleStreamCompleted(hasContent, genId, target);
           } else if (event is ChatStreamFailure) {
@@ -682,7 +682,7 @@ class _ChatPageState extends State<ChatPage> {
             }
             _streamingAssistantText = '';
           });
-          _scrollToBottom();
+          _scrollIfNearBottom();
         }
       } catch (_) {
         _finishGeneration(
@@ -738,7 +738,7 @@ class _ChatPageState extends State<ChatPage> {
           _messages.add(assistantMessage);
           _streamingAssistantText = '';
         });
-        _scrollToBottom();
+        _scrollIfNearBottom();
       }
     }
   }
@@ -803,6 +803,13 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  bool _isNearBottom() {
+    if (!_scrollController.hasClients) return true;
+    const threshold = 120.0;
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= threshold;
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -813,6 +820,11 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     });
+  }
+
+  void _scrollIfNearBottom() {
+    if (!_isNearBottom()) return;
+    _scrollToBottom();
   }
 
   @override
@@ -848,8 +860,7 @@ class _ChatPageState extends State<ChatPage> {
                             ? null
                             : (provider) {
                                 if (provider != null) {
-                                  setState(
-                                      () => _selectedProvider = provider);
+                                  setState(() => _selectedProvider = provider);
                                 }
                               },
                         items: _readyProviders.map((p) {
@@ -880,15 +891,21 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             ),
-          IconButton(
-            onPressed: _sending ? null : _openConversationList,
-            icon: const Icon(Icons.history),
-            tooltip: 'History',
+          Semantics(
+            label: 'History',
+            child: IconButton(
+              onPressed: _sending ? null : _openConversationList,
+              icon: const Icon(Icons.history),
+              tooltip: 'History',
+            ),
           ),
-          IconButton(
-            onPressed: _sending ? null : _newChat,
-            icon: const Icon(Icons.add_comment),
-            tooltip: 'New Chat',
+          Semantics(
+            label: 'New Chat',
+            child: IconButton(
+              onPressed: _sending ? null : _newChat,
+              icon: const Icon(Icons.add_comment),
+              tooltip: 'New Chat',
+            ),
           ),
         ],
       ),
@@ -1037,14 +1054,15 @@ class _ChatPageState extends State<ChatPage> {
                                                       ScaffoldMessenger.of(
                                                           context);
                                                   await Clipboard.setData(
-                                                    ClipboardData(text: content),
+                                                    ClipboardData(
+                                                        text: content),
                                                   );
                                                   if (mounted) {
                                                     messenger.showSnackBar(
                                                       const SnackBar(
                                                         content: Text('Copied'),
-                                                        duration:
-                                                            Duration(seconds: 1),
+                                                        duration: Duration(
+                                                            seconds: 1),
                                                       ),
                                                     );
                                                   }
