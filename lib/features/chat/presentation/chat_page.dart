@@ -6,6 +6,7 @@ import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_context_builder.dart';
 import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
@@ -37,6 +38,7 @@ class ChatPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
   final ChatHistoryStore historyStore;
+  final ChatContextBuilder contextBuilder;
 
   const ChatPage({
     super.key,
@@ -44,6 +46,7 @@ class ChatPage extends StatefulWidget {
     required this.apiKeyStore,
     required this.configStore,
     required this.historyStore,
+    this.contextBuilder = const ChatContextBuilder(),
   });
 
   @override
@@ -69,6 +72,7 @@ class _ChatPageState extends State<ChatPage> {
   String? _protocolWarning;
   String _streamingAssistantText = '';
   StreamSubscription<ChatStreamEvent>? _streamSubscription;
+  String? _trimWarning;
 
   @override
   void initState() {
@@ -189,6 +193,7 @@ class _ChatPageState extends State<ChatPage> {
   void _clearStoppedState() {
     _streamingAssistantText = '';
     _userStopped = false;
+    _trimWarning = null;
   }
 
   bool _isGenerationActive(int generationId) {
@@ -446,18 +451,43 @@ class _ChatPageState extends State<ChatPage> {
     final localToken = _cancellationToken;
 
     try {
-      final requestMessages = _messages
+      final historyMessages = _messages
+          .where((m) => m.id != userMessage.id)
           .map((m) => ChatRequestMessage(
                 role: m.role == ChatRole.user ? 'user' : 'assistant',
                 content: m.content,
               ))
           .toList();
 
+      final currentUserRequest = ChatRequestMessage(
+        role: 'user',
+        content: text,
+      );
+
+      final contextResult = widget.contextBuilder.build(
+        history: historyMessages,
+        currentUserMessage: currentUserRequest,
+      );
+
+      if (contextResult.wasTrimmed) {
+        setState(() {
+          _trimWarning = 'Earlier messages were omitted for this request';
+        });
+      } else if (contextResult.currentMessageExceedsBudget) {
+        setState(() {
+          _trimWarning = 'Current message exceeds the local context estimate';
+        });
+      } else {
+        setState(() {
+          _trimWarning = null;
+        });
+      }
+
       final stream = _selectedProvider!.client.streamComplete(
         baseUrl: _selectedProvider!.config.baseUrl,
         apiKey: _selectedProvider!.apiKey,
         model: _selectedProvider!.config.defaultModel!,
-        messages: requestMessages,
+        messages: contextResult.messages,
         cancellationToken: localToken,
       );
 
@@ -750,6 +780,18 @@ class _ChatPageState extends State<ChatPage> {
                         child: Text(
                           _protocolWarning!,
                           style: TextStyle(color: Colors.orange.shade900),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    if (_trimWarning != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        color: Colors.blue.shade50,
+                        child: Text(
+                          _trimWarning!,
+                          style: TextStyle(
+                              color: Colors.blue.shade900, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
                       ),
