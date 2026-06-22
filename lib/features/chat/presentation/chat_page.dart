@@ -23,6 +23,13 @@ class _ReadyProvider {
   });
 }
 
+enum _GenerationEndReason {
+  completed,
+  failed,
+  userStopped,
+  disposed,
+}
+
 class ChatPage extends StatefulWidget {
   final ChatClientResolver chatClientResolver;
   final ApiKeyStore apiKeyStore;
@@ -49,6 +56,10 @@ class _ChatPageState extends State<ChatPage> {
   _ReadyProvider? _selectedProvider;
   bool _loading = true;
   bool _sending = false;
+  bool _userStopped = false;
+  int _generationCounter = 0;
+  int? _activeGenerationId;
+  bool _terminalHandled = false;
   ChatCancellationToken? _cancellationToken;
   int _idCounter = 0;
   String? _activeConversationId;
@@ -166,9 +177,58 @@ class _ChatPageState extends State<ChatPage> {
     return true;
   }
 
+  bool get _canStop => _sending && _activeGenerationId != null;
+
   String _nextId() {
     _idCounter++;
     return '${DateTime.now().microsecondsSinceEpoch}_$_idCounter';
+  }
+
+  void _clearStoppedState() {
+    _streamingAssistantText = '';
+    _userStopped = false;
+  }
+
+  bool _isGenerationActive(int generationId) {
+    return mounted && _activeGenerationId == generationId && !_terminalHandled;
+  }
+
+  void _finishGeneration({
+    required int generationId,
+    required _GenerationEndReason reason,
+  }) {
+    if (!_isGenerationActive(generationId)) return;
+
+    _terminalHandled = true;
+
+    final sub = _streamSubscription;
+    _streamSubscription = null;
+    final token = _cancellationToken;
+    _cancellationToken = null;
+    _activeGenerationId = null;
+
+    _safeCancel(sub);
+    _safeCancelToken(token);
+
+    if (reason == _GenerationEndReason.disposed) return;
+
+    if (mounted) {
+      setState(() {
+        _sending = false;
+      });
+    }
+  }
+
+  void _safeCancel(StreamSubscription? sub) {
+    if (sub == null) return;
+    unawaited(sub.cancel().catchError((_) {}));
+  }
+
+  void _safeCancelToken(ChatCancellationToken? token) {
+    if (token == null) return;
+    try {
+      token.cancel();
+    } catch (_) {}
   }
 
   Future<void> _newChat() async {
@@ -181,7 +241,7 @@ class _ChatPageState extends State<ChatPage> {
       _selectedProvider =
           _readyProviders.isNotEmpty ? _readyProviders.first : null;
       _messageController.clear();
-      _streamingAssistantText = '';
+      _clearStoppedState();
     });
   }
 
@@ -211,6 +271,7 @@ class _ChatPageState extends State<ChatPage> {
         _selectedProvider =
             _readyProviders.isNotEmpty ? _readyProviders.first : null;
         _messageController.clear();
+        _clearStoppedState();
       });
     } else if (result.action == ConversationListAction.selected &&
         result.conversationId != null &&
@@ -273,7 +334,7 @@ class _ChatPageState extends State<ChatPage> {
           _protocolWarning = protocolWarning;
           _loading = false;
           _messageController.clear();
-          _streamingAssistantText = '';
+          _clearStoppedState();
         });
       }
     } catch (_) {
@@ -284,6 +345,20 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     }
+  }
+
+  void _stopGeneration() {
+    if (!_canStop) return;
+    final genId = _activeGenerationId!;
+
+    setState(() {
+      _userStopped = true;
+    });
+
+    _finishGeneration(
+      generationId: genId,
+      reason: _GenerationEndReason.userStopped,
+    );
   }
 
   Future<void> _send() async {
@@ -320,6 +395,8 @@ class _ChatPageState extends State<ChatPage> {
           _activeConversationId = conversationId;
           _messages.add(userMessage);
           _sending = true;
+          _userStopped = false;
+          _streamingAssistantText = '';
         });
         _messageController.clear();
       } catch (_) {
@@ -343,6 +420,8 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _messages.add(userMessage);
           _sending = true;
+          _userStopped = false;
+          _streamingAssistantText = '';
         });
         _messageController.clear();
       } catch (_) {
@@ -357,7 +436,12 @@ class _ChatPageState extends State<ChatPage> {
 
     _scrollToBottom();
     _cancellationToken = ChatCancellationToken();
+    final genId = ++_generationCounter;
+    _activeGenerationId = genId;
+    _terminalHandled = false;
     _streamingAssistantText = '';
+
+    final localToken = _cancellationToken;
 
     try {
       final requestMessages = _messages
@@ -372,14 +456,14 @@ class _ChatPageState extends State<ChatPage> {
         apiKey: _selectedProvider!.apiKey,
         model: _selectedProvider!.config.defaultModel!,
         messages: requestMessages,
-        cancellationToken: _cancellationToken,
+        cancellationToken: localToken,
       );
 
       bool hasContent = false;
 
       _streamSubscription = stream.listen(
         (event) {
-          if (!mounted) return;
+          if (!_isGenerationActive(genId)) return;
 
           if (event is ChatStreamDelta) {
             hasContent = true;
@@ -388,26 +472,30 @@ class _ChatPageState extends State<ChatPage> {
             });
             _scrollToBottom();
           } else if (event is ChatStreamCompleted) {
-            _handleStreamCompleted(hasContent);
+            _handleStreamCompleted(hasContent, genId);
           } else if (event is ChatStreamFailure) {
-            _handleStreamFailure(event, hasContent, text);
+            _handleStreamFailure(event, hasContent, text, genId);
           }
         },
         onError: (error) {
-          if (mounted) {
-            _handleStreamError(hasContent, text);
-          }
+          if (!_isGenerationActive(genId)) return;
+          _handleStreamError(hasContent, text, genId);
         },
         onDone: () {
-          if (mounted && _sending) {
-            setState(() => _sending = false);
-          }
+          if (!_isGenerationActive(genId)) return;
+          _finishGeneration(
+            generationId: genId,
+            reason: _GenerationEndReason.completed,
+          );
         },
       );
     } catch (_) {
       _messageController.text = text;
       if (mounted) {
-        setState(() => _sending = false);
+        _finishGeneration(
+          generationId: genId,
+          reason: _GenerationEndReason.failed,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to get response')),
         );
@@ -415,8 +503,14 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _handleStreamCompleted(bool hasContent) async {
+  Future<void> _handleStreamCompleted(bool hasContent, int genId) async {
+    if (!_isGenerationActive(genId)) return;
+
     if (!hasContent) {
+      _finishGeneration(
+        generationId: genId,
+        reason: _GenerationEndReason.failed,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid provider response')),
@@ -430,6 +524,11 @@ class _ChatPageState extends State<ChatPage> {
       role: ChatRole.assistant,
       content: _streamingAssistantText,
       createdAt: DateTime.now(),
+    );
+
+    _finishGeneration(
+      generationId: genId,
+      reason: _GenerationEndReason.completed,
     );
 
     try {
@@ -460,8 +559,15 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _handleStreamFailure(
-      ChatStreamFailure event, bool hasContent, String originalText) {
+  void _handleStreamFailure(ChatStreamFailure event, bool hasContent,
+      String originalText, int genId) {
+    if (!_isGenerationActive(genId)) return;
+
+    _finishGeneration(
+      generationId: genId,
+      reason: _GenerationEndReason.failed,
+    );
+
     if (hasContent) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -483,7 +589,14 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _handleStreamError(bool hasContent, String originalText) {
+  void _handleStreamError(bool hasContent, String originalText, int genId) {
+    if (!_isGenerationActive(genId)) return;
+
+    _finishGeneration(
+      generationId: genId,
+      reason: _GenerationEndReason.failed,
+    );
+
     if (hasContent) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -519,8 +632,13 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    _streamSubscription?.cancel();
-    _cancellationToken?.cancel();
+    final genId = _activeGenerationId;
+    if (genId != null) {
+      _finishGeneration(
+        generationId: genId,
+        reason: _GenerationEndReason.disposed,
+      );
+    }
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -655,33 +773,56 @@ class _ChatPageState extends State<ChatPage> {
                                     ? _streamingAssistantText
                                     : _messages[index].content;
 
-                                return Align(
-                                  alignment: isUser
-                                      ? Alignment.centerRight
-                                      : Alignment.centerLeft,
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    constraints: BoxConstraints(
-                                      maxWidth:
-                                          MediaQuery.of(context).size.width *
+                                return Column(
+                                  crossAxisAlignment: isUser
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                                  children: [
+                                    Align(
+                                      alignment: isUser
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                      child: Container(
+                                        margin:
+                                            const EdgeInsets.only(bottom: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        constraints: BoxConstraints(
+                                          maxWidth: MediaQuery.of(context)
+                                                  .size
+                                                  .width *
                                               0.75,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isUser
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primaryContainer
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(content),
+                                      ),
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: isUser
-                                          ? Theme.of(context)
-                                              .colorScheme
-                                              .primaryContainer
-                                          : Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(content),
-                                  ),
+                                    if (isStreaming && _userStopped)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            left: 12, bottom: 8),
+                                        child: Text(
+                                          'Stopped',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 );
                               },
                             ),
@@ -719,17 +860,27 @@ class _ChatPageState extends State<ChatPage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: _canSend ? _send : null,
-                              icon: _sending
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.send),
-                            ),
+                            if (_canStop)
+                              Semantics(
+                                label: 'Stop generating',
+                                child: IconButton(
+                                  onPressed: _stopGeneration,
+                                  icon: const Icon(Icons.stop_rounded),
+                                  tooltip: 'Stop generating',
+                                ),
+                              )
+                            else
+                              IconButton(
+                                onPressed: _canSend ? _send : null,
+                                icon: _sending
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.send),
+                              ),
                           ],
                         ),
                       ),
