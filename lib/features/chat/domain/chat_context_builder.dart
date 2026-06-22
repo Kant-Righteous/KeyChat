@@ -1,13 +1,13 @@
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 
 final class ChatContextBuildResult {
-  const ChatContextBuildResult({
-    required this.messages,
+  ChatContextBuildResult({
+    required List<ChatRequestMessage> messages,
     required this.estimatedTokens,
     required this.omittedMessageCount,
     required this.omittedTurnCount,
     required this.currentMessageExceedsBudget,
-  });
+  }) : messages = List.unmodifiable(messages);
 
   final List<ChatRequestMessage> messages;
   final int estimatedTokens;
@@ -43,10 +43,17 @@ final class _Turn {
   _Turn({required this.messages, required this.tokenEstimate});
 }
 
+// omittedMessageCount: total history messages not included in the result.
+// Includes messages from omitted turns, orphan assistant messages, and
+// messages with unknown roles.
+// omittedTurnCount: number of complete user-started turns omitted.
+// Orphan assistant and unknown role messages are excluded from turns
+// and counted only in omittedMessageCount.
+
 final class ChatContextBuilder {
-  const ChatContextBuilder({
+  ChatContextBuilder({
     this.maxEstimatedTokens = 12000,
-  });
+  }) : assert(maxEstimatedTokens > 0, 'maxEstimatedTokens must be > 0');
 
   final int maxEstimatedTokens;
 
@@ -54,6 +61,12 @@ final class ChatContextBuilder {
     required List<ChatRequestMessage> history,
     required ChatRequestMessage currentUserMessage,
   }) {
+    if (currentUserMessage.role != 'user') {
+      throw ArgumentError(
+        'currentUserMessage.role must be "user", got "${currentUserMessage.role}"',
+      );
+    }
+
     final currentTokens = estimateMessageTokens(currentUserMessage);
     final currentExceeds = currentTokens > maxEstimatedTokens;
 
@@ -97,6 +110,7 @@ final class ChatContextBuilder {
     }
     resultMessages.add(currentUserMessage);
 
+    // Count messages that were part of turns but not selected
     int omittedMessages = 0;
     int omittedTurns = 0;
     for (final turn in turns) {
@@ -105,6 +119,10 @@ final class ChatContextBuilder {
         omittedTurns++;
       }
     }
+    // Add orphan/unknown messages excluded from turns
+    final turnMessageCount =
+        turns.fold<int>(0, (sum, t) => sum + t.messages.length);
+    omittedMessages += history.length - turnMessageCount;
 
     return ChatContextBuildResult(
       messages: resultMessages,
@@ -132,11 +150,13 @@ final class ChatContextBuilder {
         currentTokens = estimateMessageTokens(msg);
       } else if (msg.role == 'assistant') {
         if (currentTurn.isEmpty) {
+          // orphan assistant - excluded from turns
           continue;
         }
         currentTurn.add(msg);
         currentTokens += estimateMessageTokens(msg);
       } else {
+        // unknown role - excluded from turns
         continue;
       }
     }

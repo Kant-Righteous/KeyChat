@@ -54,7 +54,7 @@ void main() {
 
   group('ChatContextBuilder', () {
     test('empty history returns only current user message', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 100);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 100);
       const current = ChatRequestMessage(role: 'user', content: 'Hello');
 
       final result = builder.build(history: [], currentUserMessage: current);
@@ -69,7 +69,7 @@ void main() {
     });
 
     test('current user is always last message', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -84,7 +84,7 @@ void main() {
     });
 
     test('current user not duplicated', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('all messages within budget are kept', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -119,7 +119,7 @@ void main() {
     });
 
     test('oldest turn removed when over budget', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 20);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 20);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Old question'),
         const ChatRequestMessage(role: 'assistant', content: 'Old answer'),
@@ -138,7 +138,7 @@ void main() {
     });
 
     test('multiple turns removed when over budget', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 15);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 15);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -158,7 +158,7 @@ void main() {
     });
 
     test('most recent turn preserved', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 20);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 20);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Old'),
         const ChatRequestMessage(role: 'assistant', content: 'Old reply'),
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('output in chronological order', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -196,7 +196,7 @@ void main() {
     });
 
     test('input list not modified', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 15);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 15);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Old'),
         const ChatRequestMessage(role: 'assistant', content: 'Old reply'),
@@ -215,7 +215,7 @@ void main() {
     });
 
     test('message content not modified', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Original'),
       ];
@@ -232,7 +232,7 @@ void main() {
     test('long messages not truncated', () {
       const longContent =
           'This is a very long message that should not be truncated';
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q'),
         const ChatRequestMessage(role: 'assistant', content: longContent),
@@ -246,7 +246,7 @@ void main() {
     });
 
     test('no duplicate messages', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -261,7 +261,7 @@ void main() {
     });
 
     test('user+assistant kept as complete turn', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -278,7 +278,7 @@ void main() {
     });
 
     test('assistant-only turn excluded', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'assistant', content: 'Orphan'),
         const ChatRequestMessage(role: 'user', content: 'Q1'),
@@ -293,7 +293,7 @@ void main() {
     });
 
     test('consecutive user messages handled', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'user', content: 'Q2'),
@@ -307,7 +307,7 @@ void main() {
     });
 
     test('unknown role excluded', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'system', content: 'Sys'),
         const ChatRequestMessage(role: 'user', content: 'Q1'),
@@ -322,7 +322,7 @@ void main() {
     });
 
     test('current message exceeds budget still included', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 5);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 5);
       const current = ChatRequestMessage(
           role: 'user', content: 'This message is way too long for the budget');
 
@@ -335,7 +335,7 @@ void main() {
     });
 
     test('current message exceeds budget history all omitted', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 5);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 5);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q1'),
         const ChatRequestMessage(role: 'assistant', content: 'A1'),
@@ -352,7 +352,7 @@ void main() {
     });
 
     test('currentMessageExceedsBudget correct', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       const current = ChatRequestMessage(role: 'user', content: 'Short');
 
       final result = builder.build(history: [], currentUserMessage: current);
@@ -361,7 +361,7 @@ void main() {
     });
 
     test('omittedMessageCount correct', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 20);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 20);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Old'),
         const ChatRequestMessage(role: 'assistant', content: 'Old reply'),
@@ -377,7 +377,7 @@ void main() {
     });
 
     test('omittedTurnCount correct', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 20);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 20);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Old'),
         const ChatRequestMessage(role: 'assistant', content: 'Old reply'),
@@ -393,7 +393,7 @@ void main() {
     });
 
     test('wasTrimmed correct', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q'),
         const ChatRequestMessage(role: 'assistant', content: 'A'),
@@ -407,7 +407,7 @@ void main() {
     });
 
     test('same input produces same result', () {
-      const builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
       final history = [
         const ChatRequestMessage(role: 'user', content: 'Q'),
         const ChatRequestMessage(role: 'assistant', content: 'A'),
@@ -420,6 +420,337 @@ void main() {
       expect(r1.messages.length, r2.messages.length);
       expect(r1.estimatedTokens, r2.estimatedTokens);
       expect(r1.omittedMessageCount, r2.omittedMessageCount);
+    });
+  });
+
+  group('ChatContextBuildResult immutability', () {
+    test('modifying result.messages throws UnsupportedError', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'user', content: 'Hello');
+
+      final result = builder.build(history: [], currentUserMessage: current);
+
+      expect(
+        () => result.messages
+            .add(const ChatRequestMessage(role: 'user', content: 'extra')),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('modifying result.messages.remove throws UnsupportedError', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'user', content: 'Hello');
+
+      final result = builder.build(history: [], currentUserMessage: current);
+
+      expect(
+          () => result.messages.removeAt(0), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('result.messages unaffected by later input history changes', () {
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+      final lengthBefore = result.messages.length;
+
+      history.add(const ChatRequestMessage(role: 'user', content: 'Extra'));
+
+      expect(result.messages.length, lengthBefore);
+    });
+
+    test('multiple reads of result.messages return same content', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      final first = result.messages.map((m) => m.content).toList();
+      final second = result.messages.map((m) => m.content).toList();
+
+      expect(first, second);
+    });
+  });
+
+  group('ChatContextBuilder parameter validation', () {
+    test('budget of 1 is valid', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 1);
+      const current = ChatRequestMessage(role: 'user', content: 'Hi');
+
+      final result = builder.build(history: [], currentUserMessage: current);
+
+      expect(result.messages.length, 1);
+    });
+
+    test('budget of 0 throws assertion error', () {
+      expect(
+        () => ChatContextBuilder(maxEstimatedTokens: 0),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('negative budget throws assertion error', () {
+      expect(
+        () => ChatContextBuilder(maxEstimatedTokens: -1),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
+  group('currentUserMessage role validation', () {
+    test('role user is accepted', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'user', content: 'Hello');
+
+      final result = builder.build(history: [], currentUserMessage: current);
+
+      expect(result.messages.length, 1);
+    });
+
+    test('role assistant throws ArgumentError', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'assistant', content: 'Hello');
+
+      expect(
+        () => builder.build(history: [], currentUserMessage: current),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('unknown role throws ArgumentError', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current = ChatRequestMessage(role: 'system', content: 'Hello');
+
+      expect(
+        () => builder.build(history: [], currentUserMessage: current),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('error message does not contain message content', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      const current =
+          ChatRequestMessage(role: 'assistant', content: 'secret content');
+
+      try {
+        builder.build(history: [], currentUserMessage: current);
+        fail('Expected ArgumentError');
+      } on ArgumentError catch (e) {
+        expect(e.message, isNot(contains('secret content')));
+      }
+    });
+  });
+
+  group('omitted statistics', () {
+    test('orphan assistant counted in omittedMessageCount', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'assistant', content: 'Orphan'),
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedMessageCount, 1);
+    });
+
+    test('unknown role counted in omittedMessageCount', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'system', content: 'Sys'),
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedMessageCount, 1);
+    });
+
+    test('orphan assistant not counted in omittedTurnCount', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'assistant', content: 'Orphan'),
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedTurnCount, 0);
+    });
+
+    test('unknown role not counted in omittedTurnCount', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'system', content: 'Sys'),
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedTurnCount, 0);
+    });
+
+    test('current message exceeds budget counts all history', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 5);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'Q1'),
+        const ChatRequestMessage(role: 'assistant', content: 'A1'),
+        const ChatRequestMessage(role: 'assistant', content: 'Orphan'),
+      ];
+      const current = ChatRequestMessage(
+          role: 'user', content: 'This is a very long message for budget');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedMessageCount, 3);
+      expect(result.omittedTurnCount, 1);
+    });
+  });
+
+  group('turn boundary', () {
+    test('user -> assistant -> assistant as single turn', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A1'),
+        const ChatRequestMessage(role: 'assistant', content: 'A2'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.messages[0].content, 'Q');
+      expect(result.messages[1].content, 'A1');
+      expect(result.messages[2].content, 'A2');
+      expect(result.messages[3].content, 'Now');
+    });
+
+    test('user -> user -> assistant: assistant belongs to second user', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'Q1'),
+        const ChatRequestMessage(role: 'user', content: 'Q2'),
+        const ChatRequestMessage(role: 'assistant', content: 'A2'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Q3');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.messages[0].content, 'Q1');
+      expect(result.messages[1].content, 'Q2');
+      expect(result.messages[2].content, 'A2');
+      expect(result.messages[3].content, 'Q3');
+    });
+
+    test('leading orphan assistants all excluded', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'assistant', content: 'O1'),
+        const ChatRequestMessage(role: 'assistant', content: 'O2'),
+        const ChatRequestMessage(role: 'user', content: 'Q'),
+        const ChatRequestMessage(role: 'assistant', content: 'A'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.messages.any((m) => m.content == 'O1'), false);
+      expect(result.messages.any((m) => m.content == 'O2'), false);
+      expect(result.omittedMessageCount, 2);
+    });
+
+    test('empty content messages do not crash', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: ''),
+        const ChatRequestMessage(role: 'assistant', content: ''),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: '');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.messages.length, 3);
+    });
+
+    test('original message order preserved', () {
+      final builder = ChatContextBuilder(maxEstimatedTokens: 10000);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'First'),
+        const ChatRequestMessage(role: 'assistant', content: 'Second'),
+        const ChatRequestMessage(role: 'user', content: 'Third'),
+        const ChatRequestMessage(role: 'assistant', content: 'Fourth'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Fifth');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.messages[0].content, 'First');
+      expect(result.messages[1].content, 'Second');
+      expect(result.messages[2].content, 'Third');
+      expect(result.messages[3].content, 'Fourth');
+      expect(result.messages[4].content, 'Fifth');
+    });
+  });
+
+  group('budget boundary', () {
+    test('turn exactly at budget is kept', () {
+      // Q + A = 5 + 5 = 10 tokens, budget = 10 + 5(current) = 15
+      final builder = ChatContextBuilder(maxEstimatedTokens: 15);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'abcd'),
+        const ChatRequestMessage(role: 'assistant', content: 'efgh'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now!');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedMessageCount, 0);
+      expect(result.messages.length, 3);
+    });
+
+    test('turn 1 token over budget is omitted', () {
+      // Q = 5, A = 6, current = 5, total = 16, budget = 15
+      final builder = ChatContextBuilder(maxEstimatedTokens: 15);
+      final history = [
+        const ChatRequestMessage(role: 'user', content: 'abcd'),
+        const ChatRequestMessage(role: 'assistant', content: 'abcde'),
+      ];
+      const current = ChatRequestMessage(role: 'user', content: 'Now!');
+
+      final result =
+          builder.build(history: history, currentUserMessage: current);
+
+      expect(result.omittedMessageCount, 2);
+      expect(result.messages.length, 1);
     });
   });
 }

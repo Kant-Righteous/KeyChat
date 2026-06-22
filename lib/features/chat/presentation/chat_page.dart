@@ -40,14 +40,14 @@ class ChatPage extends StatefulWidget {
   final ChatHistoryStore historyStore;
   final ChatContextBuilder contextBuilder;
 
-  const ChatPage({
+  ChatPage({
     super.key,
     required this.chatClientResolver,
     required this.apiKeyStore,
     required this.configStore,
     required this.historyStore,
-    this.contextBuilder = const ChatContextBuilder(),
-  });
+    ChatContextBuilder? contextBuilder,
+  }) : contextBuilder = contextBuilder ?? ChatContextBuilder();
 
   @override
   State<ChatPage> createState() => _ChatPageState();
