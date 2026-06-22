@@ -839,25 +839,29 @@ class _ChatPageState extends State<ChatPage> {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _readyProviders.length > 1
-                  ? DropdownButton<_ReadyProvider>(
-                      value: _selectedProvider,
-                      underline: const SizedBox(),
-                      onChanged: _isProviderLocked
-                          ? null
-                          : (provider) {
-                              if (provider != null) {
-                                setState(() => _selectedProvider = provider);
-                              }
-                            },
-                      items: _readyProviders.map((p) {
-                        return DropdownMenuItem(
-                          value: p,
-                          child: Text(
-                            p.config.displayName,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
+                  ? Semantics(
+                      label: 'Select provider',
+                      child: DropdownButton<_ReadyProvider>(
+                        value: _selectedProvider,
+                        underline: const SizedBox(),
+                        onChanged: _isProviderLocked
+                            ? null
+                            : (provider) {
+                                if (provider != null) {
+                                  setState(
+                                      () => _selectedProvider = provider);
+                                }
+                              },
+                        items: _readyProviders.map((p) {
+                          return DropdownMenuItem(
+                            value: p,
+                            child: Text(
+                              p.config.displayName,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     )
                   : Center(
                       child: Text(
@@ -1022,27 +1026,30 @@ class _ChatPageState extends State<ChatPage> {
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            IconButton(
-                                              icon: const Icon(Icons.copy,
-                                                  size: 16),
-                                              tooltip: 'Copy response',
-                                              onPressed: () async {
-                                                final messenger =
-                                                    ScaffoldMessenger.of(
-                                                        context);
-                                                await Clipboard.setData(
-                                                  ClipboardData(text: content),
-                                                );
-                                                if (mounted) {
-                                                  messenger.showSnackBar(
-                                                    const SnackBar(
-                                                      content: Text('Copied'),
-                                                      duration:
-                                                          Duration(seconds: 1),
-                                                    ),
+                                            Semantics(
+                                              label: 'Copy response',
+                                              child: IconButton(
+                                                icon: const Icon(Icons.copy,
+                                                    size: 16),
+                                                tooltip: 'Copy response',
+                                                onPressed: () async {
+                                                  final messenger =
+                                                      ScaffoldMessenger.of(
+                                                          context);
+                                                  await Clipboard.setData(
+                                                    ClipboardData(text: content),
                                                   );
-                                                }
-                                              },
+                                                  if (mounted) {
+                                                    messenger.showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('Copied'),
+                                                        duration:
+                                                            Duration(seconds: 1),
+                                                      ),
+                                                    );
+                                                  }
+                                                },
+                                              ),
                                             ),
                                             if (isLastAssistant &&
                                                 _canRegenerate &&
@@ -1132,16 +1139,20 @@ class _ChatPageState extends State<ChatPage> {
                                 ),
                               )
                             else
-                              IconButton(
-                                onPressed: _canSend ? _send : null,
-                                icon: _sending
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.send),
+                              Semantics(
+                                label: 'Send message',
+                                child: IconButton(
+                                  onPressed: _canSend ? _send : null,
+                                  tooltip: 'Send',
+                                  icon: _sending
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.send),
+                                ),
                               ),
                           ],
                         ),
