@@ -9,6 +9,14 @@ class FakeChatHistoryStore implements ChatHistoryStore {
   bool shouldFailOnAppend = false;
   bool shouldFailOnCreate = false;
   bool shouldFailOnRead = false;
+  bool shouldFailOnReplace = false;
+  Object? replaceAssistantMessageError;
+
+  int replaceCallCount = 0;
+  String? lastReplaceConversationId;
+  String? lastReplacedMessageId;
+  String? lastReplacedContent;
+  DateTime? lastReplaceConversationUpdatedAt;
 
   void reset() {
     _conversations.clear();
@@ -17,6 +25,13 @@ class FakeChatHistoryStore implements ChatHistoryStore {
     shouldFailOnAppend = false;
     shouldFailOnCreate = false;
     shouldFailOnRead = false;
+    shouldFailOnReplace = false;
+    replaceAssistantMessageError = null;
+    replaceCallCount = 0;
+    lastReplaceConversationId = null;
+    lastReplacedMessageId = null;
+    lastReplacedContent = null;
+    lastReplaceConversationUpdatedAt = null;
   }
 
   @override
@@ -131,5 +146,59 @@ class FakeChatHistoryStore implements ChatHistoryStore {
       latestConversationId = null;
     }
     return true;
+  }
+
+  @override
+  Future<void> replaceAssistantMessage({
+    required String conversationId,
+    required String messageId,
+    required String content,
+    required DateTime conversationUpdatedAt,
+  }) async {
+    // Record call parameters before any failure
+    replaceCallCount++;
+    lastReplaceConversationId = conversationId;
+    lastReplacedMessageId = messageId;
+    lastReplacedContent = content;
+    lastReplaceConversationUpdatedAt = conversationUpdatedAt;
+
+    if (replaceAssistantMessageError != null) {
+      throw replaceAssistantMessageError!;
+    }
+    if (shouldFailOnReplace) {
+      throw Exception('Replace failure');
+    }
+
+    final msgs = _messages[conversationId];
+    if (msgs == null) {
+      throw StateError('Conversation $conversationId not found');
+    }
+
+    final index = msgs.indexWhere((m) => m.id == messageId);
+    if (index == -1) {
+      throw StateError('Message $messageId not found');
+    }
+    if (msgs[index].role != ChatRole.assistant) {
+      throw StateError('Message $messageId is not assistant');
+    }
+
+    msgs[index] = ChatMessage(
+      id: messageId,
+      role: ChatRole.assistant,
+      content: content,
+      createdAt: msgs[index].createdAt,
+    );
+
+    final conv = _conversations[conversationId];
+    if (conv != null) {
+      _conversations[conversationId] = ChatConversation(
+        id: conv.id,
+        title: conv.title,
+        providerId: conv.providerId,
+        model: conv.model,
+        createdAt: conv.createdAt,
+        updatedAt: conversationUpdatedAt,
+      );
+    }
   }
 }

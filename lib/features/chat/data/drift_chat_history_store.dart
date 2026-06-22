@@ -143,6 +143,43 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     return true;
   }
 
+  @override
+  Future<void> replaceAssistantMessage({
+    required String conversationId,
+    required String messageId,
+    required String content,
+    required DateTime conversationUpdatedAt,
+  }) async {
+    await _db.transaction(() async {
+      // Verify message exists and belongs to conversation
+      final query = _db.select(_db.chatMessages)
+        ..where((t) => t.id.equals(messageId))
+        ..where((t) => t.conversationId.equals(conversationId))
+        ..limit(1);
+      final row = await query.getSingleOrNull();
+      if (row == null) {
+        throw StateError(
+            'Message $messageId not found in conversation $conversationId');
+      }
+      if (row.role != 'assistant') {
+        throw StateError('Message $messageId is not an assistant message');
+      }
+
+      // Update message content
+      await (_db.update(_db.chatMessages)..where((t) => t.id.equals(messageId)))
+          .write(ChatMessagesCompanion(
+        content: Value(content),
+      ));
+
+      // Update conversation timestamp
+      await (_db.update(_db.conversations)
+            ..where((t) => t.id.equals(conversationId)))
+          .write(ConversationsCompanion(
+        updatedAt: Value(conversationUpdatedAt),
+      ));
+    });
+  }
+
   ChatConversation _toConversation(Conversation row) {
     return ChatConversation(
       id: row.id,

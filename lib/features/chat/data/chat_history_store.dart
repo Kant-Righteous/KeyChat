@@ -23,4 +23,10 @@ abstract interface class ChatHistoryStore {
     required String title,
   });
   Future<bool> deleteConversation(String conversationId);
+  Future<void> replaceAssistantMessage({
+    required String conversationId,
+    required String messageId,
+    required String content,
+    required DateTime conversationUpdatedAt,
+  });
 }

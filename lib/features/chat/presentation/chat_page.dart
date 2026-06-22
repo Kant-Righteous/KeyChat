@@ -33,6 +33,24 @@ enum _GenerationEndReason {
   disposed,
 }
 
+enum _GenerationKind {
+  normal,
+  retry,
+  regenerate,
+}
+
+final class _GenerationTarget {
+  const _GenerationTarget({
+    required this.kind,
+    required this.userMessage,
+    this.replacedAssistantMessage,
+  });
+
+  final ChatMessage userMessage;
+  final ChatMessage? replacedAssistantMessage;
+  final _GenerationKind kind;
+}
+
 class ChatPage extends StatefulWidget {
   final ChatClientResolver chatClientResolver;
   final ApiKeyStore apiKeyStore;
@@ -184,6 +202,43 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   bool get _canStop => _sending && _activeGenerationId != null;
+
+  bool get _canRetry {
+    if (_sending) return false;
+    if (_selectedProvider == null) return false;
+    if (_persistWarning != null) return false;
+    if (_protocolWarning != null) return false;
+    if (_activeConversationId == null) return false;
+    if (_messages.isEmpty) return false;
+    final last = _messages.last;
+    return last.role == ChatRole.user;
+  }
+
+  bool get _canRegenerate {
+    if (_sending) return false;
+    if (_selectedProvider == null) return false;
+    if (_persistWarning != null) return false;
+    if (_protocolWarning != null) return false;
+    if (_activeConversationId == null) return false;
+    if (_messages.length < 2) return false;
+    final last = _messages.last;
+    final secondLast = _messages[_messages.length - 2];
+    return last.role == ChatRole.assistant && secondLast.role == ChatRole.user;
+  }
+
+  ChatMessage? get _lastUserMessage {
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].role == ChatRole.user) return _messages[i];
+    }
+    return null;
+  }
+
+  ChatMessage? get _lastAssistantMessage {
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].role == ChatRole.assistant) return _messages[i];
+    }
+    return null;
+  }
 
   String _nextId() {
     _idCounter++;
@@ -401,9 +456,6 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _activeConversationId = conversationId;
           _messages.add(userMessage);
-          _sending = true;
-          _userStopped = false;
-          _streamingAssistantText = '';
         });
         _messageController.clear();
       } catch (_) {
@@ -426,9 +478,6 @@ class _ChatPageState extends State<ChatPage> {
         );
         setState(() {
           _messages.add(userMessage);
-          _sending = true;
-          _userStopped = false;
-          _streamingAssistantText = '';
         });
         _messageController.clear();
       } catch (_) {
@@ -441,6 +490,51 @@ class _ChatPageState extends State<ChatPage> {
       }
     }
 
+    final target = _GenerationTarget(
+      kind: _GenerationKind.normal,
+      userMessage: userMessage,
+    );
+
+    await _runGeneration(target);
+  }
+
+  Future<void> _retryLastTurn() async {
+    if (!_canRetry) return;
+
+    final userMsg = _lastUserMessage;
+    if (userMsg == null) return;
+
+    final target = _GenerationTarget(
+      kind: _GenerationKind.retry,
+      userMessage: userMsg,
+    );
+
+    await _runGeneration(target);
+  }
+
+  Future<void> _regenerateLastResponse() async {
+    if (!_canRegenerate) return;
+
+    final userMsg = _lastUserMessage;
+    final assistantMsg = _lastAssistantMessage;
+    if (userMsg == null || assistantMsg == null) return;
+
+    final target = _GenerationTarget(
+      kind: _GenerationKind.regenerate,
+      userMessage: userMsg,
+      replacedAssistantMessage: assistantMsg,
+    );
+
+    await _runGeneration(target);
+  }
+
+  Future<void> _runGeneration(_GenerationTarget target) async {
+    setState(() {
+      _sending = true;
+      _userStopped = false;
+      _streamingAssistantText = '';
+    });
+
     _scrollToBottom();
     _cancellationToken = ChatCancellationToken();
     final genId = ++_generationCounter;
@@ -451,8 +545,13 @@ class _ChatPageState extends State<ChatPage> {
     final localToken = _cancellationToken;
 
     try {
+      // Build context: exclude the target user message from history
       final historyMessages = _messages
-          .where((m) => m.id != userMessage.id)
+          .where((m) => m.id != target.userMessage.id)
+          // For regenerate, also exclude the old assistant message
+          .where((m) =>
+              target.kind != _GenerationKind.regenerate ||
+              m.id != target.replacedAssistantMessage?.id)
           .map((m) => ChatRequestMessage(
                 role: m.role == ChatRole.user ? 'user' : 'assistant',
                 content: m.content,
@@ -461,7 +560,7 @@ class _ChatPageState extends State<ChatPage> {
 
       final currentUserRequest = ChatRequestMessage(
         role: 'user',
-        content: text,
+        content: target.userMessage.content,
       );
 
       final contextResult = widget.contextBuilder.build(
@@ -504,14 +603,14 @@ class _ChatPageState extends State<ChatPage> {
             });
             _scrollToBottom();
           } else if (event is ChatStreamCompleted) {
-            _handleStreamCompleted(hasContent, genId);
+            _handleStreamCompleted(hasContent, genId, target);
           } else if (event is ChatStreamFailure) {
-            _handleStreamFailure(event, hasContent, text, genId);
+            _handleStreamFailure(event, hasContent, genId, target);
           }
         },
         onError: (error) {
           if (!_isGenerationActive(genId)) return;
-          _handleStreamError(hasContent, text, genId);
+          _handleStreamError(hasContent, genId);
         },
         onDone: () {
           if (!_isGenerationActive(genId)) return;
@@ -522,7 +621,6 @@ class _ChatPageState extends State<ChatPage> {
         },
       );
     } catch (_) {
-      _messageController.text = text;
       if (mounted) {
         _finishGeneration(
           generationId: genId,
@@ -535,7 +633,8 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _handleStreamCompleted(bool hasContent, int genId) async {
+  Future<void> _handleStreamCompleted(
+      bool hasContent, int genId, _GenerationTarget target) async {
     if (!_isGenerationActive(genId)) return;
 
     if (!hasContent) {
@@ -551,48 +650,101 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
-    final assistantMessage = ChatMessage(
-      id: _nextId(),
-      role: ChatRole.assistant,
-      content: _streamingAssistantText,
-      createdAt: DateTime.now(),
-    );
+    final now = DateTime.now();
 
-    _finishGeneration(
-      generationId: genId,
-      reason: _GenerationEndReason.completed,
-    );
-
-    try {
-      await widget.historyStore.appendMessage(
-        conversationId: _activeConversationId!,
-        message: assistantMessage,
-      );
-      await widget.historyStore.updateConversationActivity(
-        conversationId: _activeConversationId!,
-        updatedAt: DateTime.now(),
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Response received but could not be saved'),
-          ),
+    if (target.kind == _GenerationKind.regenerate &&
+        target.replacedAssistantMessage != null) {
+      // Replace existing assistant message
+      try {
+        await widget.historyStore.replaceAssistantMessage(
+          conversationId: _activeConversationId!,
+          messageId: target.replacedAssistantMessage!.id,
+          content: _streamingAssistantText,
+          conversationUpdatedAt: now,
         );
-      }
-    }
 
-    if (mounted) {
-      setState(() {
-        _messages.add(assistantMessage);
-        _streamingAssistantText = '';
-      });
-      _scrollToBottom();
+        _finishGeneration(
+          generationId: genId,
+          reason: _GenerationEndReason.completed,
+        );
+
+        if (mounted) {
+          setState(() {
+            final idx = _messages
+                .indexWhere((m) => m.id == target.replacedAssistantMessage!.id);
+            if (idx != -1) {
+              _messages[idx] = ChatMessage(
+                id: target.replacedAssistantMessage!.id,
+                role: ChatRole.assistant,
+                content: _streamingAssistantText,
+                createdAt: target.replacedAssistantMessage!.createdAt,
+              );
+            }
+            _streamingAssistantText = '';
+          });
+          _scrollToBottom();
+        }
+      } catch (_) {
+        _finishGeneration(
+          generationId: genId,
+          reason: _GenerationEndReason.failed,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Response received but could not be saved'),
+            ),
+          );
+          setState(() {
+            _streamingAssistantText = '';
+          });
+        }
+      }
+    } else {
+      // Normal or Retry: append new assistant message
+      final assistantMessage = ChatMessage(
+        id: _nextId(),
+        role: ChatRole.assistant,
+        content: _streamingAssistantText,
+        createdAt: now,
+      );
+
+      _finishGeneration(
+        generationId: genId,
+        reason: _GenerationEndReason.completed,
+      );
+
+      try {
+        await widget.historyStore.appendMessage(
+          conversationId: _activeConversationId!,
+          message: assistantMessage,
+        );
+        await widget.historyStore.updateConversationActivity(
+          conversationId: _activeConversationId!,
+          updatedAt: now,
+        );
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Response received but could not be saved'),
+            ),
+          );
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _messages.add(assistantMessage);
+          _streamingAssistantText = '';
+        });
+        _scrollToBottom();
+      }
     }
   }
 
-  void _handleStreamFailure(ChatStreamFailure event, bool hasContent,
-      String originalText, int genId) {
+  void _handleStreamFailure(ChatStreamFailure event, bool hasContent, int genId,
+      _GenerationTarget target) {
     if (!_isGenerationActive(genId)) return;
 
     _finishGeneration(
@@ -612,7 +764,9 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
     } else {
-      _messageController.text = originalText;
+      if (target.kind == _GenerationKind.normal) {
+        _messageController.text = target.userMessage.content;
+      }
       if (mounted && event.errorType != ChatCompletionErrorType.cancelled) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(event.userMessage)),
@@ -621,7 +775,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _handleStreamError(bool hasContent, String originalText, int genId) {
+  void _handleStreamError(bool hasContent, int genId) {
     if (!_isGenerationActive(genId)) return;
 
     _finishGeneration(
@@ -641,7 +795,6 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
     } else {
-      _messageController.text = originalText;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to get response')),
@@ -815,6 +968,8 @@ class _ChatPageState extends State<ChatPage> {
                                     _messages[index].role == ChatRole.user;
                                 final isAssistant = !isStreaming &&
                                     _messages[index].role == ChatRole.assistant;
+                                final isLastAssistant = isAssistant &&
+                                    index == _messages.length - 1;
                                 final content = isStreaming
                                     ? _streamingAssistantText
                                     : _messages[index].content;
@@ -864,26 +1019,47 @@ class _ChatPageState extends State<ChatPage> {
                                     if (isAssistant)
                                       Padding(
                                         padding: const EdgeInsets.only(left: 4),
-                                        child: IconButton(
-                                          icon:
-                                              const Icon(Icons.copy, size: 16),
-                                          tooltip: 'Copy response',
-                                          onPressed: () async {
-                                            final messenger =
-                                                ScaffoldMessenger.of(context);
-                                            await Clipboard.setData(
-                                              ClipboardData(text: content),
-                                            );
-                                            if (mounted) {
-                                              messenger.showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('Copied'),
-                                                  duration:
-                                                      Duration(seconds: 1),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.copy,
+                                                  size: 16),
+                                              tooltip: 'Copy response',
+                                              onPressed: () async {
+                                                final messenger =
+                                                    ScaffoldMessenger.of(
+                                                        context);
+                                                await Clipboard.setData(
+                                                  ClipboardData(text: content),
+                                                );
+                                                if (mounted) {
+                                                  messenger.showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text('Copied'),
+                                                      duration:
+                                                          Duration(seconds: 1),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                            if (isLastAssistant &&
+                                                _canRegenerate &&
+                                                !_sending)
+                                              Semantics(
+                                                label: 'Regenerate response',
+                                                child: IconButton(
+                                                  icon: const Icon(
+                                                      Icons.refresh_rounded,
+                                                      size: 16),
+                                                  tooltip:
+                                                      'Regenerate response',
+                                                  onPressed:
+                                                      _regenerateLastResponse,
                                                 ),
-                                              );
-                                            }
-                                          },
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     if (isStreaming && _userStopped)
@@ -919,6 +1095,15 @@ class _ChatPageState extends State<ChatPage> {
                       child: SafeArea(
                         child: Row(
                           children: [
+                            if (_canRetry && !_sending)
+                              Semantics(
+                                label: 'Retry',
+                                child: IconButton(
+                                  onPressed: _retryLastTurn,
+                                  icon: const Icon(Icons.refresh, size: 20),
+                                  tooltip: 'Retry',
+                                ),
+                              ),
                             Expanded(
                               child: TextField(
                                 controller: _messageController,

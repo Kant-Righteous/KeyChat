@@ -83,6 +83,14 @@ class _FakeHistoryStore implements ChatHistoryStore {
 
   @override
   Future<bool> deleteConversation(String conversationId) async => false;
+
+  @override
+  Future<void> replaceAssistantMessage({
+    required String conversationId,
+    required String messageId,
+    required String content,
+    required DateTime conversationUpdatedAt,
+  }) async {}
 }
 
 void main() {

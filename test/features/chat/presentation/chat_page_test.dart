@@ -4535,6 +4535,1618 @@ void main() {
             chatClient.lastMessages!.any((m) => m.content == 'Partial'), false);
       });
     });
+
+    group('Retry', () {
+      testWidgets('shows Retry when last message is user',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Create a conversation with only a user message (no assistant reply)
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Retry'), findsOneWidget);
+      });
+
+      testWidgets('does not show Retry when last message is assistant',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_no_retry',
+            title: 'No Retry',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_no_retry',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Hi there',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Retry'), findsNothing);
+      });
+
+      testWidgets('Retry does not create duplicate user message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pumpAndSettle();
+
+        // Only one user message in the store
+        final msgs = await historyStore.readMessages('conv_retry');
+        final userMsgs = msgs.where((m) => m.role == ChatRole.user).toList();
+        expect(userMsgs.length, 1);
+        expect(userMsgs.first.content, 'Hello');
+      });
+
+      testWidgets('Retry sends original user message to client',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Original question',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pumpAndSettle();
+
+        expect(chatClient.lastMessages!.last.content, 'Original question');
+        expect(chatClient.lastMessages!.last.role, 'user');
+      });
+
+      testWidgets('Retry success adds assistant message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pumpAndSettle();
+
+        // Assistant message added
+        final msgs = await historyStore.readMessages('conv_retry');
+        final assistantMsgs =
+            msgs.where((m) => m.role == ChatRole.assistant).toList();
+        expect(assistantMsgs.length, 1);
+        expect(assistantMsgs.first.content, 'New reply');
+
+        // UI shows the reply
+        expect(find.text('New reply'), findsOneWidget);
+      });
+
+      testWidgets('Retry failure does not add assistant message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.serverError,
+            userMessage: 'Provider server error',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pumpAndSettle();
+
+        // No assistant message added
+        final msgs = await historyStore.readMessages('conv_retry');
+        final assistantMsgs =
+            msgs.where((m) => m.role == ChatRole.assistant).toList();
+        expect(assistantMsgs.length, 0);
+      });
+    });
+
+    group('Regenerate', () {
+      testWidgets('shows Regenerate on last assistant message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Hi there',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Regenerate response'), findsOneWidget);
+      });
+
+      testWidgets('Regenerate does not create duplicate user message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Only one user message in the store
+        final msgs = await historyStore.readMessages('conv_regen');
+        final userMsgs = msgs.where((m) => m.role == ChatRole.user).toList();
+        expect(userMsgs.length, 1);
+      });
+
+      testWidgets('Regenerate success replaces assistant content',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Assistant content replaced
+        final msgs = await historyStore.readMessages('conv_regen');
+        final assistantMsgs =
+            msgs.where((m) => m.role == ChatRole.assistant).toList();
+        expect(assistantMsgs.length, 1);
+        expect(assistantMsgs.first.content, 'New reply');
+
+        // UI shows new content
+        expect(find.text('New reply'), findsOneWidget);
+        expect(find.text('Old reply'), findsNothing);
+      });
+
+      testWidgets('Regenerate preserves message id',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst_original',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Message id preserved
+        final msgs = await historyStore.readMessages('conv_regen');
+        final assistantMsgs =
+            msgs.where((m) => m.role == ChatRole.assistant).toList();
+        expect(assistantMsgs.first.id, 'msg_asst_original');
+      });
+
+      testWidgets('Regenerate does not increase message count',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Message count unchanged
+        final msgs = await historyStore.readMessages('conv_regen');
+        expect(msgs.length, 2); // 1 user + 1 assistant
+      });
+
+      testWidgets('Regenerate failure preserves old content',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.serverError,
+            userMessage: 'Provider server error',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Old content preserved
+        final msgs = await historyStore.readMessages('conv_regen');
+        final assistantMsgs =
+            msgs.where((m) => m.role == ChatRole.assistant).toList();
+        expect(assistantMsgs.length, 1);
+        expect(assistantMsgs.first.content, 'Old reply');
+      });
+
+      testWidgets('Regenerate excludes old assistant from request',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply to exclude',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Old assistant excluded from request
+        expect(
+            chatClient.lastMessages!
+                .any((m) => m.content == 'Old reply to exclude'),
+            false);
+        // User message included
+        expect(chatClient.lastMessages!.any((m) => m.content == 'Hello'), true);
+      });
+
+      testWidgets('Regenerate uses ChatContextBuilder',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+              contextBuilder: ChatContextBuilder(maxEstimatedTokens: 12000),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Request made through builder
+        expect(chatClient.lastMessages, isNotNull);
+        expect(chatClient.lastMessages!.last.content, 'Hello');
+      });
+
+      testWidgets('Regenerate does not create duplicate user',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // No duplicate user
+        final msgs = await historyStore.readMessages('conv_regen');
+        final userMsgs = msgs.where((m) => m.role == ChatRole.user).toList();
+        expect(userMsgs.length, 1);
+        expect(userMsgs.first.id, 'msg_user');
+      });
+
+      testWidgets('Regenerate stop preserves old assistant',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial new'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // Old content preserved in store
+        final msgs = await historyStore.readMessages('conv_regen');
+        final asst = msgs.firstWhere((m) => m.id == 'msg_asst');
+        expect(asst.content, 'Old reply');
+      });
+
+      testWidgets('Regenerate stop does not call replaceAssistantMessage',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        expect(historyStore.replaceCallCount, 0);
+      });
+
+      testWidgets('Regenerate failure preserves old assistant',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.serverError,
+            userMessage: 'Provider server error',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // Old content preserved
+        final msgs = await historyStore.readMessages('conv_regen');
+        expect(msgs.firstWhere((m) => m.id == 'msg_asst').content, 'Old reply');
+        expect(historyStore.replaceCallCount, 0);
+      });
+
+      testWidgets('only last assistant shows Regenerate',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user1',
+            role: ChatRole.user,
+            content: 'Q1',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst1',
+            role: ChatRole.assistant,
+            content: 'A1',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_user2',
+            role: ChatRole.user,
+            content: 'Q2',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 2),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst2',
+            role: ChatRole.assistant,
+            content: 'A2',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 3),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Only one Regenerate button (for the last assistant)
+        expect(find.byTooltip('Regenerate response'), findsOneWidget);
+      });
+
+      testWidgets('Regenerate updates Conversation.updatedAt on success',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // updatedAt updated
+        expect(historyStore.lastReplaceConversationUpdatedAt,
+            isNot(DateTime(2024)));
+      });
+
+      testWidgets('New Chat clears Retry/Regenerate state',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Regenerate response'), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.add_comment));
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Regenerate response'), findsNothing);
+        expect(find.byTooltip('Retry'), findsNothing);
+      });
+
+      testWidgets('store replace failure preserves old assistant and updatedAt',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        // Configure store to fail on replace
+        historyStore.replaceAssistantMessageError = Exception('DB error');
+
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'New reply'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // replace was called
+        expect(historyStore.replaceCallCount, 1);
+        expect(historyStore.lastReplaceConversationId, 'conv_regen');
+        expect(historyStore.lastReplacedMessageId, 'msg_asst');
+        expect(historyStore.lastReplacedContent, 'New reply');
+
+        // Old content preserved in store
+        final msgs = await historyStore.readMessages('conv_regen');
+        expect(msgs.firstWhere((m) => m.id == 'msg_asst').content, 'Old reply');
+
+        // Conversation updatedAt not changed
+        final conv = await historyStore.readConversation('conv_regen');
+        expect(conv!.updatedAt, DateTime(2024));
+
+        // Message count unchanged
+        expect(msgs.length, 2);
+
+        // Error shown
+        expect(find.text('Response received but could not be saved'),
+            findsOneWidget);
+      });
+
+      testWidgets('stop after partial output preserves old assistant',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial new'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // Old content preserved
+        final msgs = await historyStore.readMessages('conv_regen');
+        expect(msgs.firstWhere((m) => m.id == 'msg_asst').content, 'Old reply');
+
+        // replace not called
+        expect(historyStore.replaceCallCount, 0);
+
+        // Conversation updatedAt unchanged
+        final conv = await historyStore.readConversation('conv_regen');
+        expect(conv!.updatedAt, DateTime(2024));
+
+        // Message count unchanged
+        expect(msgs.length, 2);
+      });
+
+      testWidgets('late Completed after stop does not replace assistant',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_regen',
+            title: 'Regen Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await historyStore.appendMessage(
+          conversationId: 'conv_regen',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial'));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        // Late Completed after stop
+        streamController.add(const ChatStreamCompleted());
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // Old content preserved
+        final msgs = await historyStore.readMessages('conv_regen');
+        expect(msgs.firstWhere((m) => m.id == 'msg_asst').content, 'Old reply');
+        expect(historyStore.replaceCallCount, 0);
+        expect(msgs.length, 2);
+      });
+    });
+
+    group('Retry Stop', () {
+      testWidgets('stop preserves user and allows retry again',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await historyStore.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_retry',
+            title: 'Retry Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChatPage(
+              chatClientResolver: chatClientResolver,
+              apiKeyStore: apiKeyStore,
+              configStore: configStore,
+              historyStore: historyStore,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Retry
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pump();
+
+        streamController.add(const ChatStreamDelta('Partial'));
+        await tester.pump();
+
+        // Stop
+        await tester.tap(find.byIcon(Icons.stop_rounded));
+        await tester.pump();
+
+        streamController.close();
+        await tester.pumpAndSettle();
+
+        // User preserved
+        final msgs = await historyStore.readMessages('conv_retry');
+        expect(msgs.length, 1);
+        expect(msgs.first.id, 'msg_user');
+        expect(msgs.first.content, 'Hello');
+
+        // No assistant added
+        expect(msgs.where((m) => m.role == ChatRole.assistant).length, 0);
+
+        // Retry button available again
+        expect(find.byTooltip('Retry'), findsOneWidget);
+
+        // Can retry again
+        chatClient.setResult(
+          const ChatCompletionResult.success(assistantContent: 'Reply'),
+        );
+
+        await tester.tap(find.byTooltip('Retry'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Reply'), findsOneWidget);
+        final msgsAfter = await historyStore.readMessages('conv_retry');
+        expect(msgsAfter.where((m) => m.role == ChatRole.assistant).length, 1);
+      });
+    });
   });
 }
 

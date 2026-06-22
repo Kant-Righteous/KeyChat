@@ -649,5 +649,402 @@ void main() {
       );
       expect(result, false);
     });
+
+    group('replaceAssistantMessage', () {
+      test('updates assistant content', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst',
+          content: 'New reply',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        final msgs = await store.readMessages('conv_1');
+        final asst = msgs.firstWhere((m) => m.id == 'msg_asst');
+        expect(asst.content, 'New reply');
+      });
+
+      test('preserves message id', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst_original',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst_original',
+          content: 'New reply',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        final msgs = await store.readMessages('conv_1');
+        expect(msgs.any((m) => m.id == 'msg_asst_original'), true);
+      });
+
+      test('does not increase message count', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst',
+          content: 'New reply',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        final msgs = await store.readMessages('conv_1');
+        expect(msgs.length, 2);
+      });
+
+      test('does not modify user message', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst',
+          content: 'New reply',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        final msgs = await store.readMessages('conv_1');
+        final user = msgs.firstWhere((m) => m.id == 'msg_user');
+        expect(user.content, 'Hello');
+      });
+
+      test('updates conversation updatedAt', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Old reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        final newUpdatedAt = DateTime(2024, 6);
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst',
+          content: 'New reply',
+          conversationUpdatedAt: newUpdatedAt,
+        );
+
+        final conv = await store.readConversation('conv_1');
+        expect(conv!.updatedAt, newUpdatedAt);
+      });
+
+      test('missing message throws StateError', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        expect(
+          () => store.replaceAssistantMessage(
+            conversationId: 'conv_1',
+            messageId: 'nonexistent',
+            content: 'New',
+            conversationUpdatedAt: DateTime(2024, 2),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      });
+
+      test('rejects mismatched conversationId', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        expect(
+          () => store.replaceAssistantMessage(
+            conversationId: 'conv_other',
+            messageId: 'msg_asst',
+            content: 'New',
+            conversationUpdatedAt: DateTime(2024, 2),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      });
+
+      test('rejects user role', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+
+        expect(
+          () => store.replaceAssistantMessage(
+            conversationId: 'conv_1',
+            messageId: 'msg_user',
+            content: 'New',
+            conversationUpdatedAt: DateTime(2024, 2),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      });
+
+      test('does not affect another conversation', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Conv 1',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user1',
+            role: ChatRole.user,
+            content: 'Hello 1',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst1',
+            role: ChatRole.assistant,
+            content: 'Reply 1',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_2',
+            title: 'Conv 2',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user2',
+            role: ChatRole.user,
+            content: 'Hello 2',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_2',
+          message: ChatMessage(
+            id: 'msg_asst2',
+            role: ChatRole.assistant,
+            content: 'Reply 2',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst1',
+          content: 'New Reply 1',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        // conv_2 unchanged
+        final msgs2 = await store.readMessages('conv_2');
+        expect(msgs2.firstWhere((m) => m.id == 'msg_asst2').content, 'Reply 2');
+      });
+
+      test('records replace call count', () async {
+        await store.createConversationWithFirstMessage(
+          conversation: ChatConversation(
+            id: 'conv_1',
+            title: 'Test',
+            providerId: 'openai',
+            model: 'gpt-4',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ),
+          firstMessage: ChatMessage(
+            id: 'msg_user',
+            role: ChatRole.user,
+            content: 'Hello',
+            createdAt: DateTime(2024),
+          ),
+        );
+        await store.appendMessage(
+          conversationId: 'conv_1',
+          message: ChatMessage(
+            id: 'msg_asst',
+            role: ChatRole.assistant,
+            content: 'Reply',
+            createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+          ),
+        );
+
+        expect(store.replaceCallCount, 0);
+
+        await store.replaceAssistantMessage(
+          conversationId: 'conv_1',
+          messageId: 'msg_asst',
+          content: 'New',
+          conversationUpdatedAt: DateTime(2024, 2),
+        );
+
+        expect(store.replaceCallCount, 1);
+        expect(store.lastReplacedMessageId, 'msg_asst');
+        expect(store.lastReplacedContent, 'New');
+      });
+    });
   });
 }
