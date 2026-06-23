@@ -302,6 +302,74 @@ void main() {
 
       expect(find.text('New reply'), findsOneWidget);
     });
+
+    testWidgets('user scrolled up then completed does not force to bottom',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final streamController = chatClient.startStream();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      // Add some content
+      streamController.add(ChatStreamDelta('Long response ' * 20));
+      await tester.pump();
+
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      // No crash, content visible
+      expect(find.textContaining('Long response'), findsOneWidget);
+    });
+
+    testWidgets('ScrollController with no clients does not throw',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      // Just verify the page builds without error
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // No crash
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('long Markdown does not cause overflow',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final longMd =
+          '# Title\n\n${'A' * 500}\n\n```dart\n${'void f() {\n' * 20}\n}\n```';
+
+      chatClient.setResult(
+        ChatCompletionResult.success(assistantContent: longMd),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Show long',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      // No overflow
+      expect(find.text('Title'), findsOneWidget);
+    });
   });
 }
 

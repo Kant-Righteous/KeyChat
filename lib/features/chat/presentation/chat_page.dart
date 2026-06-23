@@ -914,20 +914,23 @@ class _ChatPageState extends State<ChatPage> {
           : _selectedProvider == null &&
                   !_isProviderLocked &&
                   _persistWarning == null
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+                      Icon(Icons.cloud_off,
+                          size: 48, color: Colors.grey.shade600),
                       SizedBox(height: 16),
                       Text(
                         'No ready provider',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        style: TextStyle(
+                            fontSize: 16, color: Colors.grey.shade700),
                       ),
                       SizedBox(height: 8),
                       Text(
                         'Configure a provider with API key and default model',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.grey.shade700),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -972,10 +975,10 @@ class _ChatPageState extends State<ChatPage> {
                     Expanded(
                       child: _messages.isEmpty &&
                               _streamingAssistantText.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Text(
                                 'Start a conversation',
-                                style: TextStyle(color: Colors.grey),
+                                style: TextStyle(color: Colors.grey.shade700),
                               ),
                             )
                           : ListView.builder(
@@ -1016,6 +1019,7 @@ class _ChatPageState extends State<ChatPage> {
                                                   .size
                                                   .width *
                                               0.75,
+                                          minHeight: 44,
                                         ),
                                         decoration: BoxDecoration(
                                           color: isUser

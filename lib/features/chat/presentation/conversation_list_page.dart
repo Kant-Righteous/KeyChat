@@ -234,10 +234,10 @@ class _ConversationListPageState extends State<ConversationListPage> {
                   ),
                 )
               : _conversations.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'No conversations yet',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: Colors.grey.shade700),
                       ),
                     )
                   : ListView.builder(

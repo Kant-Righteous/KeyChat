@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
@@ -18,15 +20,29 @@ void main() {
     late FakeProviderConfigStore configStore;
     late FakeChatHistoryStore historyStore;
     late FakeChatClientResolver chatClientResolver;
+    late _StreamChatClient chatClient;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
       configStore = FakeProviderConfigStore();
       historyStore = FakeChatHistoryStore();
+      chatClient = _StreamChatClient();
       chatClientResolver = FakeChatClientResolver(
-        openAiCompatibleClient: _NoOpChatClient(),
+        openAiCompatibleClient: chatClient,
       );
     });
+
+    Future<void> setupConfig() async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+    }
 
     Widget buildChatPage() {
       return MaterialApp(
@@ -39,18 +55,8 @@ void main() {
       );
     }
 
-    testWidgets('idle state meets accessibility guidelines',
-        (WidgetTester tester) async {
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-4',
-        protocol: ProviderProtocol.openAiCompatible,
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('openai', 'test-key');
-
+    testWidgets('idle state meets all guidelines', (WidgetTester tester) async {
+      await setupConfig();
       await tester.pumpWidget(buildChatPage());
       await tester.pumpAndSettle();
 
@@ -58,22 +64,15 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
 
       semantics.dispose();
     });
 
-    testWidgets('send ready state meets accessibility guidelines',
+    testWidgets('send ready state meets all guidelines',
         (WidgetTester tester) async {
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-4',
-        protocol: ProviderProtocol.openAiCompatible,
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('openai', 'test-key');
-
+      await setupConfig();
       await tester.pumpWidget(buildChatPage());
       await tester.pumpAndSettle();
 
@@ -87,21 +86,48 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
 
       semantics.dispose();
     });
 
-    testWidgets('assistant message with actions meets guidelines',
+    testWidgets('streaming stop state meets all guidelines',
         (WidgetTester tester) async {
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-4',
-        protocol: ProviderProtocol.openAiCompatible,
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('openai', 'test-key');
+      await setupConfig();
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(buildChatPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial'));
+      await tester.pump();
+
+      final semantics = tester.ensureSemantics();
+
+      expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+
+      semantics.dispose();
+
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('completed assistant with actions meets all guidelines',
+        (WidgetTester tester) async {
+      await setupConfig();
 
       await historyStore.createConversationWithFirstMessage(
         conversation: ChatConversation(
@@ -134,27 +160,20 @@ void main() {
 
       final semantics = tester.ensureSemantics();
 
-      // Copy and Regenerate should be accessible
       expect(find.byTooltip('Copy response'), findsOneWidget);
       expect(find.byTooltip('Regenerate response'), findsOneWidget);
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
 
       semantics.dispose();
     });
 
-    testWidgets('retry state meets accessibility guidelines',
+    testWidgets('retry state meets all guidelines',
         (WidgetTester tester) async {
-      await configStore.saveConfig(ProviderConfigData(
-        providerId: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-4',
-        protocol: ProviderProtocol.openAiCompatible,
-        updatedAt: DateTime(2024),
-      ));
-      await apiKeyStore.saveKey('openai', 'test-key');
+      await setupConfig();
 
       await historyStore.createConversationWithFirstMessage(
         conversation: ChatConversation(
@@ -182,6 +201,43 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+
+      semantics.dispose();
+    });
+
+    testWidgets('stopped state meets all guidelines',
+        (WidgetTester tester) async {
+      await setupConfig();
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(buildChatPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      streamController.add(const ChatStreamDelta('Partial'));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.stop_rounded));
+      await tester.pump();
+
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      final semantics = tester.ensureSemantics();
+
+      expect(find.text('Stopped'), findsOneWidget);
+
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
 
       semantics.dispose();
     });
@@ -196,7 +252,8 @@ void main() {
       configStore = FakeProviderConfigStore();
     });
 
-    testWidgets('empty state meets guidelines', (WidgetTester tester) async {
+    testWidgets('empty state meets all guidelines',
+        (WidgetTester tester) async {
       await tester.pumpWidget(MaterialApp(
         home: ConversationListPage(
           historyStore: historyStore,
@@ -209,11 +266,13 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
 
       semantics.dispose();
     });
 
-    testWidgets('with conversations meets guidelines',
+    testWidgets('with conversations meets all guidelines',
         (WidgetTester tester) async {
       await historyStore.createConversationWithFirstMessage(
         conversation: ChatConversation(
@@ -244,13 +303,23 @@ void main() {
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
 
       semantics.dispose();
     });
   });
 }
 
-class _NoOpChatClient implements ChatCompletionClient {
+class _StreamChatClient implements ChatCompletionClient {
+  StreamController<ChatStreamEvent>? _streamController;
+
+  StreamController<ChatStreamEvent> startStream() {
+    _streamController?.close();
+    _streamController = StreamController<ChatStreamEvent>();
+    return _streamController!;
+  }
+
   @override
   Future<ChatCompletionResult> complete({
     required String baseUrl,
@@ -273,6 +342,11 @@ class _NoOpChatClient implements ChatCompletionClient {
     required List<ChatRequestMessage> messages,
     ChatCancellationToken? cancellationToken,
   }) {
+    if (_streamController != null) {
+      final c = _streamController;
+      _streamController = null;
+      return c!.stream;
+    }
     return Stream.fromIterable([
       const ChatStreamFailure(
         errorType: ChatCompletionErrorType.unknown,
