@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:keychat/features/agents/data/agent_profile_store.dart';
+import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
@@ -13,17 +15,26 @@ import 'package:keychat/features/chat/presentation/widgets/assistant_message_con
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-class _ReadyProvider {
-  final ProviderConfigData config;
+class _ReadyModel {
+  final String providerId;
+  final String providerDisplayName;
+  final String baseUrl;
+  final String modelId;
   final String apiKey;
   final ChatCompletionClient client;
 
-  const _ReadyProvider({
-    required this.config,
+  const _ReadyModel({
+    required this.providerId,
+    required this.providerDisplayName,
+    required this.baseUrl,
+    required this.modelId,
     required this.apiKey,
     required this.client,
   });
+
+  String get displayLabel => '$providerDisplayName · $modelId';
 }
 
 enum _GenerationEndReason {
@@ -56,6 +67,7 @@ class ChatPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
   final ChatHistoryStore historyStore;
+  final AgentProfileStore agentStore;
   final ChatContextBuilder contextBuilder;
 
   ChatPage({
@@ -64,6 +76,7 @@ class ChatPage extends StatefulWidget {
     required this.apiKeyStore,
     required this.configStore,
     required this.historyStore,
+    required this.agentStore,
     ChatContextBuilder? contextBuilder,
   }) : contextBuilder = contextBuilder ?? ChatContextBuilder();
 
@@ -75,8 +88,10 @@ class _ChatPageState extends State<ChatPage> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = <ChatMessage>[];
-  final List<_ReadyProvider> _readyProviders = [];
-  _ReadyProvider? _selectedProvider;
+  final List<_ReadyModel> _readyModels = [];
+  _ReadyModel? _selectedModel;
+  final List<AgentProfileData> _agents = [];
+  AgentProfileData? _selectedAgent;
   bool _loading = true;
   bool _sending = false;
   bool _userStopped = false;
@@ -111,8 +126,8 @@ class _ChatPageState extends State<ChatPage> {
       }
       return;
     }
-    final ready = <_ReadyProvider>[];
 
+    final readyModels = <_ReadyModel>[];
     for (final config in configs) {
       if (!config.enabled) continue;
       if (config.baseUrl.trim().isEmpty) continue;
@@ -127,35 +142,57 @@ class _ChatPageState extends State<ChatPage> {
       final client = widget.chatClientResolver.resolve(config.protocol);
       if (client == null) continue;
 
-      ready.add(_ReadyProvider(config: config, apiKey: apiKey, client: client));
+      readyModels.add(_ReadyModel(
+        providerId: config.providerId,
+        providerDisplayName: config.displayName,
+        baseUrl: config.baseUrl,
+        modelId: config.defaultModel!,
+        apiKey: apiKey,
+        client: client,
+      ));
     }
+
+    final agents = await widget.agentStore.readAgents();
 
     final conversation = await widget.historyStore.readLatestConversation();
     List<ChatMessage> historyMessages = [];
     String? restoredProviderId;
+    String? restoredModelId;
 
     if (conversation != null) {
       historyMessages = await widget.historyStore.readMessages(conversation.id);
       restoredProviderId = conversation.providerId;
+      restoredModelId = conversation.model;
     }
 
-    _ReadyProvider? selectedProvider;
-    if (restoredProviderId != null) {
+    _ReadyModel? selectedModel;
+    if (restoredProviderId != null && restoredModelId != null) {
       try {
-        selectedProvider = ready.firstWhere(
-          (p) => p.config.providerId == restoredProviderId,
+        selectedModel = readyModels.firstWhere(
+          (m) =>
+              m.providerId == restoredProviderId &&
+              m.modelId == restoredModelId,
         );
       } catch (_) {
-        selectedProvider = null;
+        selectedModel = null;
       }
     }
 
-    if (selectedProvider == null && ready.isNotEmpty) {
-      selectedProvider = ready.first;
+    if (selectedModel == null && readyModels.isNotEmpty) {
+      selectedModel = readyModels.first;
+    }
+
+    AgentProfileData? selectedAgent;
+    if (conversation?.agentId != null) {
+      try {
+        selectedAgent = agents.firstWhere((a) => a.id == conversation!.agentId);
+      } catch (_) {
+        selectedAgent = null;
+      }
     }
 
     String? protocolWarning;
-    if (conversation != null && selectedProvider == null) {
+    if (conversation != null && selectedModel == null) {
       try {
         final convConfig =
             await widget.configStore.readConfig(conversation.providerId);
@@ -172,9 +209,12 @@ class _ChatPageState extends State<ChatPage> {
 
     if (mounted) {
       setState(() {
-        _readyProviders.clear();
-        _readyProviders.addAll(ready);
-        _selectedProvider = selectedProvider;
+        _readyModels.clear();
+        _readyModels.addAll(readyModels);
+        _selectedModel = selectedModel;
+        _agents.clear();
+        _agents.addAll(agents);
+        _selectedAgent = selectedAgent;
         _messages.clear();
         _messages.addAll(historyMessages);
         _activeConversationId = conversation?.id;
@@ -182,7 +222,7 @@ class _ChatPageState extends State<ChatPage> {
         _protocolWarning = protocolWarning;
 
         if (conversation != null &&
-            selectedProvider == null &&
+            selectedModel == null &&
             _persistWarning == null &&
             _protocolWarning == null) {
           _persistWarning = 'Provider is no longer available';
@@ -191,11 +231,11 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  bool get _isProviderLocked => _activeConversationId != null;
+  bool get _isSelectionLocked => _activeConversationId != null;
 
   bool get _canSend {
     if (_sending) return false;
-    if (_selectedProvider == null) return false;
+    if (_selectedModel == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     return true;
@@ -205,7 +245,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canRetry {
     if (_sending) return false;
-    if (_selectedProvider == null) return false;
+    if (_selectedModel == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
@@ -216,7 +256,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canRegenerate {
     if (_sending) return false;
-    if (_selectedProvider == null) return false;
+    if (_selectedModel == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
@@ -300,8 +340,8 @@ class _ChatPageState extends State<ChatPage> {
       _activeConversationId = null;
       _persistWarning = null;
       _protocolWarning = null;
-      _selectedProvider =
-          _readyProviders.isNotEmpty ? _readyProviders.first : null;
+      _selectedModel = _readyModels.isNotEmpty ? _readyModels.first : null;
+      _selectedAgent = null;
       _messageController.clear();
       _clearStoppedState();
     });
@@ -330,8 +370,8 @@ class _ChatPageState extends State<ChatPage> {
         _activeConversationId = null;
         _persistWarning = null;
         _protocolWarning = null;
-        _selectedProvider =
-            _readyProviders.isNotEmpty ? _readyProviders.first : null;
+        _selectedModel = _readyModels.isNotEmpty ? _readyModels.first : null;
+        _selectedAgent = null;
         _messageController.clear();
         _clearStoppedState();
       });
@@ -360,18 +400,30 @@ class _ChatPageState extends State<ChatPage> {
 
       final messages = await widget.historyStore.readMessages(conversationId);
 
-      _ReadyProvider? selectedProvider;
+      _ReadyModel? selectedModel;
       try {
-        selectedProvider = _readyProviders.firstWhere(
-          (p) => p.config.providerId == conversation.providerId,
+        selectedModel = _readyModels.firstWhere(
+          (m) =>
+              m.providerId == conversation.providerId &&
+              m.modelId == conversation.model,
         );
       } catch (_) {
-        selectedProvider = null;
+        selectedModel = null;
+      }
+
+      AgentProfileData? selectedAgent;
+      if (conversation.agentId != null) {
+        try {
+          selectedAgent =
+              _agents.firstWhere((a) => a.id == conversation.agentId);
+        } catch (_) {
+          selectedAgent = null;
+        }
       }
 
       String? protocolWarning;
       String? persistWarning;
-      if (selectedProvider == null) {
+      if (selectedModel == null) {
         try {
           final convConfig =
               await widget.configStore.readConfig(conversation.providerId);
@@ -391,7 +443,8 @@ class _ChatPageState extends State<ChatPage> {
           _messages.clear();
           _messages.addAll(messages);
           _activeConversationId = conversationId;
-          _selectedProvider = selectedProvider;
+          _selectedModel = selectedModel;
+          _selectedAgent = selectedAgent;
           _persistWarning = persistWarning;
           _protocolWarning = protocolWarning;
           _loading = false;
@@ -442,8 +495,11 @@ class _ChatPageState extends State<ChatPage> {
       final conversation = ChatConversation(
         id: conversationId,
         title: ChatConversation.generateTitle(text),
-        providerId: _selectedProvider!.config.providerId,
-        model: _selectedProvider!.config.defaultModel!,
+        providerId: _selectedModel!.providerId,
+        model: _selectedModel!.modelId,
+        agentId: _selectedAgent?.id,
+        agentNameSnapshot: _selectedAgent?.name,
+        systemPromptSnapshot: _selectedAgent?.systemPrompt,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -563,9 +619,30 @@ class _ChatPageState extends State<ChatPage> {
         content: target.userMessage.content,
       );
 
+      // Build system message from agent snapshot if available
+      ChatRequestMessage? systemMessage;
+      if (_activeConversationId != null) {
+        final conversation =
+            await widget.historyStore.readConversation(_activeConversationId!);
+        if (conversation?.systemPromptSnapshot != null &&
+            conversation!.systemPromptSnapshot!.isNotEmpty) {
+          systemMessage = ChatRequestMessage(
+            role: 'system',
+            content: conversation.systemPromptSnapshot!,
+          );
+        }
+      } else if (_selectedAgent != null &&
+          _selectedAgent!.systemPrompt.isNotEmpty) {
+        systemMessage = ChatRequestMessage(
+          role: 'system',
+          content: _selectedAgent!.systemPrompt,
+        );
+      }
+
       final contextResult = widget.contextBuilder.build(
         history: historyMessages,
         currentUserMessage: currentUserRequest,
+        systemMessage: systemMessage,
       );
 
       if (contextResult.wasTrimmed) {
@@ -576,16 +653,21 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _trimWarning = 'Current message exceeds the local context estimate';
         });
+      } else if (contextResult.systemPromptExceedsBudget) {
+        setState(() {
+          _trimWarning =
+              'System prompt and current message exceed the local context estimate';
+        });
       } else {
         setState(() {
           _trimWarning = null;
         });
       }
 
-      final stream = _selectedProvider!.client.streamComplete(
-        baseUrl: _selectedProvider!.config.baseUrl,
-        apiKey: _selectedProvider!.apiKey,
-        model: _selectedProvider!.config.defaultModel!,
+      final stream = _selectedModel!.client.streamComplete(
+        baseUrl: _selectedModel!.baseUrl,
+        apiKey: _selectedModel!.apiKey,
+        model: _selectedModel!.modelId,
         messages: contextResult.messages,
         cancellationToken: localToken,
       );
@@ -843,76 +925,34 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('KeyChat'),
         actions: [
-          if (!_isProviderLocked && _selectedProvider != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _readyProviders.length > 1
-                  ? Semantics(
-                      label: 'Select provider',
-                      child: DropdownButton<_ReadyProvider>(
-                        value: _selectedProvider,
-                        underline: const SizedBox(),
-                        onChanged: _isProviderLocked
-                            ? null
-                            : (provider) {
-                                if (provider != null) {
-                                  setState(() => _selectedProvider = provider);
-                                }
-                              },
-                        items: _readyProviders.map((p) {
-                          return DropdownMenuItem(
-                            value: p,
-                            child: Text(
-                              p.config.displayName,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    )
-                  : Center(
-                      child: Text(
-                        _selectedProvider!.config.displayName,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-            ),
-          if (_isProviderLocked)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Text(
-                  _selectedProvider?.config.displayName ?? '',
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-            ),
           Semantics(
-            label: 'History',
+            label: l10n.history,
             child: IconButton(
               onPressed: _sending ? null : _openConversationList,
               icon: const Icon(Icons.history),
-              tooltip: 'History',
+              tooltip: l10n.history,
             ),
           ),
           Semantics(
-            label: 'New Chat',
+            label: l10n.newChat,
             child: IconButton(
               onPressed: _sending ? null : _newChat,
               icon: const Icon(Icons.add_comment),
-              tooltip: 'New Chat',
+              tooltip: l10n.newChat,
             ),
           ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedProvider == null &&
-                  !_isProviderLocked &&
+          : _selectedModel == null &&
+                  !_isSelectionLocked &&
                   _persistWarning == null
               ? Center(
                   child: Column(
@@ -920,15 +960,15 @@ class _ChatPageState extends State<ChatPage> {
                     children: [
                       Icon(Icons.cloud_off,
                           size: 48, color: Colors.grey.shade600),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
-                        'No ready provider',
+                        l10n.noReadyProvider,
                         style: TextStyle(
                             fontSize: 16, color: Colors.grey.shade700),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Configure a provider with API key and default model',
+                        l10n.configureProviderApiKey,
                         style: TextStyle(
                             fontSize: 14, color: Colors.grey.shade700),
                         textAlign: TextAlign.center,
@@ -938,6 +978,7 @@ class _ChatPageState extends State<ChatPage> {
                 )
               : Column(
                   children: [
+                    if (!_isSelectionLocked) _buildSelectors(l10n),
                     if (_persistWarning != null)
                       Container(
                         width: double.infinity,
@@ -977,7 +1018,7 @@ class _ChatPageState extends State<ChatPage> {
                               _streamingAssistantText.isEmpty
                           ? Center(
                               child: Text(
-                                'Start a conversation',
+                                l10n.startConversation,
                                 style: TextStyle(color: Colors.grey.shade700),
                               ),
                             )
@@ -1048,11 +1089,11 @@ class _ChatPageState extends State<ChatPage> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Semantics(
-                                              label: 'Copy response',
+                                              label: l10n.copyResponse,
                                               child: IconButton(
                                                 icon: const Icon(Icons.copy,
                                                     size: 16),
-                                                tooltip: 'Copy response',
+                                                tooltip: l10n.copyResponse,
                                                 onPressed: () async {
                                                   final messenger =
                                                       ScaffoldMessenger.of(
@@ -1063,10 +1104,12 @@ class _ChatPageState extends State<ChatPage> {
                                                   );
                                                   if (mounted) {
                                                     messenger.showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Copied'),
-                                                        duration: Duration(
-                                                            seconds: 1),
+                                                      SnackBar(
+                                                        content:
+                                                            Text(l10n.copied),
+                                                        duration:
+                                                            const Duration(
+                                                                seconds: 1),
                                                       ),
                                                     );
                                                   }
@@ -1077,13 +1120,13 @@ class _ChatPageState extends State<ChatPage> {
                                                 _canRegenerate &&
                                                 !_sending)
                                               Semantics(
-                                                label: 'Regenerate response',
+                                                label: l10n.regenerateResponse,
                                                 child: IconButton(
                                                   icon: const Icon(
                                                       Icons.refresh_rounded,
                                                       size: 16),
                                                   tooltip:
-                                                      'Regenerate response',
+                                                      l10n.regenerateResponse,
                                                   onPressed:
                                                       _regenerateLastResponse,
                                                 ),
@@ -1096,7 +1139,7 @@ class _ChatPageState extends State<ChatPage> {
                                         padding: const EdgeInsets.only(
                                             left: 12, bottom: 8),
                                         child: Text(
-                                          'Stopped',
+                                          l10n.stopped,
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey[600],
@@ -1126,20 +1169,20 @@ class _ChatPageState extends State<ChatPage> {
                           children: [
                             if (_canRetry && !_sending)
                               Semantics(
-                                label: 'Retry',
+                                label: l10n.retry,
                                 child: IconButton(
                                   onPressed: _retryLastTurn,
                                   icon: const Icon(Icons.refresh, size: 20),
-                                  tooltip: 'Retry',
+                                  tooltip: l10n.retry,
                                 ),
                               ),
                             Expanded(
                               child: TextField(
                                 controller: _messageController,
-                                decoration: const InputDecoration(
-                                  hintText: 'Type a message...',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(
+                                decoration: InputDecoration(
+                                  hintText: l10n.typeMessage,
+                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                     vertical: 8,
                                   ),
@@ -1153,19 +1196,19 @@ class _ChatPageState extends State<ChatPage> {
                             const SizedBox(width: 8),
                             if (_canStop)
                               Semantics(
-                                label: 'Stop generating',
+                                label: l10n.stopGenerating,
                                 child: IconButton(
                                   onPressed: _stopGeneration,
                                   icon: const Icon(Icons.stop_rounded),
-                                  tooltip: 'Stop generating',
+                                  tooltip: l10n.stopGenerating,
                                 ),
                               )
                             else
                               Semantics(
-                                label: 'Send message',
+                                label: l10n.send,
                                 child: IconButton(
                                   onPressed: _canSend ? _send : null,
-                                  tooltip: 'Send',
+                                  tooltip: l10n.send,
                                   icon: _sending
                                       ? const SizedBox(
                                           width: 24,
@@ -1182,6 +1225,88 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildSelectors(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildAgentSelector(l10n),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildModelSelector(l10n),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgentSelector(AppLocalizations l10n) {
+    return DropdownButton<AgentProfileData?>(
+      value: _selectedAgent,
+      isExpanded: true,
+      underline: const SizedBox(),
+      items: [
+        DropdownMenuItem<AgentProfileData?>(
+          value: null,
+          child: Text(
+            l10n.noAgent,
+            style: const TextStyle(fontSize: 14),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ..._agents.map((agent) => DropdownMenuItem<AgentProfileData?>(
+              value: agent,
+              child: Text(
+                agent.name,
+                style: const TextStyle(fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            )),
+      ],
+      onChanged: _isSelectionLocked
+          ? null
+          : (agent) {
+              if (mounted) {
+                setState(() => _selectedAgent = agent);
+              }
+            },
+    );
+  }
+
+  Widget _buildModelSelector(AppLocalizations l10n) {
+    if (_readyModels.isEmpty) {
+      return Text(
+        l10n.noModelAvailable,
+        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+      );
+    }
+
+    return DropdownButton<_ReadyModel>(
+      value: _selectedModel,
+      isExpanded: true,
+      underline: const SizedBox(),
+      items: _readyModels
+          .map((model) => DropdownMenuItem<_ReadyModel>(
+                value: model,
+                child: Text(
+                  model.displayLabel,
+                  style: const TextStyle(fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ))
+          .toList(),
+      onChanged: _isSelectionLocked
+          ? null
+          : (model) {
+              if (model != null) {
+                setState(() => _selectedModel = model);
+              }
+            },
     );
   }
 }

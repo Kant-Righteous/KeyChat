@@ -81,8 +81,8 @@ void main() {
       expect(protocolCol.data['dflt_value'], "'openai_compatible'");
     });
 
-    test('schemaVersion is 3', () {
-      expect(db.schemaVersion, 3);
+    test('schemaVersion is 4', () {
+      expect(db.schemaVersion, 4);
     });
   });
 
@@ -105,9 +105,12 @@ void main() {
       expect(columnNames, contains('title'));
       expect(columnNames, contains('provider_id'));
       expect(columnNames, contains('model'));
+      expect(columnNames, contains('agent_id'));
+      expect(columnNames, contains('agent_name_snapshot'));
+      expect(columnNames, contains('system_prompt_snapshot'));
       expect(columnNames, contains('created_at'));
       expect(columnNames, contains('updated_at'));
-      expect(columnNames.length, 6);
+      expect(columnNames.length, 9);
     });
 
     test('table does not contain API key column', () {

@@ -1,31 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:keychat/features/settings/presentation/language_page.dart';
+import 'package:keychat/features/settings/presentation/about_page.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  final void Function(Locale) onLocaleChanged;
+
+  const SettingsPage({super.key, required this.onLocaleChanged});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(l10n.settings),
       ),
       body: ListView(
-        children: const [
+        children: [
           ListTile(
-            leading: Icon(Icons.palette),
-            title: Text('Appearance'),
+            leading: const Icon(Icons.language),
+            title: Text(l10n.language),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      LanguagePage(onLocaleChanged: onLocaleChanged),
+                ),
+              );
+            },
           ),
           ListTile(
-            leading: Icon(Icons.language),
-            title: Text('Language'),
-          ),
-          ListTile(
-            leading: Icon(Icons.lock),
-            title: Text('Privacy'),
-          ),
-          ListTile(
-            leading: Icon(Icons.info),
-            title: Text('About KeyChat'),
+            leading: const Icon(Icons.info),
+            title: Text(l10n.aboutKeyChat),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AboutPage(),
+                ),
+              );
+            },
           ),
         ],
       ),

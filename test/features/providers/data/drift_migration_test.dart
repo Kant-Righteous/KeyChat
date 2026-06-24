@@ -59,8 +59,8 @@ void main() {
 
       // Step 3: Verify migration results
 
-      // schemaVersion should be 3
-      expect(db.schemaVersion, 3);
+      // schemaVersion should be 4
+      expect(db.schemaVersion, 4);
 
       // ProviderConfigs data preserved
       final configs = await db.select(db.providerConfigs).get();
@@ -374,8 +374,8 @@ void main() {
       await db.close();
     });
 
-    test('schemaVersion is 3', () {
-      expect(db.schemaVersion, 3);
+    test('schemaVersion is 4', () {
+      expect(db.schemaVersion, 4);
     });
 
     test('protocol column is TEXT NOT NULL with SQL DEFAULT', () async {
@@ -410,9 +410,12 @@ void main() {
       expect(cols, contains('title'));
       expect(cols, contains('provider_id'));
       expect(cols, contains('model'));
+      expect(cols, contains('agent_id'));
+      expect(cols, contains('agent_name_snapshot'));
+      expect(cols, contains('system_prompt_snapshot'));
       expect(cols, contains('created_at'));
       expect(cols, contains('updated_at'));
-      expect(cols.length, 6);
+      expect(cols.length, 9);
     });
 
     test('ChatMessages structure unchanged', () {
@@ -429,6 +432,17 @@ void main() {
       final cols = db.providerConfigs.$columns.map((c) => c.name).toList();
       expect(cols, isNot(contains('api_key')));
       expect(cols, isNot(contains('secret')));
+    });
+
+    test('AgentProfiles table exists', () {
+      final cols = db.agentProfiles.$columns.map((c) => c.name).toList();
+      expect(cols, contains('id'));
+      expect(cols, contains('name'));
+      expect(cols, contains('description'));
+      expect(cols, contains('system_prompt'));
+      expect(cols, contains('created_at'));
+      expect(cols, contains('updated_at'));
+      expect(cols.length, 6);
     });
 
     test('foreign key enabled', () async {

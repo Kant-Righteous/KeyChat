@@ -21,11 +21,26 @@ class ProviderConfigs extends Table {
   Set<Column> get primaryKey => {providerId};
 }
 
+class AgentProfiles extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get systemPrompt => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 class Conversations extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
   TextColumn get providerId => text()();
   TextColumn get model => text()();
+  TextColumn get agentId => text().nullable()();
+  TextColumn get agentNameSnapshot => text().nullable()();
+  TextColumn get systemPromptSnapshot => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
@@ -45,14 +60,15 @@ class ChatMessages extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [ProviderConfigs, Conversations, ChatMessages])
+@DriftDatabase(
+    tables: [ProviderConfigs, AgentProfiles, Conversations, ChatMessages])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -66,6 +82,15 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await m.addColumn(providerConfigs, providerConfigs.protocol);
+          }
+          if (from >= 2 && from < 4) {
+            await m.addColumn(conversations, conversations.agentId);
+            await m.addColumn(conversations, conversations.agentNameSnapshot);
+            await m.addColumn(
+                conversations, conversations.systemPromptSnapshot);
+          }
+          if (from < 4) {
+            await m.createTable(agentProfiles);
           }
         },
         beforeOpen: (details) async {

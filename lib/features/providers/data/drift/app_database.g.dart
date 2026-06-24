@@ -408,6 +408,360 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
   }
 }
 
+class $AgentProfilesTable extends AgentProfiles
+    with TableInfo<$AgentProfilesTable, AgentProfile> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AgentProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _systemPromptMeta =
+      const VerificationMeta('systemPrompt');
+  @override
+  late final GeneratedColumn<String> systemPrompt = GeneratedColumn<String>(
+      'system_prompt', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, description, systemPrompt, createdAt, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'agent_profiles';
+  @override
+  VerificationContext validateIntegrity(Insertable<AgentProfile> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    }
+    if (data.containsKey('system_prompt')) {
+      context.handle(
+          _systemPromptMeta,
+          systemPrompt.isAcceptableOrUnknown(
+              data['system_prompt']!, _systemPromptMeta));
+    } else if (isInserting) {
+      context.missing(_systemPromptMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AgentProfile map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AgentProfile(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description']),
+      systemPrompt: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}system_prompt'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $AgentProfilesTable createAlias(String alias) {
+    return $AgentProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class AgentProfile extends DataClass implements Insertable<AgentProfile> {
+  final String id;
+  final String name;
+  final String? description;
+  final String systemPrompt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AgentProfile(
+      {required this.id,
+      required this.name,
+      this.description,
+      required this.systemPrompt,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['system_prompt'] = Variable<String>(systemPrompt);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AgentProfilesCompanion toCompanion(bool nullToAbsent) {
+    return AgentProfilesCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      systemPrompt: Value(systemPrompt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AgentProfile.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AgentProfile(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
+      systemPrompt: serializer.fromJson<String>(json['systemPrompt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String?>(description),
+      'systemPrompt': serializer.toJson<String>(systemPrompt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AgentProfile copyWith(
+          {String? id,
+          String? name,
+          Value<String?> description = const Value.absent(),
+          String? systemPrompt,
+          DateTime? createdAt,
+          DateTime? updatedAt}) =>
+      AgentProfile(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        description: description.present ? description.value : this.description,
+        systemPrompt: systemPrompt ?? this.systemPrompt,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  AgentProfile copyWithCompanion(AgentProfilesCompanion data) {
+    return AgentProfile(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description:
+          data.description.present ? data.description.value : this.description,
+      systemPrompt: data.systemPrompt.present
+          ? data.systemPrompt.value
+          : this.systemPrompt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AgentProfile(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('systemPrompt: $systemPrompt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, description, systemPrompt, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AgentProfile &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.systemPrompt == this.systemPrompt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AgentProfilesCompanion extends UpdateCompanion<AgentProfile> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> description;
+  final Value<String> systemPrompt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AgentProfilesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.systemPrompt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AgentProfilesCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    required String systemPrompt,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        systemPrompt = Value(systemPrompt),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<AgentProfile> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<String>? systemPrompt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (systemPrompt != null) 'system_prompt': systemPrompt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AgentProfilesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String?>? description,
+      Value<String>? systemPrompt,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
+      Value<int>? rowid}) {
+    return AgentProfilesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      systemPrompt: systemPrompt ?? this.systemPrompt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (systemPrompt.present) {
+      map['system_prompt'] = Variable<String>(systemPrompt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AgentProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('systemPrompt: $systemPrompt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ConversationsTable extends Conversations
     with TableInfo<$ConversationsTable, Conversation> {
   @override
@@ -435,6 +789,24 @@ class $ConversationsTable extends Conversations
   late final GeneratedColumn<String> model = GeneratedColumn<String>(
       'model', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _agentIdMeta =
+      const VerificationMeta('agentId');
+  @override
+  late final GeneratedColumn<String> agentId = GeneratedColumn<String>(
+      'agent_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _agentNameSnapshotMeta =
+      const VerificationMeta('agentNameSnapshot');
+  @override
+  late final GeneratedColumn<String> agentNameSnapshot =
+      GeneratedColumn<String>('agent_name_snapshot', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _systemPromptSnapshotMeta =
+      const VerificationMeta('systemPromptSnapshot');
+  @override
+  late final GeneratedColumn<String> systemPromptSnapshot =
+      GeneratedColumn<String>('system_prompt_snapshot', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -448,8 +820,17 @@ class $ConversationsTable extends Conversations
       'updated_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, title, providerId, model, createdAt, updatedAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        providerId,
+        model,
+        agentId,
+        agentNameSnapshot,
+        systemPromptSnapshot,
+        createdAt,
+        updatedAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -485,6 +866,22 @@ class $ConversationsTable extends Conversations
     } else if (isInserting) {
       context.missing(_modelMeta);
     }
+    if (data.containsKey('agent_id')) {
+      context.handle(_agentIdMeta,
+          agentId.isAcceptableOrUnknown(data['agent_id']!, _agentIdMeta));
+    }
+    if (data.containsKey('agent_name_snapshot')) {
+      context.handle(
+          _agentNameSnapshotMeta,
+          agentNameSnapshot.isAcceptableOrUnknown(
+              data['agent_name_snapshot']!, _agentNameSnapshotMeta));
+    }
+    if (data.containsKey('system_prompt_snapshot')) {
+      context.handle(
+          _systemPromptSnapshotMeta,
+          systemPromptSnapshot.isAcceptableOrUnknown(
+              data['system_prompt_snapshot']!, _systemPromptSnapshotMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -514,6 +911,13 @@ class $ConversationsTable extends Conversations
           .read(DriftSqlType.string, data['${effectivePrefix}provider_id'])!,
       model: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}model'])!,
+      agentId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}agent_id']),
+      agentNameSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}agent_name_snapshot']),
+      systemPromptSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}system_prompt_snapshot']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -532,6 +936,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   final String title;
   final String providerId;
   final String model;
+  final String? agentId;
+  final String? agentNameSnapshot;
+  final String? systemPromptSnapshot;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Conversation(
@@ -539,6 +946,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       required this.title,
       required this.providerId,
       required this.model,
+      this.agentId,
+      this.agentNameSnapshot,
+      this.systemPromptSnapshot,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -548,6 +958,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['title'] = Variable<String>(title);
     map['provider_id'] = Variable<String>(providerId);
     map['model'] = Variable<String>(model);
+    if (!nullToAbsent || agentId != null) {
+      map['agent_id'] = Variable<String>(agentId);
+    }
+    if (!nullToAbsent || agentNameSnapshot != null) {
+      map['agent_name_snapshot'] = Variable<String>(agentNameSnapshot);
+    }
+    if (!nullToAbsent || systemPromptSnapshot != null) {
+      map['system_prompt_snapshot'] = Variable<String>(systemPromptSnapshot);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -559,6 +978,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       title: Value(title),
       providerId: Value(providerId),
       model: Value(model),
+      agentId: agentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(agentId),
+      agentNameSnapshot: agentNameSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(agentNameSnapshot),
+      systemPromptSnapshot: systemPromptSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(systemPromptSnapshot),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -572,6 +1000,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       title: serializer.fromJson<String>(json['title']),
       providerId: serializer.fromJson<String>(json['providerId']),
       model: serializer.fromJson<String>(json['model']),
+      agentId: serializer.fromJson<String?>(json['agentId']),
+      agentNameSnapshot:
+          serializer.fromJson<String?>(json['agentNameSnapshot']),
+      systemPromptSnapshot:
+          serializer.fromJson<String?>(json['systemPromptSnapshot']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -584,6 +1017,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'title': serializer.toJson<String>(title),
       'providerId': serializer.toJson<String>(providerId),
       'model': serializer.toJson<String>(model),
+      'agentId': serializer.toJson<String?>(agentId),
+      'agentNameSnapshot': serializer.toJson<String?>(agentNameSnapshot),
+      'systemPromptSnapshot': serializer.toJson<String?>(systemPromptSnapshot),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -594,6 +1030,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           String? title,
           String? providerId,
           String? model,
+          Value<String?> agentId = const Value.absent(),
+          Value<String?> agentNameSnapshot = const Value.absent(),
+          Value<String?> systemPromptSnapshot = const Value.absent(),
           DateTime? createdAt,
           DateTime? updatedAt}) =>
       Conversation(
@@ -601,6 +1040,13 @@ class Conversation extends DataClass implements Insertable<Conversation> {
         title: title ?? this.title,
         providerId: providerId ?? this.providerId,
         model: model ?? this.model,
+        agentId: agentId.present ? agentId.value : this.agentId,
+        agentNameSnapshot: agentNameSnapshot.present
+            ? agentNameSnapshot.value
+            : this.agentNameSnapshot,
+        systemPromptSnapshot: systemPromptSnapshot.present
+            ? systemPromptSnapshot.value
+            : this.systemPromptSnapshot,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -611,6 +1057,13 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       providerId:
           data.providerId.present ? data.providerId.value : this.providerId,
       model: data.model.present ? data.model.value : this.model,
+      agentId: data.agentId.present ? data.agentId.value : this.agentId,
+      agentNameSnapshot: data.agentNameSnapshot.present
+          ? data.agentNameSnapshot.value
+          : this.agentNameSnapshot,
+      systemPromptSnapshot: data.systemPromptSnapshot.present
+          ? data.systemPromptSnapshot.value
+          : this.systemPromptSnapshot,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -623,6 +1076,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('title: $title, ')
           ..write('providerId: $providerId, ')
           ..write('model: $model, ')
+          ..write('agentId: $agentId, ')
+          ..write('agentNameSnapshot: $agentNameSnapshot, ')
+          ..write('systemPromptSnapshot: $systemPromptSnapshot, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -630,8 +1086,8 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, title, providerId, model, createdAt, updatedAt);
+  int get hashCode => Object.hash(id, title, providerId, model, agentId,
+      agentNameSnapshot, systemPromptSnapshot, createdAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -640,6 +1096,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.title == this.title &&
           other.providerId == this.providerId &&
           other.model == this.model &&
+          other.agentId == this.agentId &&
+          other.agentNameSnapshot == this.agentNameSnapshot &&
+          other.systemPromptSnapshot == this.systemPromptSnapshot &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -649,6 +1108,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<String> title;
   final Value<String> providerId;
   final Value<String> model;
+  final Value<String?> agentId;
+  final Value<String?> agentNameSnapshot;
+  final Value<String?> systemPromptSnapshot;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -657,6 +1119,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.title = const Value.absent(),
     this.providerId = const Value.absent(),
     this.model = const Value.absent(),
+    this.agentId = const Value.absent(),
+    this.agentNameSnapshot = const Value.absent(),
+    this.systemPromptSnapshot = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -666,6 +1131,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     required String title,
     required String providerId,
     required String model,
+    this.agentId = const Value.absent(),
+    this.agentNameSnapshot = const Value.absent(),
+    this.systemPromptSnapshot = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.rowid = const Value.absent(),
@@ -680,6 +1148,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<String>? title,
     Expression<String>? providerId,
     Expression<String>? model,
+    Expression<String>? agentId,
+    Expression<String>? agentNameSnapshot,
+    Expression<String>? systemPromptSnapshot,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -689,6 +1160,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (title != null) 'title': title,
       if (providerId != null) 'provider_id': providerId,
       if (model != null) 'model': model,
+      if (agentId != null) 'agent_id': agentId,
+      if (agentNameSnapshot != null) 'agent_name_snapshot': agentNameSnapshot,
+      if (systemPromptSnapshot != null)
+        'system_prompt_snapshot': systemPromptSnapshot,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -700,6 +1175,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       Value<String>? title,
       Value<String>? providerId,
       Value<String>? model,
+      Value<String?>? agentId,
+      Value<String?>? agentNameSnapshot,
+      Value<String?>? systemPromptSnapshot,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
       Value<int>? rowid}) {
@@ -708,6 +1186,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       title: title ?? this.title,
       providerId: providerId ?? this.providerId,
       model: model ?? this.model,
+      agentId: agentId ?? this.agentId,
+      agentNameSnapshot: agentNameSnapshot ?? this.agentNameSnapshot,
+      systemPromptSnapshot: systemPromptSnapshot ?? this.systemPromptSnapshot,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -729,6 +1210,16 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (model.present) {
       map['model'] = Variable<String>(model.value);
     }
+    if (agentId.present) {
+      map['agent_id'] = Variable<String>(agentId.value);
+    }
+    if (agentNameSnapshot.present) {
+      map['agent_name_snapshot'] = Variable<String>(agentNameSnapshot.value);
+    }
+    if (systemPromptSnapshot.present) {
+      map['system_prompt_snapshot'] =
+          Variable<String>(systemPromptSnapshot.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -748,6 +1239,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('title: $title, ')
           ..write('providerId: $providerId, ')
           ..write('model: $model, ')
+          ..write('agentId: $agentId, ')
+          ..write('agentNameSnapshot: $agentNameSnapshot, ')
+          ..write('systemPromptSnapshot: $systemPromptSnapshot, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -1076,6 +1570,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProviderConfigsTable providerConfigs =
       $ProviderConfigsTable(this);
+  late final $AgentProfilesTable agentProfiles = $AgentProfilesTable(this);
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $ChatMessagesTable chatMessages = $ChatMessagesTable(this);
   @override
@@ -1083,7 +1578,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [providerConfigs, conversations, chatMessages];
+      [providerConfigs, agentProfiles, conversations, chatMessages];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -1303,12 +1798,204 @@ typedef $$ProviderConfigsTableProcessedTableManager = ProcessedTableManager<
     ),
     ProviderConfig,
     PrefetchHooks Function()>;
+typedef $$AgentProfilesTableCreateCompanionBuilder = AgentProfilesCompanion
+    Function({
+  required String id,
+  required String name,
+  Value<String?> description,
+  required String systemPrompt,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<int> rowid,
+});
+typedef $$AgentProfilesTableUpdateCompanionBuilder = AgentProfilesCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> description,
+  Value<String> systemPrompt,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<int> rowid,
+});
+
+class $$AgentProfilesTableFilterComposer
+    extends Composer<_$AppDatabase, $AgentProfilesTable> {
+  $$AgentProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get systemPrompt => $composableBuilder(
+      column: $table.systemPrompt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$AgentProfilesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AgentProfilesTable> {
+  $$AgentProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get systemPrompt => $composableBuilder(
+      column: $table.systemPrompt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AgentProfilesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AgentProfilesTable> {
+  $$AgentProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get systemPrompt => $composableBuilder(
+      column: $table.systemPrompt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AgentProfilesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AgentProfilesTable,
+    AgentProfile,
+    $$AgentProfilesTableFilterComposer,
+    $$AgentProfilesTableOrderingComposer,
+    $$AgentProfilesTableAnnotationComposer,
+    $$AgentProfilesTableCreateCompanionBuilder,
+    $$AgentProfilesTableUpdateCompanionBuilder,
+    (
+      AgentProfile,
+      BaseReferences<_$AppDatabase, $AgentProfilesTable, AgentProfile>
+    ),
+    AgentProfile,
+    PrefetchHooks Function()> {
+  $$AgentProfilesTableTableManager(_$AppDatabase db, $AgentProfilesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AgentProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AgentProfilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AgentProfilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> description = const Value.absent(),
+            Value<String> systemPrompt = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AgentProfilesCompanion(
+            id: id,
+            name: name,
+            description: description,
+            systemPrompt: systemPrompt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<String?> description = const Value.absent(),
+            required String systemPrompt,
+            required DateTime createdAt,
+            required DateTime updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AgentProfilesCompanion.insert(
+            id: id,
+            name: name,
+            description: description,
+            systemPrompt: systemPrompt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AgentProfilesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AgentProfilesTable,
+    AgentProfile,
+    $$AgentProfilesTableFilterComposer,
+    $$AgentProfilesTableOrderingComposer,
+    $$AgentProfilesTableAnnotationComposer,
+    $$AgentProfilesTableCreateCompanionBuilder,
+    $$AgentProfilesTableUpdateCompanionBuilder,
+    (
+      AgentProfile,
+      BaseReferences<_$AppDatabase, $AgentProfilesTable, AgentProfile>
+    ),
+    AgentProfile,
+    PrefetchHooks Function()>;
 typedef $$ConversationsTableCreateCompanionBuilder = ConversationsCompanion
     Function({
   required String id,
   required String title,
   required String providerId,
   required String model,
+  Value<String?> agentId,
+  Value<String?> agentNameSnapshot,
+  Value<String?> systemPromptSnapshot,
   required DateTime createdAt,
   required DateTime updatedAt,
   Value<int> rowid,
@@ -1319,6 +2006,9 @@ typedef $$ConversationsTableUpdateCompanionBuilder = ConversationsCompanion
   Value<String> title,
   Value<String> providerId,
   Value<String> model,
+  Value<String?> agentId,
+  Value<String?> agentNameSnapshot,
+  Value<String?> systemPromptSnapshot,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<int> rowid,
@@ -1366,6 +2056,17 @@ class $$ConversationsTableFilterComposer
 
   ColumnFilters<String> get model => $composableBuilder(
       column: $table.model, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agentId => $composableBuilder(
+      column: $table.agentId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agentNameSnapshot => $composableBuilder(
+      column: $table.agentNameSnapshot,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get systemPromptSnapshot => $composableBuilder(
+      column: $table.systemPromptSnapshot,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -1416,6 +2117,17 @@ class $$ConversationsTableOrderingComposer
   ColumnOrderings<String> get model => $composableBuilder(
       column: $table.model, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get agentId => $composableBuilder(
+      column: $table.agentId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get agentNameSnapshot => $composableBuilder(
+      column: $table.agentNameSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get systemPromptSnapshot => $composableBuilder(
+      column: $table.systemPromptSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -1443,6 +2155,15 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<String> get model =>
       $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<String> get agentId =>
+      $composableBuilder(column: $table.agentId, builder: (column) => column);
+
+  GeneratedColumn<String> get agentNameSnapshot => $composableBuilder(
+      column: $table.agentNameSnapshot, builder: (column) => column);
+
+  GeneratedColumn<String> get systemPromptSnapshot => $composableBuilder(
+      column: $table.systemPromptSnapshot, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -1499,6 +2220,9 @@ class $$ConversationsTableTableManager extends RootTableManager<
             Value<String> title = const Value.absent(),
             Value<String> providerId = const Value.absent(),
             Value<String> model = const Value.absent(),
+            Value<String?> agentId = const Value.absent(),
+            Value<String?> agentNameSnapshot = const Value.absent(),
+            Value<String?> systemPromptSnapshot = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -1508,6 +2232,9 @@ class $$ConversationsTableTableManager extends RootTableManager<
             title: title,
             providerId: providerId,
             model: model,
+            agentId: agentId,
+            agentNameSnapshot: agentNameSnapshot,
+            systemPromptSnapshot: systemPromptSnapshot,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -1517,6 +2244,9 @@ class $$ConversationsTableTableManager extends RootTableManager<
             required String title,
             required String providerId,
             required String model,
+            Value<String?> agentId = const Value.absent(),
+            Value<String?> agentNameSnapshot = const Value.absent(),
+            Value<String?> systemPromptSnapshot = const Value.absent(),
             required DateTime createdAt,
             required DateTime updatedAt,
             Value<int> rowid = const Value.absent(),
@@ -1526,6 +2256,9 @@ class $$ConversationsTableTableManager extends RootTableManager<
             title: title,
             providerId: providerId,
             model: model,
+            agentId: agentId,
+            agentNameSnapshot: agentNameSnapshot,
+            systemPromptSnapshot: systemPromptSnapshot,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -1857,6 +2590,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$ProviderConfigsTableTableManager get providerConfigs =>
       $$ProviderConfigsTableTableManager(_db, _db.providerConfigs);
+  $$AgentProfilesTableTableManager get agentProfiles =>
+      $$AgentProfilesTableTableManager(_db, _db.agentProfiles);
   $$ConversationsTableTableManager get conversations =>
       $$ConversationsTableTableManager(_db, _db.conversations);
   $$ChatMessagesTableTableManager get chatMessages =>

@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'test_helpers.dart';
+import 'package:keychat/features/agents/data/agent_profile_store.dart';
+import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
@@ -93,12 +95,26 @@ class _FakeHistoryStore implements ChatHistoryStore {
   }) async {}
 }
 
+class _FakeAgentProfileStore implements AgentProfileStore {
+  @override
+  Future<List<AgentProfileData>> readAgents() async => [];
+
+  @override
+  Future<AgentProfileData?> readAgent(String id) async => null;
+
+  @override
+  Future<void> saveAgent(AgentProfileData agent) async {}
+
+  @override
+  Future<bool> deleteAgent(String id) async => false;
+}
+
 void main() {
   testWidgets('ChatPage shows empty state when no provider',
       (WidgetTester tester) async {
     final chatClient = _FakeChatClient();
     await tester.pumpWidget(
-      MaterialApp(
+      buildTestApp(
         home: ChatPage(
           chatClientResolver: DefaultChatClientResolver(
             openAiCompatibleClient: chatClient,
@@ -106,6 +122,7 @@ void main() {
           apiKeyStore: FakeApiKeyStore(),
           configStore: FakeProviderConfigStore(),
           historyStore: _FakeHistoryStore(),
+          agentStore: _FakeAgentProfileStore(),
         ),
       ),
     );
@@ -119,7 +136,7 @@ void main() {
     final apiKeyStore = FakeApiKeyStore();
     final configStore = FakeProviderConfigStore();
     await tester.pumpWidget(
-      MaterialApp(
+      buildTestApp(
         home: ProvidersPage(
           apiKeyStore: apiKeyStore,
           configStore: configStore,
@@ -136,13 +153,13 @@ void main() {
 
   testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: SettingsPage()),
+      buildTestApp(home: SettingsPage(onLocaleChanged: (locale) {})),
     );
 
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
-    expect(find.text('Privacy'), findsOneWidget);
     expect(find.text('About KeyChat'), findsOneWidget);
+    expect(find.text('Appearance'), findsNothing);
+    expect(find.text('Privacy'), findsNothing);
   });
 }

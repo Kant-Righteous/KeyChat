@@ -7,6 +7,7 @@ final class ChatContextBuildResult {
     required this.omittedMessageCount,
     required this.omittedTurnCount,
     required this.currentMessageExceedsBudget,
+    this.systemPromptExceedsBudget = false,
   }) : messages = List.unmodifiable(messages);
 
   final List<ChatRequestMessage> messages;
@@ -14,6 +15,7 @@ final class ChatContextBuildResult {
   final int omittedMessageCount;
   final int omittedTurnCount;
   final bool currentMessageExceedsBudget;
+  final bool systemPromptExceedsBudget;
 
   bool get wasTrimmed => omittedMessageCount > 0;
 }
@@ -68,6 +70,7 @@ final class ChatContextBuilder {
   ChatContextBuildResult build({
     required List<ChatRequestMessage> history,
     required ChatRequestMessage currentUserMessage,
+    ChatRequestMessage? systemMessage,
   }) {
     if (currentUserMessage.role != 'user') {
       throw ArgumentError(
@@ -76,22 +79,48 @@ final class ChatContextBuilder {
     }
 
     final currentTokens = estimateMessageTokens(currentUserMessage);
+    final systemTokens =
+        systemMessage != null ? estimateMessageTokens(systemMessage) : 0;
     final currentExceeds = currentTokens > maxEstimatedTokens;
 
     if (currentExceeds) {
+      final messages = <ChatRequestMessage>[
+        if (systemMessage != null) systemMessage,
+        currentUserMessage,
+      ];
       return ChatContextBuildResult(
-        messages: [currentUserMessage],
-        estimatedTokens: currentTokens,
+        messages: messages,
+        estimatedTokens: currentTokens + systemTokens,
         omittedMessageCount: history.length,
         omittedTurnCount: _countTurns(history),
         currentMessageExceedsBudget: true,
       );
     }
 
-    if (history.isEmpty) {
+    // Check if system + current exceeds budget
+    if (systemTokens + currentTokens > maxEstimatedTokens) {
+      final messages = <ChatRequestMessage>[
+        if (systemMessage != null) systemMessage,
+        currentUserMessage,
+      ];
       return ChatContextBuildResult(
-        messages: [currentUserMessage],
-        estimatedTokens: currentTokens,
+        messages: messages,
+        estimatedTokens: systemTokens + currentTokens,
+        omittedMessageCount: history.length,
+        omittedTurnCount: _countTurns(history),
+        currentMessageExceedsBudget: false,
+        systemPromptExceedsBudget: true,
+      );
+    }
+
+    if (history.isEmpty) {
+      final messages = <ChatRequestMessage>[
+        if (systemMessage != null) systemMessage,
+        currentUserMessage,
+      ];
+      return ChatContextBuildResult(
+        messages: messages,
+        estimatedTokens: systemTokens + currentTokens,
         omittedMessageCount: 0,
         omittedTurnCount: 0,
         currentMessageExceedsBudget: false,
@@ -100,7 +129,7 @@ final class ChatContextBuilder {
 
     final turns = _buildTurns(history);
     final selectedTurns = <_Turn>[];
-    int usedTokens = currentTokens;
+    int usedTokens = currentTokens + systemTokens;
 
     for (int i = turns.length - 1; i >= 0; i--) {
       final turn = turns[i];
@@ -112,7 +141,9 @@ final class ChatContextBuilder {
       }
     }
 
-    final resultMessages = <ChatRequestMessage>[];
+    final resultMessages = <ChatRequestMessage>[
+      if (systemMessage != null) systemMessage,
+    ];
     for (final turn in selectedTurns) {
       resultMessages.addAll(turn.messages);
     }

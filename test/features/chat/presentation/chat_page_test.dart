@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
+import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/chat_context_builder.dart';
@@ -10,6 +12,7 @@ import 'package:keychat/features/chat/presentation/widgets/assistant_message_con
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
+import '../../agents/data/fake_agent_profile_store.dart';
 import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_client_resolver.dart';
@@ -139,6 +142,7 @@ void main() {
     late FakeChatCompletionClient chatClient;
     late FakeChatClientResolver chatClientResolver;
     late FakeChatHistoryStore historyStore;
+    late FakeAgentProfileStore agentStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
@@ -148,16 +152,18 @@ void main() {
         openAiCompatibleClient: chatClient,
       );
       historyStore = FakeChatHistoryStore();
+      agentStore = FakeAgentProfileStore();
     });
 
     testWidgets('shows loading during page load', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -168,12 +174,13 @@ void main() {
     testWidgets('shows empty state when no ready provider',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -195,12 +202,13 @@ void main() {
       await apiKeyStore.saveKey('openai', 'test-key');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -221,12 +229,13 @@ void main() {
       await apiKeyStore.saveKey('openai', 'test-key');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -255,12 +264,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -295,12 +305,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -334,12 +345,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -373,12 +385,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -418,12 +431,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -460,12 +474,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -501,12 +516,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -541,12 +557,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -583,12 +600,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -644,12 +662,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -675,12 +694,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -719,12 +739,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -772,12 +793,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -817,12 +839,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -858,12 +881,13 @@ void main() {
       await apiKeyStore.saveKey('openai', 'test-key');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -905,12 +929,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -939,12 +964,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -971,12 +997,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1011,12 +1038,13 @@ void main() {
       await apiKeyStore.saveKey('openai', 'test-key');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1100,12 +1128,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1166,12 +1195,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1212,12 +1242,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1257,12 +1288,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1295,12 +1327,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1349,12 +1382,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1402,12 +1436,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1446,12 +1481,13 @@ void main() {
 
       // Start with empty state
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1512,12 +1548,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1549,12 +1586,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1596,12 +1634,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1644,12 +1683,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1684,12 +1724,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1733,12 +1774,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1779,12 +1821,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1826,12 +1869,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1875,12 +1919,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1921,12 +1966,13 @@ void main() {
       final streamController = chatClient.startStream();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -1975,12 +2021,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: failingHistoryStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -2031,12 +2078,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -2081,12 +2129,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: throwingStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -2128,12 +2177,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: throwingStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -2158,12 +2208,13 @@ void main() {
         await apiKeyStore.saveKey('openai', 'test-key');
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2188,12 +2239,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2229,12 +2281,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2276,12 +2329,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2323,12 +2377,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2381,12 +2436,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2429,12 +2485,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2478,12 +2535,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2523,12 +2581,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2580,12 +2639,13 @@ void main() {
         final streamController1 = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2638,12 +2698,13 @@ void main() {
         final streamController1 = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2701,12 +2762,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2745,12 +2807,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2792,12 +2855,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2843,12 +2907,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2892,12 +2957,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2943,12 +3009,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -2998,12 +3065,13 @@ void main() {
         final streamController1 = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3055,12 +3123,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3100,12 +3169,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3148,12 +3218,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3197,12 +3268,13 @@ void main() {
         final streamController1 = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3283,12 +3355,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3336,12 +3409,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3381,12 +3455,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3435,12 +3510,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3486,12 +3562,13 @@ void main() {
         final streamController1 = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3545,12 +3622,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3598,13 +3676,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3644,13 +3723,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3702,13 +3782,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3769,13 +3850,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: ChatContextBuilder(maxEstimatedTokens: 20),
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3809,12 +3891,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3851,12 +3934,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3902,12 +3986,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3955,13 +4040,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -3997,13 +4083,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4037,12 +4124,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4101,13 +4189,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4153,12 +4242,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4194,13 +4284,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4253,13 +4344,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4311,13 +4403,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4352,13 +4445,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4396,13 +4490,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: contextBuilder,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4436,12 +4531,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4488,12 +4584,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4568,12 +4665,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4621,12 +4719,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4669,12 +4768,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4724,12 +4824,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4776,12 +4877,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4838,12 +4940,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4900,12 +5003,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -4957,12 +5061,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5020,12 +5125,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5089,12 +5195,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5153,12 +5260,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5218,12 +5326,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5283,12 +5392,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5349,13 +5459,14 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
               contextBuilder: ChatContextBuilder(maxEstimatedTokens: 12000),
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5412,12 +5523,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5474,12 +5586,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5544,12 +5657,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5616,12 +5730,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5693,12 +5808,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5751,12 +5867,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5809,12 +5926,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5875,12 +5993,13 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -5952,12 +6071,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -6031,12 +6151,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -6097,12 +6218,13 @@ void main() {
         final streamController = chatClient.startStream();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ChatPage(
               chatClientResolver: chatClientResolver,
               apiKeyStore: apiKeyStore,
               configStore: configStore,
               historyStore: historyStore,
+              agentStore: agentStore,
             ),
           ),
         );
@@ -6145,6 +6267,264 @@ void main() {
         expect(find.text('Reply'), findsOneWidget);
         final msgsAfter = await historyStore.readMessages('conv_retry');
         expect(msgsAfter.where((m) => m.role == ChatRole.assistant).length, 1);
+      });
+    });
+
+    group('Agent and Model selectors', () {
+      testWidgets('new conversation defaults to No Agent',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('No Agent'), findsOneWidget);
+      });
+
+      testWidgets('multiple agents can be selected',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await agentStore.saveAgent(AgentProfileData(
+          id: 'a1',
+          name: 'Agent A',
+          systemPrompt: 'prompt A',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ));
+        await agentStore.saveAgent(AgentProfileData(
+          id: 'a2',
+          name: 'Agent B',
+          systemPrompt: 'prompt B',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('No Agent'), findsOneWidget);
+
+        await tester.tap(find.byType(DropdownButton<AgentProfileData?>));
+        await tester.pumpAndSettle();
+        expect(find.text('Agent A'), findsWidgets);
+        expect(find.text('Agent B'), findsWidgets);
+      });
+
+      testWidgets('model list shows provider and model',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('OpenAI · gpt-4'), findsOneWidget);
+      });
+
+      testWidgets('agent and model lock after first message',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Hi',
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Before sending, dropdowns are visible
+        expect(find.byType(DropdownButton<AgentProfileData?>), findsOneWidget);
+
+        // Send message
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // After sending, dropdowns are hidden (locked)
+        expect(find.byType(DropdownButton<AgentProfileData?>), findsNothing);
+      });
+
+      testWidgets('New Chat unlocks selectors', (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Hi',
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Send to lock
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+        expect(find.byType(DropdownButton<AgentProfileData?>), findsNothing);
+
+        // New Chat unlocks
+        await tester.tap(find.byIcon(Icons.add_comment));
+        await tester.pumpAndSettle();
+        expect(find.byType(DropdownButton<AgentProfileData?>), findsOneWidget);
+      });
+
+      testWidgets('API key missing prevents send', (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        // No API key saved
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Shows empty state because no ready model
+        expect(find.text('No ready provider'), findsOneWidget);
+      });
+
+      testWidgets('deleted agent falls back to No Agent in new chat',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        await agentStore.saveAgent(AgentProfileData(
+          id: 'a1',
+          name: 'Agent A',
+          systemPrompt: 'prompt A',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Select Agent A
+        await tester.tap(find.byType(DropdownButton<AgentProfileData?>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Agent A').last);
+        await tester.pumpAndSettle();
+
+        // Delete the agent externally
+        await agentStore.deleteAgent('a1');
+
+        // New Chat
+        await tester.tap(find.byIcon(Icons.add_comment));
+        await tester.pumpAndSettle();
+
+        // Should show No Agent
+        expect(find.text('No Agent'), findsOneWidget);
+        expect(find.text('Agent A'), findsNothing);
       });
     });
   });

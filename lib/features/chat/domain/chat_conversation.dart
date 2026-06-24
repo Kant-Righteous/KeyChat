@@ -3,6 +3,9 @@ class ChatConversation {
   final String title;
   final String providerId;
   final String model;
+  final String? agentId;
+  final String? agentNameSnapshot;
+  final String? systemPromptSnapshot;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -11,6 +14,9 @@ class ChatConversation {
     required this.title,
     required this.providerId,
     required this.model,
+    this.agentId,
+    this.agentNameSnapshot,
+    this.systemPromptSnapshot,
     required this.createdAt,
     required this.updatedAt,
   });

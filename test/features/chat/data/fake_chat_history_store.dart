@@ -107,6 +107,9 @@ class FakeChatHistoryStore implements ChatHistoryStore {
         title: conv.title,
         providerId: conv.providerId,
         model: conv.model,
+        agentId: conv.agentId,
+        agentNameSnapshot: conv.agentNameSnapshot,
+        systemPromptSnapshot: conv.systemPromptSnapshot,
         createdAt: conv.createdAt,
         updatedAt: updatedAt,
       );
@@ -131,6 +134,9 @@ class FakeChatHistoryStore implements ChatHistoryStore {
       title: trimmed,
       providerId: conv.providerId,
       model: conv.model,
+      agentId: conv.agentId,
+      agentNameSnapshot: conv.agentNameSnapshot,
+      systemPromptSnapshot: conv.systemPromptSnapshot,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
     );
@@ -196,6 +202,9 @@ class FakeChatHistoryStore implements ChatHistoryStore {
         title: conv.title,
         providerId: conv.providerId,
         model: conv.model,
+        agentId: conv.agentId,
+        agentNameSnapshot: conv.agentNameSnapshot,
+        systemPromptSnapshot: conv.systemPromptSnapshot,
         createdAt: conv.createdAt,
         updatedAt: conversationUpdatedAt,
       );
