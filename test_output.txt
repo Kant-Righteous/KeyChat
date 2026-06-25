@@ -1,0 +1,27 @@
+﻿00:00 +0: loading F:/keychat/test/features/chat/presentation/chat_page_test.dart
+00:00 +0: ChatPage Deleted agent snapshot deleted agent does not break existing conversation retry and regenerate
+鈺愨晲鈺?EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK 鈺炩晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?The following assertion was thrown running a test:
+The finder "Found 0 widgets with widget matching predicate: []" (used in a call to "tap()") could
+not find any matching widgets.
+
+When the exception was thrown, this was the stack:
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:1895:7)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1795:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1043:18)
+#3      main.<anonymous closure>.<anonymous closure>.<anonymous closure> (file:///F:/keychat/test/features/chat/presentation/chat_page_test.dart:6626:22)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:189:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1027:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  deleted agent does not break existing conversation retry and regenerate
+鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+00:01 +0 -1: ChatPage Deleted agent snapshot deleted agent does not break existing conversation retry and regenerate [E]
+  Test failed. See exception logs above.
+  The test description was: deleted agent does not break existing conversation retry and regenerate
+  
+00:01 +0 -1: Some tests failed.

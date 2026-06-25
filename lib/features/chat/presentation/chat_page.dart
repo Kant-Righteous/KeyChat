@@ -15,6 +15,7 @@ import 'package:keychat/features/chat/presentation/widgets/assistant_message_con
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class _ReadyModel {
@@ -131,6 +132,8 @@ class _ChatPageState extends State<ChatPage> {
     for (final config in configs) {
       if (!config.enabled) continue;
       if (config.baseUrl.trim().isEmpty) continue;
+      // Only allow HTTPS
+      if (!ProviderUrlPolicy.isAllowedForRequest(config.baseUrl)) continue;
       if (config.defaultModel == null || config.defaultModel!.trim().isEmpty) {
         continue;
       }

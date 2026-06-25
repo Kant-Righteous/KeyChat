@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 
 class DioProviderConnectionTester implements ProviderConnectionTester {
   final Dio _dio;
@@ -55,6 +56,14 @@ class DioProviderConnectionTester implements ProviderConnectionTester {
       return const ConnectionTestResult.failure(
         errorType: ConnectionErrorType.invalidUrl,
         userMessage: 'Invalid Base URL',
+      );
+    }
+
+    // Security: Only allow HTTPS
+    if (!ProviderUrlPolicy.isAllowedForRequest(trimmedUrl)) {
+      return const ConnectionTestResult.failure(
+        errorType: ConnectionErrorType.invalidUrl,
+        userMessage: 'Only HTTPS URLs are supported',
       );
     }
 

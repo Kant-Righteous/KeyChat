@@ -5,6 +5,7 @@ import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
@@ -102,16 +103,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   }
 
   String? _validateUrl(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Base URL is required';
-    }
-    final uri = Uri.tryParse(value.trim());
-    if (uri == null ||
-        !uri.hasScheme ||
-        (uri.scheme != 'http' && uri.scheme != 'https')) {
-      return 'Enter a valid HTTP or HTTPS URL';
-    }
-    return null;
+    return ProviderUrlPolicy.validateUrl(value);
   }
 
   String? _validateApiKey(String? value) {

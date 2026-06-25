@@ -63,6 +63,10 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     return _streamController!;
   }
 
+  void setStreamController(StreamController<ChatStreamEvent> controller) {
+    _streamController = controller;
+  }
+
   @override
   Future<ChatCompletionResult> complete({
     required String baseUrl,
@@ -6525,6 +6529,158 @@ void main() {
         // Should show No Agent
         expect(find.text('No Agent'), findsOneWidget);
         expect(find.text('Agent A'), findsNothing);
+      });
+    });
+
+    group('Deleted agent snapshot', () {
+      testWidgets(
+          'deleted agent does not break existing conversation regenerate',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Create agent
+        await agentStore.saveAgent(AgentProfileData(
+          id: 'agent_del',
+          name: 'DeleteMe',
+          systemPrompt: 'I am the agent prompt.',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ));
+
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Agent reply',
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Select agent
+        await tester.tap(find.byType(DropdownButton<AgentProfileData?>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('DeleteMe').last);
+        await tester.pumpAndSettle();
+
+        // Send message
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        // Verify snapshot saved
+        final conv = await historyStore.readLatestConversation();
+        expect(conv, isNotNull);
+        expect(conv!.agentId, 'agent_del');
+        expect(conv.agentNameSnapshot, 'DeleteMe');
+        expect(conv.systemPromptSnapshot, 'I am the agent prompt.');
+
+        // Verify system message was sent
+        expect(chatClient.lastMessages!.first.role, 'system');
+        expect(
+            chatClient.lastMessages!.first.content, 'I am the agent prompt.');
+
+        // Delete agent
+        await agentStore.deleteAgent('agent_del');
+
+        // Regenerate - should still use old snapshot
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Regen reply',
+        ));
+        await tester.tap(find.byTooltip('Regenerate response'));
+        await tester.pumpAndSettle();
+
+        // System message still sent with old snapshot
+        expect(chatClient.lastMessages!.first.role, 'system');
+        expect(
+            chatClient.lastMessages!.first.content, 'I am the agent prompt.');
+        expect(find.text('Regen reply'), findsOneWidget);
+
+        // Verify system message appears exactly once
+        final systemMsgs =
+            chatClient.lastMessages!.where((m) => m.role == 'system').toList();
+        expect(systemMsgs.length, 1);
+
+        // New chat - agent should be gone from selector
+        await tester.tap(find.byIcon(Icons.add_comment));
+        await tester.pumpAndSettle();
+        expect(find.text('DeleteMe'), findsNothing);
+        expect(find.text('No Agent'), findsOneWidget);
+      });
+    });
+
+    group('Language switch during stream', () {
+      testWidgets('stream delivers all deltas and completes',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+
+        // Set up stream BEFORE building widget
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Send message
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pump();
+
+        // First delta
+        streamController.add(const ChatStreamDelta('Part1'));
+        await tester.pump();
+        expect(find.text('Part1'), findsOneWidget);
+
+        // More deltas
+        streamController.add(const ChatStreamDelta(' Part2'));
+        await tester.pump();
+        expect(find.text('Part1 Part2'), findsOneWidget);
+
+        // Complete
+        streamController.add(const ChatStreamCompleted());
+        await streamController.close();
+        await tester.pumpAndSettle();
+
+        // Verify: message saved
+        final conv = await historyStore.readLatestConversation();
+        expect(conv, isNotNull);
+        final msgs = await historyStore.readMessages(conv!.id);
+        expect(msgs.length, 2);
+        expect(msgs.last.content, 'Part1 Part2');
       });
     });
   });

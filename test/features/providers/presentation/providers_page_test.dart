@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
@@ -21,7 +22,7 @@ void main() {
 
     testWidgets('shows 4 provider presets', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -40,7 +41,7 @@ void main() {
     testWidgets('shows Not configured when no key exists',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -57,7 +58,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-test');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -73,7 +74,7 @@ void main() {
     testWidgets('tapping OpenAI opens config page',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -101,7 +102,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -116,7 +117,7 @@ void main() {
     testWidgets('ProvidersPage refreshes after returning from config page',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -162,7 +163,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,

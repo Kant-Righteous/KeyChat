@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/openai_sse_parser.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 
 class DioChatCompletionClient implements ChatCompletionClient {
   final Dio _dio;
@@ -57,6 +58,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
       return const ChatCompletionResult.failure(
         errorType: ChatCompletionErrorType.invalidUrl,
         userMessage: 'Invalid Base URL',
+      );
+    }
+
+    // Security: Only allow HTTPS
+    if (!ProviderUrlPolicy.isAllowedForRequest(trimmedUrl)) {
+      return const ChatCompletionResult.failure(
+        errorType: ChatCompletionErrorType.invalidUrl,
+        userMessage: 'Only HTTPS URLs are supported',
       );
     }
 
@@ -179,6 +188,16 @@ class DioChatCompletionClient implements ChatCompletionClient {
       controller.add(const ChatStreamFailure(
         errorType: ChatCompletionErrorType.invalidUrl,
         userMessage: 'Invalid Base URL',
+      ));
+      controller.close();
+      return;
+    }
+
+    // Security: Only allow HTTPS
+    if (!ProviderUrlPolicy.isAllowedForRequest(trimmedUrl)) {
+      controller.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.invalidUrl,
+        userMessage: 'Only HTTPS URLs are supported',
       ));
       controller.close();
       return;

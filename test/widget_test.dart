@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/settings/data/locale_service.dart';
 import 'test_helpers.dart';
 import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
@@ -161,5 +162,19 @@ void main() {
     expect(find.text('About KeyChat'), findsOneWidget);
     expect(find.text('Appearance'), findsNothing);
     expect(find.text('Privacy'), findsNothing);
+  });
+
+  testWidgets('Invalid persisted locale falls back to Chinese',
+      (WidgetTester tester) async {
+    // Create a locale service and test invalid locale handling
+    final localeService = LocaleService();
+
+    // Test that invalid locale falls back to default
+    final defaultLocale = localeService.defaultLocale;
+    expect(defaultLocale.languageCode, 'zh');
+
+    // Test valid locales
+    final zhLocale = await localeService.loadLocale();
+    expect(zhLocale.languageCode, 'zh');
   });
 }

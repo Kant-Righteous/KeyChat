@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
@@ -58,7 +59,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -76,7 +77,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -98,7 +99,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -121,7 +122,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -136,14 +137,14 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter a valid HTTP or HTTPS URL'), findsOneWidget);
+      expect(find.text('Enter a valid URL'), findsOneWidget);
     });
 
     testWidgets('API Key is obscured by default', (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -164,7 +165,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -194,7 +195,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -213,7 +214,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -235,7 +236,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -253,7 +254,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -295,7 +296,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -344,7 +345,7 @@ void main() {
       final failingStore = _FailingApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: failingStore,
@@ -371,7 +372,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -406,7 +407,7 @@ void main() {
       ));
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -427,7 +428,7 @@ void main() {
       final slowStore = _SlowApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -477,7 +478,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'old-key-value');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -506,7 +507,7 @@ void main() {
       final failingStore = _FailingApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: failingStore,
@@ -539,7 +540,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -569,7 +570,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -599,7 +600,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -622,7 +623,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -654,7 +655,7 @@ void main() {
         final connTester = FakeProviderConnectionTester();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -682,7 +683,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -715,7 +716,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -739,7 +740,7 @@ void main() {
         final completer = connTester.startSlowResponse();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -778,7 +779,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -813,7 +814,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -846,7 +847,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -880,7 +881,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -918,7 +919,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -954,7 +955,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -991,7 +992,7 @@ void main() {
         final connTester = FakeProviderConnectionTester();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1018,7 +1019,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1050,7 +1051,7 @@ void main() {
         final throwingStore = _ThrowingConfigStore();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1070,7 +1071,7 @@ void main() {
         final throwingStore = _ThrowingConfigStore();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestApp(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,

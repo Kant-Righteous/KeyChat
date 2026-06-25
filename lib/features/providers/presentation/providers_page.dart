@@ -3,7 +3,9 @@ import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class ProvidersPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
@@ -24,6 +26,7 @@ class ProvidersPage extends StatefulWidget {
 class _ProvidersPageState extends State<ProvidersPage> {
   final Map<String, bool> _keyStatus = {};
   final Map<String, String> _displayNames = {};
+  final Map<String, bool> _httpsStatus = {};
   bool _loading = true;
 
   @override
@@ -35,11 +38,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
   Future<void> _loadStatus() async {
     final keyStatuses = <String, bool>{};
     final displayNames = <String, String>{};
+    final httpsStatuses = <String, bool>{};
 
     for (final preset in providerPresets) {
       keyStatuses[preset.id] = await widget.apiKeyStore.hasKey(preset.id);
       final config = await widget.configStore.readConfig(preset.id);
       displayNames[preset.id] = config?.displayName ?? preset.name;
+      httpsStatuses[preset.id] =
+          config == null || ProviderUrlPolicy.isHttps(config.baseUrl);
     }
 
     if (mounted) {
@@ -48,6 +54,8 @@ class _ProvidersPageState extends State<ProvidersPage> {
         _keyStatus.addAll(keyStatuses);
         _displayNames.clear();
         _displayNames.addAll(displayNames);
+        _httpsStatus.clear();
+        _httpsStatus.addAll(httpsStatuses);
         _loading = false;
       });
     }
@@ -55,9 +63,11 @@ class _ProvidersPageState extends State<ProvidersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Providers'),
+        title: Text(l10n.providers),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -67,6 +77,22 @@ class _ProvidersPageState extends State<ProvidersPage> {
                 final preset = providerPresets[index];
                 final configured = _keyStatus[preset.id] ?? false;
                 final displayName = _displayNames[preset.id] ?? preset.name;
+                final isHttps = _httpsStatus[preset.id] ?? true;
+                final needsHttpsUpdate = configured && !isHttps;
+
+                String statusText;
+                Color statusColor;
+                if (needsHttpsUpdate) {
+                  statusText = 'Update to HTTPS required';
+                  statusColor = Colors.orange;
+                } else if (configured) {
+                  statusText = 'Configured';
+                  statusColor = Colors.green;
+                } else {
+                  statusText = 'Not configured';
+                  statusColor = Colors.grey;
+                }
+
                 return ListTile(
                   leading: Icon(
                     preset.isCustom
@@ -76,10 +102,8 @@ class _ProvidersPageState extends State<ProvidersPage> {
                   title: Text(displayName),
                   subtitle: Text(preset.description),
                   trailing: Text(
-                    configured ? 'Configured' : 'Not configured',
-                    style: TextStyle(
-                      color: configured ? Colors.green : Colors.grey,
-                    ),
+                    statusText,
+                    style: TextStyle(color: statusColor),
                   ),
                   onTap: () async {
                     await Navigator.push(

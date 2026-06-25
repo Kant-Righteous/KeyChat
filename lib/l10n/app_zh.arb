@@ -80,5 +80,6 @@
   "systemPrompt": "系统提示词",
   "agentDeletedFromSelector": "智能体已删除，已回退到无 Agent",
   "failedToSaveLanguage": "语言设置保存失败",
-  "invalidLocale": "无效的语言设置"
+  "invalidLocale": "无效的语言设置",
+  "httpsOnly": "仅支持 HTTPS 地址，以保护您的 API Key 和消息内容"
 }

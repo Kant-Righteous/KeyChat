@@ -80,5 +80,6 @@
   "systemPrompt": "System Prompt",
   "agentDeletedFromSelector": "Agent deleted, reverted to No Agent",
   "failedToSaveLanguage": "Failed to save language settings",
-  "invalidLocale": "Invalid locale"
+  "invalidLocale": "Invalid locale",
+  "httpsOnly": "Only HTTPS URLs are supported to protect your API key and messages"
 }

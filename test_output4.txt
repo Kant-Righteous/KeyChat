@@ -1,0 +1,78 @@
+﻿00:00 +0: loading F:/keychat/test/features/providers/presentation/provider_config_page_test.dart
+00:00 +0: ProviderConfigPage valid submission saves config and key
+鈺愨晲鈺?EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK 鈺炩晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?The following _TypeError was thrown running a test:
+Null check operator used on a null value
+
+When the exception was thrown, this was the stack:
+#0      _ProviderConfigPageState._submit (package:keychat/features/providers/presentation/provider_config_page.dart:199:46)
+#1      _InkResponseState.handleTap (package:flutter/src/material/ink_well.dart:1176:21)
+#2      GestureRecognizer.invokeCallback (package:flutter/src/gestures/recognizer.dart:351:24)
+#3      TapGestureRecognizer.handleTapUp (package:flutter/src/gestures/tap.dart:656:11)
+#4      BaseTapGestureRecognizer._checkUp (package:flutter/src/gestures/tap.dart:313:5)
+#5      BaseTapGestureRecognizer.handlePrimaryPointer (package:flutter/src/gestures/tap.dart:246:7)
+#6      PrimaryPointerGestureRecognizer.handleEvent (package:flutter/src/gestures/recognizer.dart:703:9)
+#7      PointerRouter._dispatch (package:flutter/src/gestures/pointer_router.dart:98:12)
+#8      PointerRouter._dispatchEventToRoutes.<anonymous closure> (package:flutter/src/gestures/pointer_router.dart:143:9)
+#9      _LinkedHashMapMixin.forEach (dart:_compact_hash:726:13)
+#10     PointerRouter._dispatchEventToRoutes (package:flutter/src/gestures/pointer_router.dart:141:18)
+#11     PointerRouter.route (package:flutter/src/gestures/pointer_router.dart:127:7)
+#12     GestureBinding.handleEvent (package:flutter/src/gestures/binding.dart:502:19)
+#13     GestureBinding.dispatchEvent (package:flutter/src/gestures/binding.dart:482:22)
+#14     RendererBinding.dispatchEvent (package:flutter/src/rendering/binding.dart:457:11)
+#15     GestureBinding._handlePointerEventImmediately (package:flutter/src/gestures/binding.dart:427:7)
+#16     GestureBinding.handlePointerEvent (package:flutter/src/gestures/binding.dart:390:5)
+#17     TestWidgetsFlutterBinding.handlePointerEventForSource.<anonymous closure> (package:flutter_test/src/binding.dart:677:42)
+#18     TestWidgetsFlutterBinding.withPointerEventSource (package:flutter_test/src/binding.dart:687:11)
+#19     TestWidgetsFlutterBinding.handlePointerEventForSource (package:flutter_test/src/binding.dart:677:5)
+#20     WidgetTester.sendEventToBinding.<anonymous closure> (package:flutter_test/src/widget_tester.dart:878:15)
+#23     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#24     WidgetTester.sendEventToBinding (package:flutter_test/src/widget_tester.dart:877:27)
+#25     TestGesture.up.<anonymous closure> (package:flutter_test/src/test_pointer.dart:558:26)
+#28     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#29     TestGesture.up (package:flutter_test/src/test_pointer.dart:551:27)
+#30     WidgetController.tapAt.<anonymous closure> (package:flutter_test/src/controller.dart:1096:21)
+<asynchronous suspension>
+#31     TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:120:7)
+<asynchronous suspension>
+#32     main.<anonymous closure>.<anonymous closure> (file:///F:/keychat/test/features/providers/presentation/provider_config_page_test.dart:329:7)
+<asynchronous suspension>
+#33     testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:189:15)
+<asynchronous suspension>
+#34     TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1027:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+
+The test description was:
+  valid submission saves config and key
+鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+00:01 +0 -1: ProviderConfigPage valid submission saves config and key [E]
+  Test failed. See exception logs above.
+  The test description was: valid submission saves config and key
+  
+鈺愨晲鈺?EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK 鈺炩晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?The following TestFailure was thrown running a test (but after the test had completed):
+Expected: no matching candidates
+  Actual: _TypeWidgetFinder:<Found 1 widget with type "ProviderConfigPage": [
+            ProviderConfigPage(dependencies: [_LocalizationsScope-[GlobalKey#49acd]], state:
+_ProviderConfigPageState#59299),
+          ]>
+   Which: means one was found but none were expected
+
+When the exception was thrown, this was the stack:
+#0      fail (package:matcher/src/expect/expect.dart:149:31)
+#1      _expect (package:matcher/src/expect/expect.dart:144:3)
+#2      expect (package:matcher/src/expect/expect.dart:56:3)
+#3      expect (package:flutter_test/src/widget_tester.dart:480:18)
+#4      main.<anonymous closure>.<anonymous closure> (file:///F:/keychat/test/features/providers/presentation/provider_config_page_test.dart:332:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:189:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1027:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+  Test failed. See exception logs above.
+  The test description was: valid submission saves config and key
+  
+00:01 +0 -1: Some tests failed.
