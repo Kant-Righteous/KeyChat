@@ -17,3 +17,20 @@ Widget buildTestApp({required Widget home}) {
     home: home,
   );
 }
+
+Widget buildTestAppZh({required Widget home}) {
+  return MaterialApp(
+    locale: const Locale('zh'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: const [
+      Locale('zh'),
+      Locale('en'),
+    ],
+    home: home,
+  );
+}

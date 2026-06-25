@@ -5,7 +5,9 @@ import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
@@ -65,7 +67,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
 
       if (mounted) {
         setState(() {
-          _nameController.text = config?.displayName ?? widget.preset.name;
+          _nameController.text = config?.displayName ??
+              localizedProviderName(context, widget.preset);
           _urlController.text = config?.baseUrl ?? widget.preset.defaultBaseUrl;
           _modelController.text = config?.defaultModel ?? '';
           _hasExistingKey = hasKey;
@@ -75,7 +78,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _nameController.text = widget.preset.name;
+          _nameController.text =
+              localizedProviderName(context, widget.preset);
           _urlController.text = widget.preset.defaultBaseUrl;
           _modelController.text = '';
           _hasExistingKey = false;
@@ -97,30 +101,33 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
 
   String? _validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Name is required';
+      return AppLocalizations.of(context)!.agentNameRequired;
     }
     return null;
   }
 
   String? _validateUrl(String? value) {
-    return ProviderUrlPolicy.validateUrl(value);
+    final error = ProviderUrlPolicy.validateUrl(value);
+    if (error == null) return null;
+    return localizedUrlValidationError(AppLocalizations.of(context)!, error);
   }
 
   String? _validateApiKey(String? value) {
     if (!_hasExistingKey && (value == null || value.trim().isEmpty)) {
-      return 'API Key is required';
+      return AppLocalizations.of(context)!.apiKeyRequired;
     }
     return null;
   }
 
   Future<void> _testConnection() async {
+    final l10n = AppLocalizations.of(context)!;
     final tester = _connectionTester;
     if (tester == null) return;
 
     final baseUrl = _urlController.text.trim();
     if (baseUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid Base URL')),
+        SnackBar(content: Text(l10n.invalidBaseUrl)),
       );
       return;
     }
@@ -134,7 +141,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     if (apiKey.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('API key required')),
+          SnackBar(content: Text(l10n.apiKeyRequired)),
         );
       }
       return;
@@ -156,23 +163,25 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Connected: ${result.modelIds.length} models found',
-            ),
+            content: Text(l10n.modelsFound(result.modelIds.length)),
           ),
         );
       } else {
         setState(() {
           _discoveredModels = [];
         });
+        final errorMessage = localizedConnectionError(
+          l10n,
+          result.errorType?.toString().split('.').last,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.userMessage ?? 'Unable to connect')),
+          SnackBar(content: Text(errorMessage)),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to connect')),
+          SnackBar(content: Text(l10n.unableToConnect)),
         );
       }
     } finally {
@@ -181,6 +190,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
@@ -214,7 +224,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Provider configured')),
+          SnackBar(content: Text(l10n.providerConfiguredSuccess)),
         );
       }
     } catch (e) {
@@ -230,27 +240,28 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save configuration')),
+          SnackBar(content: Text(l10n.failedToSaveProvider)),
         );
       }
     }
   }
 
   Future<void> _deleteKey() async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove API Key'),
-        content: const Text('Are you sure you want to remove the API key?'),
+        title: Text(l10n.removeApiKeyButton),
+        content: Text(l10n.removeApiKeyConfirmation),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Remove'),
+            child: Text(l10n.remove),
           ),
         ],
       ),
@@ -261,7 +272,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('API key removed')),
+          SnackBar(content: Text(l10n.apiKeyRemoved)),
         );
       }
     }
@@ -269,12 +280,14 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.preset.name),
+        title: Text(l10n.configureProviderTitle),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: Text(l10n.loading))
           : _configLoadError
               ? Center(
                   child: Column(
@@ -283,19 +296,19 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       const Icon(Icons.error_outline,
                           size: 48, color: Colors.red),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Provider configuration is invalid',
-                        style: TextStyle(fontSize: 16),
+                      Text(
+                        l10n.providerConfigInvalid,
+                        style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'The saved configuration could not be loaded.',
+                        l10n.configLoadError,
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Go Back'),
+                        child: Text(l10n.goBack),
                       ),
                     ],
                   ),
@@ -309,9 +322,9 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       children: [
                         TextFormField(
                           controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Provider Name',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: l10n.providerNameLabel,
+                            border: const OutlineInputBorder(),
                           ),
                           validator: _validateName,
                           enabled: widget.preset.isCustom,
@@ -319,9 +332,9 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _urlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Base URL',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: l10n.baseUrlLabel,
+                            border: const OutlineInputBorder(),
                           ),
                           validator: _validateUrl,
                           enabled: widget.preset.isCustom,
@@ -330,9 +343,9 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _modelController,
-                          decoration: const InputDecoration(
-                            labelText: 'Default Model',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: l10n.defaultModelLabel,
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         if (_discoveredModels.isNotEmpty) ...[
@@ -354,7 +367,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Text(
-                              'API key is already configured',
+                              l10n.apiKeyConfigured,
                               style: TextStyle(color: Colors.green[700]),
                             ),
                           ),
@@ -362,8 +375,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                           controller: _apiKeyController,
                           decoration: InputDecoration(
                             labelText: _hasExistingKey
-                                ? 'New API Key (leave blank to keep)'
-                                : 'API Key',
+                                ? l10n.newApiKeyLabel
+                                : l10n.apiKeyLabel,
                             border: const OutlineInputBorder(),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -393,13 +406,13 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                                         strokeWidth: 2),
                                   )
                                 : const Icon(Icons.wifi_find),
-                            label: const Text('Test Connection'),
+                            label: Text(l10n.testConnectionButton),
                           ),
                         if (!_connectionTestSupported)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Text(
-                              'Connection test is not supported for this protocol',
+                              l10n.connectionTestUnsupported,
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ),
@@ -413,7 +426,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text('Save'),
+                              : Text(l10n.saveButton),
                         ),
                         if (_hasExistingKey) ...[
                           const SizedBox(height: 16),
@@ -422,7 +435,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.red,
                             ),
-                            child: const Text('Remove API Key'),
+                            child: Text(l10n.removeApiKeyButton),
                           ),
                         ],
                       ],

@@ -70,71 +70,64 @@ void main() {
         expect(ProviderUrlPolicy.validateUrl('https://localhost:8080'), isNull);
       });
 
-      test('HTTP returns error', () {
+      test('HTTP returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('http://api.example.com/v1');
-        expect(error, isNotNull);
-        expect(error, contains('HTTPS'));
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
 
-      test('empty string returns error', () {
+      test('empty string returns empty error', () {
         final error = ProviderUrlPolicy.validateUrl('');
-        expect(error, isNotNull);
-        expect(error, contains('required'));
+        expect(error, equals(UrlValidationError.empty));
       });
 
-      test('null returns error', () {
+      test('null returns empty error', () {
         final error = ProviderUrlPolicy.validateUrl(null);
-        expect(error, isNotNull);
-        expect(error, contains('required'));
+        expect(error, equals(UrlValidationError.empty));
       });
 
-      test('no scheme returns error', () {
+      test('no scheme returns invalidFormat error', () {
         final error = ProviderUrlPolicy.validateUrl('api.example.com/v1');
-        expect(error, isNotNull);
-        expect(error, contains('valid URL'));
+        expect(error, equals(UrlValidationError.invalidFormat));
       });
 
-      test('javascript returns error', () {
+      test('javascript returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('javascript:alert(1)');
-        expect(error, isNotNull);
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
 
-      test('file returns error', () {
+      test('file returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('file:///etc/passwd');
-        expect(error, isNotNull);
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
 
-      test('data returns error', () {
+      test('data returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('data:text/html,test');
-        expect(error, isNotNull);
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
 
-      test('ftp returns error', () {
+      test('ftp returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('ftp://example.com');
-        expect(error, isNotNull);
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
 
-      test('URL with username returns error', () {
+      test('URL with username returns userInfoNotAllowed error', () {
         final error = ProviderUrlPolicy.validateUrl('https://user@api.example.com');
-        expect(error, isNotNull);
-        expect(error, contains('username'));
+        expect(error, equals(UrlValidationError.userInfoNotAllowed));
       });
 
-      test('URL with password returns error', () {
+      test('URL with password returns userInfoNotAllowed error', () {
         final error = ProviderUrlPolicy.validateUrl('https://user:pass@api.example.com');
-        expect(error, isNotNull);
-        expect(error, contains('username'));
+        expect(error, equals(UrlValidationError.userInfoNotAllowed));
       });
 
-      test('URL with empty host returns error', () {
+      test('URL with empty host returns missingHost error', () {
         final error = ProviderUrlPolicy.validateUrl('https://');
-        expect(error, isNotNull);
-        expect(error, contains('host'));
+        expect(error, equals(UrlValidationError.missingHost));
       });
 
-      test('error message does not contain sensitive query', () {
+      test('HTTP with sensitive query returns httpsOnly error', () {
         final error = ProviderUrlPolicy.validateUrl('http://api.example.com?key=secret123');
-        expect(error, isNot(contains('secret123')));
+        expect(error, equals(UrlValidationError.httpsOnly));
       });
     });
 

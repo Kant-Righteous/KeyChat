@@ -3,6 +3,7 @@ import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -25,7 +26,7 @@ class ProvidersPage extends StatefulWidget {
 
 class _ProvidersPageState extends State<ProvidersPage> {
   final Map<String, bool> _keyStatus = {};
-  final Map<String, String> _displayNames = {};
+  final Map<String, String?> _savedDisplayNames = {};
   final Map<String, bool> _httpsStatus = {};
   bool _loading = true;
 
@@ -37,13 +38,13 @@ class _ProvidersPageState extends State<ProvidersPage> {
 
   Future<void> _loadStatus() async {
     final keyStatuses = <String, bool>{};
-    final displayNames = <String, String>{};
+    final savedDisplayNames = <String, String?>{};
     final httpsStatuses = <String, bool>{};
 
     for (final preset in providerPresets) {
       keyStatuses[preset.id] = await widget.apiKeyStore.hasKey(preset.id);
       final config = await widget.configStore.readConfig(preset.id);
-      displayNames[preset.id] = config?.displayName ?? preset.name;
+      savedDisplayNames[preset.id] = config?.displayName;
       httpsStatuses[preset.id] =
           config == null || ProviderUrlPolicy.isHttps(config.baseUrl);
     }
@@ -52,8 +53,8 @@ class _ProvidersPageState extends State<ProvidersPage> {
       setState(() {
         _keyStatus.clear();
         _keyStatus.addAll(keyStatuses);
-        _displayNames.clear();
-        _displayNames.addAll(displayNames);
+        _savedDisplayNames.clear();
+        _savedDisplayNames.addAll(savedDisplayNames);
         _httpsStatus.clear();
         _httpsStatus.addAll(httpsStatuses);
         _loading = false;
@@ -70,26 +71,32 @@ class _ProvidersPageState extends State<ProvidersPage> {
         title: Text(l10n.providers),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: Text(l10n.loading))
           : ListView.builder(
               itemCount: providerPresets.length,
               itemBuilder: (context, index) {
                 final preset = providerPresets[index];
                 final configured = _keyStatus[preset.id] ?? false;
-                final displayName = _displayNames[preset.id] ?? preset.name;
+                final displayName = localizedProviderDisplayName(
+                  context,
+                  preset,
+                  _savedDisplayNames[preset.id],
+                );
+                final description =
+                    localizedProviderDescription(context, preset);
                 final isHttps = _httpsStatus[preset.id] ?? true;
                 final needsHttpsUpdate = configured && !isHttps;
 
                 String statusText;
                 Color statusColor;
                 if (needsHttpsUpdate) {
-                  statusText = 'Update to HTTPS required';
+                  statusText = l10n.httpsUpdateRequired;
                   statusColor = Colors.orange;
                 } else if (configured) {
-                  statusText = 'Configured';
+                  statusText = l10n.providerConfigured;
                   statusColor = Colors.green;
                 } else {
-                  statusText = 'Not configured';
+                  statusText = l10n.providerNotConfigured;
                   statusColor = Colors.grey;
                 }
 
@@ -100,7 +107,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
                         : Icons.cloud_outlined,
                   ),
                   title: Text(displayName),
-                  subtitle: Text(preset.description),
+                  subtitle: Text(description),
                   trailing: Text(
                     statusText,
                     style: TextStyle(color: statusColor),
