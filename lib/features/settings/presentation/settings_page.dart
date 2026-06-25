@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/settings/presentation/language_page.dart';
+import 'package:keychat/features/settings/presentation/usage_guide_page.dart';
 import 'package:keychat/features/settings/presentation/about_page.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
@@ -27,6 +28,18 @@ class SettingsPage extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) =>
                       LanguagePage(onLocaleChanged: onLocaleChanged),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.menu_book),
+            title: Text(l10n.usageGuide),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UsageGuidePage(),
                 ),
               );
             },
