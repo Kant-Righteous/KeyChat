@@ -127,6 +127,7 @@
   "configLoadError": "无法加载配置",
   "goBack": "返回",
   "loading": "加载中...",
+  "initializing": "正在初始化…",
   "usageGuide": "使用说明",
   "usageGuideTitle": "使用说明",
   "configurationMethod": "配置方式",

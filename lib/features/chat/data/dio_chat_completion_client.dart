@@ -278,6 +278,7 @@ class DioChatCompletionClient implements ChatCompletionClient {
 
       final parser = OpenAiSseParser();
       bool hasContent = false;
+      bool hasReasoning = false;
       bool gotDone = false;
 
       parser.stream.listen(
@@ -295,9 +296,18 @@ class DioChatCompletionClient implements ChatCompletionClient {
 
           try {
             final parsed = _parseDelta(sseEvent.data!);
-            if (parsed != null && parsed.isNotEmpty) {
-              hasContent = true;
-              controller.add(ChatStreamDelta(parsed));
+            if (parsed != null) {
+              if (parsed.isNotEmpty) {
+                hasContent = true;
+                controller.add(ChatStreamDelta(parsed));
+              }
+            } else {
+              // Check if this is a reasoning-only chunk
+              final isReasoning = _hasReasoningContent(sseEvent.data!);
+              if (isReasoning) {
+                hasReasoning = true;
+                // Don't add to stream, just acknowledge it exists
+              }
             }
           } on FormatException {
             if (!terminated) {
@@ -315,6 +325,12 @@ class DioChatCompletionClient implements ChatCompletionClient {
           if (!gotDone) {
             if (hasContent) {
               controller.add(const ChatStreamCompleted());
+            } else if (hasReasoning) {
+              // Had reasoning but no content - still invalid
+              controller.add(const ChatStreamFailure(
+                errorType: ChatCompletionErrorType.invalidResponse,
+                userMessage: 'No content in response',
+              ));
             } else {
               controller.add(const ChatStreamFailure(
                 errorType: ChatCompletionErrorType.invalidResponse,
@@ -409,6 +425,27 @@ class DioChatCompletionClient implements ChatCompletionClient {
     }
 
     return null;
+  }
+
+  static bool _hasReasoningContent(String data) {
+    try {
+      final json = jsonDecode(data);
+      if (json is! Map<String, dynamic>) return false;
+
+      final choices = json['choices'];
+      if (choices is! List || choices.isEmpty) return false;
+
+      final first = choices.first;
+      if (first is! Map<String, dynamic>) return false;
+
+      final delta = first['delta'];
+      if (delta is! Map<String, dynamic>) return false;
+
+      final reasoning = delta['reasoning_content'];
+      return reasoning is String && reasoning.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   ChatCompletionResult _mapDioError(DioException e) {

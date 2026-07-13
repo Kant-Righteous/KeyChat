@@ -34,26 +34,46 @@ class _AgentsPageState extends State<AgentsPage> {
   }
 
   Future<void> _createAgent() async {
-    final result = await Navigator.push<bool>(
+    final l10n = AppLocalizations.of(context)!;
+    final result = await Navigator.push<AgentProfileData>(
       context,
       MaterialPageRoute(
         builder: (context) => const AgentEditPage(),
       ),
     );
-    if (result == true) {
-      await _loadAgents();
+    if (result != null) {
+      try {
+        await widget.agentStore.saveAgent(result);
+        await _loadAgents();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.agentSaveFailed)),
+          );
+        }
+      }
     }
   }
 
   Future<void> _editAgent(AgentProfileData agent) async {
-    final result = await Navigator.push<bool>(
+    final l10n = AppLocalizations.of(context)!;
+    final result = await Navigator.push<AgentProfileData>(
       context,
       MaterialPageRoute(
         builder: (context) => AgentEditPage(agent: agent),
       ),
     );
-    if (result == true) {
-      await _loadAgents();
+    if (result != null) {
+      try {
+        await widget.agentStore.saveAgent(result);
+        await _loadAgents();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.agentSaveFailed)),
+          );
+        }
+      }
     }
   }
 

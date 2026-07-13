@@ -5,30 +5,42 @@ import 'package:keychat/features/settings/data/locale_service.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class KeyChatApp extends StatefulWidget {
-  const KeyChatApp({super.key});
+  final LocaleService? localeService;
+
+  const KeyChatApp({super.key, this.localeService});
 
   @override
   State<KeyChatApp> createState() => _KeyChatAppState();
 }
 
 class _KeyChatAppState extends State<KeyChatApp> {
-  final LocaleService _localeService = LocaleService();
+  late final LocaleService _localeService;
   Locale? _locale;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    _localeService = widget.localeService ?? LocaleService();
     _loadLocale();
   }
 
   Future<void> _loadLocale() async {
-    final locale = await _localeService.loadLocale();
-    if (mounted) {
-      setState(() {
-        _locale = locale;
-        _loading = false;
-      });
+    try {
+      final locale = await _localeService.loadLocale();
+      if (mounted) {
+        setState(() {
+          _locale = locale;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _locale = const Locale('zh');
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -48,10 +60,19 @@ class _KeyChatAppState extends State<KeyChatApp> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+      return MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('zh'),
+          Locale('en'),
+        ],
+        home: const _SplashScreen(),
       );
     }
 
@@ -73,6 +94,37 @@ class _KeyChatAppState extends State<KeyChatApp> {
         Locale('en'),
       ],
       home: AppShell(onLocaleChanged: _onLocaleChanged),
+    );
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.chat_bubble_outline, size: 64, color: Colors.blue),
+            const SizedBox(height: 24),
+            const Text(
+              'KeyChat',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n?.initializing ?? '正在初始化…',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
     );
   }
 }

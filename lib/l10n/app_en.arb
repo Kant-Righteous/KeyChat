@@ -127,6 +127,7 @@
   "configLoadError": "The saved configuration could not be loaded.",
   "goBack": "Go Back",
   "loading": "Loading...",
+  "initializing": "Initializing…",
   "usageGuide": "User Guide",
   "usageGuideTitle": "User Guide",
   "configurationMethod": "Configuration Method",
