@@ -133,7 +133,8 @@ void main() {
     expect(find.text('No ready provider'), findsOneWidget);
   });
 
-  testWidgets('ProvidersPage shows presets', (WidgetTester tester) async {
+  testWidgets('ProvidersPage shows the add provider entry',
+      (WidgetTester tester) async {
     final apiKeyStore = FakeApiKeyStore();
     final configStore = FakeProviderConfigStore();
     await tester.pumpWidget(
@@ -146,10 +147,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('OpenAI'), findsOneWidget);
-    expect(find.text('DeepSeek'), findsOneWidget);
-    expect(find.text('OpenRouter'), findsOneWidget);
     expect(find.text('Custom Provider'), findsOneWidget);
+    expect(find.text('OpenAI'), findsNothing);
   });
 
   testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {

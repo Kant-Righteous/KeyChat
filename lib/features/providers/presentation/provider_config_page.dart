@@ -40,6 +40,20 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   bool _testing = false;
   bool _configLoadError = false;
   List<String> _discoveredModels = [];
+  String _selectedTemplateId = 'custom';
+  String? _selectedEndpointId;
+
+  ProviderTemplatePreset get _selectedTemplate => providerTemplatePresets
+      .firstWhere((template) => template.id == _selectedTemplateId);
+
+  ProviderEndpointPreset? get _selectedEndpoint {
+    final endpointId = _selectedEndpointId;
+    if (endpointId == null) return null;
+    for (final endpoint in _selectedTemplate.endpoints) {
+      if (endpoint.id == endpointId) return endpoint;
+    }
+    return null;
+  }
 
   ProviderConnectionTester? get _connectionTester {
     if (widget.connectionTesterResolver == null) return null;
@@ -70,6 +84,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
           _nameController.text = config?.displayName ??
               localizedProviderName(context, widget.preset);
           _urlController.text = config?.baseUrl ?? widget.preset.defaultBaseUrl;
+          _selectPresetForBaseUrl(_urlController.text);
           _modelController.text = config?.defaultModel ?? '';
           _hasExistingKey = hasKey;
           _loading = false;
@@ -78,9 +93,9 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _nameController.text =
-              localizedProviderName(context, widget.preset);
+          _nameController.text = localizedProviderName(context, widget.preset);
           _urlController.text = widget.preset.defaultBaseUrl;
+          _selectPresetForBaseUrl(_urlController.text);
           _modelController.text = '';
           _hasExistingKey = false;
           _loading = false;
@@ -88,6 +103,92 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
         });
       }
     }
+  }
+
+  void _selectPresetForBaseUrl(String baseUrl) {
+    final normalized = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    for (final template in providerTemplatePresets) {
+      for (final endpoint in template.endpoints) {
+        final endpointUrl =
+            endpoint.defaultBaseUrl.replaceFirst(RegExp(r'/$'), '');
+        if (endpointUrl == normalized) {
+          _selectedTemplateId = template.id;
+          _selectedEndpointId = endpoint.id;
+          return;
+        }
+      }
+    }
+    _selectedTemplateId = 'custom';
+    _selectedEndpointId = null;
+  }
+
+  String _endpointLabel(
+    AppLocalizations l10n,
+    ProviderEndpointPreset endpoint,
+  ) {
+    return switch (endpoint.id) {
+      'kimi_china' => l10n.chinaApiOption,
+      'kimi_global' => l10n.globalApiOption,
+      'kimi_code' => l10n.kimiCodeOption,
+      'mimo_pay_as_you_go' => l10n.payAsYouGoApiOption,
+      'mimo_token_china' => l10n.tokenPlanChinaOption,
+      'mimo_token_singapore' => l10n.tokenPlanSingaporeOption,
+      'mimo_token_europe' => l10n.tokenPlanEuropeOption,
+      'glm_china_general' => l10n.chinaGeneralApiOption,
+      'glm_global_general' => l10n.globalGeneralApiOption,
+      'glm_china_coding' => l10n.chinaCodingPlanOption,
+      'glm_global_coding' => l10n.globalCodingPlanOption,
+      'qwen_pay_as_you_go_beijing' => l10n.payAsYouGoBeijingOption,
+      'qwen_pay_as_you_go_singapore' => l10n.payAsYouGoSingaporeOption,
+      'qwen_pay_as_you_go_us' => l10n.payAsYouGoUsOption,
+      'qwen_token_beijing' => l10n.tokenPlanBeijingOption,
+      'qwen_coding_beijing' => l10n.codingPlanBeijingOption,
+      _ => endpoint.id,
+    };
+  }
+
+  String _defaultDisplayName(
+    AppLocalizations l10n,
+    ProviderTemplatePreset template,
+    ProviderEndpointPreset endpoint,
+  ) {
+    if (endpoint.id == 'kimi_code') return 'Kimi Code';
+    if (template.endpoints.length == 1) return template.name;
+    return '${template.name} · ${_endpointLabel(l10n, endpoint)}';
+  }
+
+  void _selectTemplate(String templateId) {
+    final l10n = AppLocalizations.of(context)!;
+    final template = providerTemplatePresets
+        .firstWhere((candidate) => candidate.id == templateId);
+
+    setState(() {
+      _selectedTemplateId = template.id;
+      if (template.endpoints.isEmpty) {
+        _selectedEndpointId = null;
+        _nameController.text = l10n.customProvider;
+        _urlController.clear();
+        return;
+      }
+
+      final endpoint = template.endpoints.first;
+      _selectedEndpointId = endpoint.id;
+      _nameController.text = _defaultDisplayName(l10n, template, endpoint);
+      _urlController.text = endpoint.defaultBaseUrl;
+    });
+  }
+
+  void _selectEndpoint(String endpointId) {
+    final l10n = AppLocalizations.of(context)!;
+    final template = _selectedTemplate;
+    final endpoint = template.endpoints
+        .firstWhere((candidate) => candidate.id == endpointId);
+
+    setState(() {
+      _selectedEndpointId = endpoint.id;
+      _nameController.text = _defaultDisplayName(l10n, template, endpoint);
+      _urlController.text = endpoint.defaultBaseUrl;
+    });
   }
 
   @override
@@ -320,6 +421,77 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (widget.preset.isCustom) ...[
+                          DropdownButtonFormField<String>(
+                            value: _selectedTemplateId,
+                            decoration: InputDecoration(
+                              labelText: l10n.providerPresetLabel,
+                              border: const OutlineInputBorder(),
+                            ),
+                            items: providerTemplatePresets.map((template) {
+                              return DropdownMenuItem<String>(
+                                value: template.id,
+                                child: Text(
+                                  template.id == 'custom'
+                                      ? l10n.manualProviderPreset
+                                      : template.name,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: _saving
+                                ? null
+                                : (value) {
+                                    if (value != null) _selectTemplate(value);
+                                  },
+                          ),
+                          if (_selectedTemplate.endpoints.length > 1) ...[
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              value: _selectedEndpointId,
+                              decoration: InputDecoration(
+                                labelText: l10n.accessOptionLabel,
+                                border: const OutlineInputBorder(),
+                              ),
+                              items:
+                                  _selectedTemplate.endpoints.map((endpoint) {
+                                return DropdownMenuItem<String>(
+                                  value: endpoint.id,
+                                  child: Text(_endpointLabel(l10n, endpoint)),
+                                );
+                              }).toList(),
+                              onChanged: _saving
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        _selectEndpoint(value);
+                                      }
+                                    },
+                            ),
+                          ],
+                          if (_selectedEndpoint != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.providerEndpointKeyHint,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (_selectedEndpoint!.apiKeyPrefix != null)
+                              Text(
+                                l10n.apiKeyPrefixHint(
+                                  _selectedEndpoint!.apiKeyPrefix!,
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            if (_selectedEndpoint!.isPlan)
+                              Text(
+                                l10n.planEndpointWarning,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: Colors.orange[800]),
+                              ),
+                          ],
+                          const SizedBox(height: 16),
+                        ],
                         TextFormField(
                           controller: _nameController,
                           decoration: InputDecoration(

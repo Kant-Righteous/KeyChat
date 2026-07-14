@@ -20,7 +20,8 @@ void main() {
       configStore = FakeProviderConfigStore();
     });
 
-    testWidgets('shows 4 provider presets', (WidgetTester tester) async {
+    testWidgets('shows only add entry when no provider is saved',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         buildTestApp(
           home: ProvidersPage(
@@ -32,14 +33,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Providers'), findsOneWidget);
-      expect(find.text('OpenAI'), findsOneWidget);
-      expect(find.text('DeepSeek'), findsOneWidget);
-      expect(find.text('OpenRouter'), findsOneWidget);
       expect(find.text('Custom Provider'), findsOneWidget);
+      expect(find.text('OpenAI'), findsNothing);
+      expect(find.text('DeepSeek'), findsNothing);
+      expect(find.text('OpenRouter'), findsNothing);
     });
 
-    testWidgets('shows Not configured when no key exists',
+    testWidgets('shows Not configured for a saved provider without a key',
         (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+
       await tester.pumpWidget(
         buildTestApp(
           home: ProvidersPage(
@@ -50,12 +61,23 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Not configured'), findsNWidgets(4));
+      expect(find.text('My Provider'), findsOneWidget);
+      expect(find.text('Not configured'), findsOneWidget);
+      expect(find.text('Custom Provider'), findsOneWidget);
     });
 
     testWidgets('shows Configured when key exists',
         (WidgetTester tester) async {
-      await apiKeyStore.saveKey('openai', 'sk-test');
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+      await apiKeyStore.saveKey('custom_1', 'sk-test');
 
       await tester.pumpWidget(
         buildTestApp(
@@ -68,11 +90,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Configured'), findsOneWidget);
-      expect(find.text('Not configured'), findsNWidgets(3));
+      expect(find.text('Custom Provider'), findsOneWidget);
     });
 
-    testWidgets('tapping OpenAI opens config page',
+    testWidgets('tapping a saved provider opens config page',
         (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+
       await tester.pumpWidget(
         buildTestApp(
           home: ProvidersPage(
@@ -127,7 +159,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Custom Provider'), findsOneWidget);
-      expect(find.text('Not configured'), findsNWidgets(4));
 
       await tester.tap(find.text('Custom Provider'));
       await tester.pumpAndSettle();
@@ -152,6 +183,7 @@ void main() {
 
       expect(find.byType(ProvidersPage), findsOneWidget);
       expect(find.text('My Custom AI'), findsOneWidget);
+      expect(find.text('Custom Provider'), findsOneWidget);
       expect(find.text('Configured'), findsOneWidget);
     });
 
@@ -173,7 +205,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('OpenAI'));
+      await tester.tap(find.text('Custom Provider'));
       await tester.pumpAndSettle();
 
       final configPage = tester.widget<ProviderConfigPage>(

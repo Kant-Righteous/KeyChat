@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
+import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
-import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:keychat/features/providers/presentation/provider_config_page.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -25,8 +25,8 @@ class ProvidersPage extends StatefulWidget {
 }
 
 class _ProvidersPageState extends State<ProvidersPage> {
+  List<ProviderConfigData> _configs = [];
   final Map<String, bool> _keyStatus = {};
-  final Map<String, String?> _savedDisplayNames = {};
   final Map<String, bool> _httpsStatus = {};
   bool _loading = true;
 
@@ -37,29 +37,42 @@ class _ProvidersPageState extends State<ProvidersPage> {
   }
 
   Future<void> _loadStatus() async {
+    final configs = await widget.configStore.readAllConfigs();
     final keyStatuses = <String, bool>{};
-    final savedDisplayNames = <String, String?>{};
     final httpsStatuses = <String, bool>{};
 
-    for (final preset in providerPresets) {
-      keyStatuses[preset.id] = await widget.apiKeyStore.hasKey(preset.id);
-      final config = await widget.configStore.readConfig(preset.id);
-      savedDisplayNames[preset.id] = config?.displayName;
-      httpsStatuses[preset.id] =
-          config == null || ProviderUrlPolicy.isHttps(config.baseUrl);
+    for (final config in configs) {
+      keyStatuses[config.providerId] =
+          await widget.apiKeyStore.hasKey(config.providerId);
+      httpsStatuses[config.providerId] =
+          ProviderUrlPolicy.isHttps(config.baseUrl);
     }
 
     if (mounted) {
       setState(() {
+        _configs = configs;
         _keyStatus.clear();
         _keyStatus.addAll(keyStatuses);
-        _savedDisplayNames.clear();
-        _savedDisplayNames.addAll(savedDisplayNames);
         _httpsStatus.clear();
         _httpsStatus.addAll(httpsStatuses);
         _loading = false;
       });
     }
+  }
+
+  Future<void> _openConfig(ProviderPreset preset) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProviderConfigPage(
+          preset: preset,
+          apiKeyStore: widget.apiKeyStore,
+          configStore: widget.configStore,
+          connectionTesterResolver: widget.connectionTesterResolver,
+        ),
+      ),
+    );
+    await _loadStatus();
   }
 
   @override
@@ -73,18 +86,30 @@ class _ProvidersPageState extends State<ProvidersPage> {
       body: _loading
           ? Center(child: Text(l10n.loading))
           : ListView.builder(
-              itemCount: providerPresets.length,
+              itemCount: _configs.length + 1,
               itemBuilder: (context, index) {
-                final preset = providerPresets[index];
-                final configured = _keyStatus[preset.id] ?? false;
-                final displayName = localizedProviderDisplayName(
-                  context,
-                  preset,
-                  _savedDisplayNames[preset.id],
-                );
-                final description =
-                    localizedProviderDescription(context, preset);
-                final isHttps = _httpsStatus[preset.id] ?? true;
+                if (index == _configs.length) {
+                  return ListTile(
+                    leading: const Icon(Icons.add_circle_outline),
+                    title: Text(l10n.addCustomProvider),
+                    subtitle: Text(l10n.customProviderDescription),
+                    onTap: () {
+                      final preset = ProviderPreset(
+                        id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
+                        name: l10n.customProvider,
+                        description: l10n.customProviderDescription,
+                        defaultBaseUrl: '',
+                        isCustom: true,
+                        protocol: providerPresets.last.protocol,
+                      );
+                      _openConfig(preset);
+                    },
+                  );
+                }
+
+                final config = _configs[index];
+                final configured = _keyStatus[config.providerId] ?? false;
+                final isHttps = _httpsStatus[config.providerId] ?? true;
                 final needsHttpsUpdate = configured && !isHttps;
 
                 String statusText;
@@ -101,31 +126,23 @@ class _ProvidersPageState extends State<ProvidersPage> {
                 }
 
                 return ListTile(
-                  leading: Icon(
-                    preset.isCustom
-                        ? Icons.add_circle_outline
-                        : Icons.cloud_outlined,
-                  ),
-                  title: Text(displayName),
-                  subtitle: Text(description),
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: Text(config.displayName),
+                  subtitle: Text(config.baseUrl),
                   trailing: Text(
                     statusText,
                     style: TextStyle(color: statusColor),
                   ),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ProviderConfigPage(
-                          preset: preset,
-                          apiKeyStore: widget.apiKeyStore,
-                          configStore: widget.configStore,
-                          connectionTesterResolver:
-                              widget.connectionTesterResolver,
-                        ),
-                      ),
+                  onTap: () {
+                    final preset = ProviderPreset(
+                      id: config.providerId,
+                      name: config.displayName,
+                      description: config.baseUrl,
+                      defaultBaseUrl: config.baseUrl,
+                      isCustom: true,
+                      protocol: config.protocol,
                     );
-                    _loadStatus();
+                    _openConfig(preset);
                   },
                 );
               },

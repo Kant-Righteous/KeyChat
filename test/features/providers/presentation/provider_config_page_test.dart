@@ -94,6 +94,123 @@ void main() {
       expect(urlField, findsOneWidget);
     });
 
+    testWidgets('Custom Provider shows provider preset selector',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('提供商预设'), findsOneWidget);
+      expect(find.text('其他（手动填写）'), findsOneWidget);
+    });
+
+    testWidgets('Kimi Code preset fills editable name and Base URL',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('接入方案 / 地域'), findsOneWidget);
+      expect(find.text('中国普通 API'), findsOneWidget);
+
+      await tester.tap(find.text('中国普通 API'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi Code').last);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextFormField, 'Kimi Code'), findsOneWidget);
+      expect(
+        find.widgetWithText(
+          TextFormField,
+          'https://api.kimi.com/coding/v1',
+        ),
+        findsOneWidget,
+      );
+
+      final nameField = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'Kimi Code'),
+      );
+      final urlField = tester.widget<TextFormField>(
+        find.widgetWithText(
+          TextFormField,
+          'https://api.kimi.com/coding/v1',
+        ),
+      );
+      expect(nameField.enabled, isTrue);
+      expect(urlField.enabled, isTrue);
+      expect(find.textContaining('套餐地址必须与套餐专用 API Key'), findsOneWidget);
+    });
+
+    testWidgets('MiMo Token Plan regions and Qwen plans are selectable',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MiMo').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('普通按量 API'));
+      await tester.pumpAndSettle();
+      expect(find.text('Token Plan · 中国'), findsOneWidget);
+      expect(find.text('Token Plan · 新加坡'), findsOneWidget);
+      expect(find.text('Token Plan · 欧洲'), findsOneWidget);
+
+      await tester.tap(find.text('Token Plan · 新加坡'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(
+          TextFormField,
+          'https://token-plan-sgp.xiaomimimo.com/v1',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('MiMo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Qwen').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('按量付费 · 北京'));
+      await tester.pumpAndSettle();
+      expect(find.text('Token Plan · 北京'), findsOneWidget);
+      expect(find.text('Coding Plan · 北京'), findsOneWidget);
+    });
+
     testWidgets('Empty name shows validation error',
         (WidgetTester tester) async {
       final preset = providerPresets[3]; // Custom
@@ -1039,9 +1156,9 @@ void main() {
         await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
-final snackBarText = tester.widget<Text>(
-  find.text('提供商服务器错误'),
-);
+        final snackBarText = tester.widget<Text>(
+          find.text('提供商服务器错误'),
+        );
         expect(snackBarText.data, isNot(contains('test-marker-abc')));
       });
 
@@ -1081,9 +1198,9 @@ final snackBarText = tester.widget<Text>(
         );
         await tester.pumpAndSettle();
 
-expect(find.text('提供商名称'), findsNothing);
-expect(find.text('基础地址'), findsNothing);
-expect(find.text('API Key'), findsNothing);
+        expect(find.text('提供商名称'), findsNothing);
+        expect(find.text('基础地址'), findsNothing);
+        expect(find.text('API Key'), findsNothing);
       });
     });
   });
