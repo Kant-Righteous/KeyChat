@@ -24,7 +24,6 @@
   "typeMessage": "Type a message...",
   "send": "Send",
   "stopGenerating": "Stop generating",
-  "showReasoning": "Show reasoning",
   "waitingForResponse": "Waiting for response",
   "thinking": "Thinking",
   "generatingResponse": "Generating response",

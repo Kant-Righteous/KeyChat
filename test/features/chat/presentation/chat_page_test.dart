@@ -6700,7 +6700,7 @@ void main() {
     });
 
     group('Reasoning visibility', () {
-      testWidgets('shows generation phases and enables reasoning after support',
+      testWidgets('shows compact per-response reasoning disclosure',
           (WidgetTester tester) async {
         await configStore.saveConfig(ProviderConfigData(
           providerId: 'custom',
@@ -6725,8 +6725,8 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        var reasoningSwitch = tester.widget<Switch>(find.byType(Switch));
-        expect(reasoningSwitch.onChanged, isNull);
+        expect(find.byType(Switch), findsNothing);
+        expect(find.text('Reasoning'), findsNothing);
 
         await tester.enterText(
           find.widgetWithText(TextField, 'Type a message...'),
@@ -6736,16 +6736,17 @@ void main() {
         await tester.pump();
 
         expect(find.text('Waiting for response'), findsOneWidget);
+        expect(find.text('Reasoning'), findsNothing);
 
         streamController.add(const ChatStreamReasoningDelta('Step 1'));
         await tester.pump();
 
         expect(find.text('Thinking'), findsOneWidget);
-        reasoningSwitch = tester.widget<Switch>(find.byType(Switch));
-        expect(reasoningSwitch.onChanged, isNotNull);
+        expect(find.text('Reasoning'), findsOneWidget);
+        expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
         expect(find.text('Step 1'), findsNothing);
 
-        await tester.tap(find.byType(Switch));
+        await tester.tap(find.text('Reasoning'));
         await tester.pump();
         expect(find.text('Step 1'), findsOneWidget);
 
@@ -6763,10 +6764,48 @@ void main() {
         expect(find.text('Step 1'), findsOneWidget);
         expect(find.text('Final answer'), findsOneWidget);
 
-        await tester.tap(find.byType(Switch));
+        await tester.tap(find.text('Reasoning'));
         await tester.pump();
         expect(find.text('Step 1'), findsNothing);
         expect(find.text('Final answer'), findsOneWidget);
+      });
+
+      testWidgets('hides reasoning disclosure when response has no reasoning',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'test-key');
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Answer without reasoning',
+        ));
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Answer without reasoning'), findsOneWidget);
+        expect(find.text('Reasoning'), findsNothing);
+        expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
       });
     });
 
