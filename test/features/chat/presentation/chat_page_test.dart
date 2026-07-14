@@ -1649,6 +1649,76 @@ void main() {
       expect(messages.last.content, 'Background answer');
     });
 
+    testWidgets('premature stream end retries once and saves full answer',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final firstStream = chatClient.startStream();
+      final keepAlive = FakeGenerationKeepAlive();
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+            generationKeepAlive: keepAlive,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      firstStream.add(const ChatStreamDelta('Incomplete'));
+      await tester.pump();
+      expect(find.text('Incomplete'), findsOneWidget);
+
+      final retryStream = StreamController<ChatStreamEvent>();
+      chatClient.setStreamController(retryStream);
+      firstStream.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.networkUnavailable,
+        userMessage: 'Connection ended before the response completed',
+      ));
+      await firstStream.close();
+      await tester.pump();
+
+      expect(chatClient.streamCallCount, 2);
+      expect(find.text('Incomplete'), findsNothing);
+      expect(keepAlive.stopCallCount, 0);
+
+      retryStream.add(const ChatStreamDelta('Complete answer'));
+      retryStream.add(const ChatStreamCompleted());
+      await retryStream.close();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Complete answer'), findsOneWidget);
+      expect(find.text('Incomplete'), findsNothing);
+      expect(keepAlive.stopCallCount, 1);
+
+      final conversation = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conversation!.id);
+      final assistantMessages =
+          messages.where((message) => message.role == ChatRole.assistant);
+      expect(assistantMessages.length, 1);
+      expect(assistantMessages.single.content, 'Complete answer');
+    });
+
     testWidgets('delta does not write to history store',
         (WidgetTester tester) async {
       await configStore.saveConfig(ProviderConfigData(

@@ -279,22 +279,32 @@ class DioChatCompletionClient implements ChatCompletionClient {
       final parser = OpenAiSseParser();
       bool hasContent = false;
       bool hasReasoning = false;
-      bool gotDone = false;
+      bool gotFinishReason = false;
+
+      void closeWith(ChatStreamEvent event) {
+        if (terminated) return;
+        terminated = true;
+        controller.add(event);
+        unawaited(controller.close());
+        removeListener?.call();
+      }
 
       parser.stream.listen(
         (sseEvent) {
           if (terminated) return;
 
           if (sseEvent.data == '[DONE]') {
-            gotDone = true;
-            controller.add(const ChatStreamCompleted());
-            terminated = true;
+            closeWith(const ChatStreamCompleted());
             return;
           }
 
           if (sseEvent.data == null) return;
 
           try {
+            if (_hasFinishReason(sseEvent.data!)) {
+              gotFinishReason = true;
+            }
+
             final reasoning = _parseReasoningDelta(sseEvent.data!);
             if (reasoning != null && reasoning.isNotEmpty) {
               hasReasoning = true;
@@ -307,46 +317,34 @@ class DioChatCompletionClient implements ChatCompletionClient {
               controller.add(ChatStreamDelta(content));
             }
           } on FormatException {
-            if (!terminated) {
-              terminated = true;
-              controller.add(const ChatStreamFailure(
-                errorType: ChatCompletionErrorType.invalidResponse,
-                userMessage: 'Invalid provider response',
-              ));
-            }
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.invalidResponse,
+              userMessage: 'Invalid provider response',
+            ));
           }
         },
         onDone: () {
           if (terminated) return;
 
-          if (!gotDone) {
-            if (hasContent) {
-              controller.add(const ChatStreamCompleted());
-            } else if (hasReasoning) {
-              // Had reasoning but no content - still invalid
-              controller.add(const ChatStreamFailure(
-                errorType: ChatCompletionErrorType.invalidResponse,
-                userMessage: 'No content in response',
-              ));
-            } else {
-              controller.add(const ChatStreamFailure(
-                errorType: ChatCompletionErrorType.invalidResponse,
-                userMessage: 'Invalid provider response',
-              ));
-            }
+          if (gotFinishReason && hasContent) {
+            closeWith(const ChatStreamCompleted());
+          } else if (hasContent || hasReasoning) {
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.networkUnavailable,
+              userMessage: 'Connection ended before the response completed',
+            ));
+          } else {
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.invalidResponse,
+              userMessage: 'Invalid provider response',
+            ));
           }
-          controller.close();
-          removeListener?.call();
         },
         onError: (error) {
-          if (terminated) return;
-          controller.add(const ChatStreamFailure(
+          closeWith(const ChatStreamFailure(
             errorType: ChatCompletionErrorType.unknown,
             userMessage: 'Unable to get response',
           ));
-          terminated = true;
-          controller.close();
-          removeListener?.call();
         },
       );
 
@@ -422,6 +420,20 @@ class DioChatCompletionClient implements ChatCompletionClient {
     }
 
     return null;
+  }
+
+  static bool _hasFinishReason(String data) {
+    final json = jsonDecode(data);
+    if (json is! Map<String, dynamic>) return false;
+
+    final choices = json['choices'];
+    if (choices is! List || choices.isEmpty) return false;
+
+    final first = choices.first;
+    if (first is! Map<String, dynamic>) return false;
+
+    final finishReason = first['finish_reason'];
+    return finishReason is String && finishReason.trim().isNotEmpty;
   }
 
   static String? _parseReasoningDelta(String data) {

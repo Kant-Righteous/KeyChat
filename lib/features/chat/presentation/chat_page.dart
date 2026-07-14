@@ -615,7 +615,10 @@ class _ChatPageState extends State<ChatPage> {
     await _runGeneration(target);
   }
 
-  Future<void> _runGeneration(_GenerationTarget target) async {
+  Future<void> _runGeneration(
+    _GenerationTarget target, {
+    int automaticRetryAttempt = 0,
+  }) async {
     setState(() {
       _sending = true;
       _userStopped = false;
@@ -734,7 +737,13 @@ class _ChatPageState extends State<ChatPage> {
           } else if (event is ChatStreamCompleted) {
             _handleStreamCompleted(hasContent, genId, target);
           } else if (event is ChatStreamFailure) {
-            _handleStreamFailure(event, hasContent, genId, target);
+            _handleStreamFailure(
+              event,
+              hasContent,
+              genId,
+              target,
+              automaticRetryAttempt,
+            );
           }
         },
         onError: (error) {
@@ -898,9 +907,23 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _handleStreamFailure(ChatStreamFailure event, bool hasContent, int genId,
-      _GenerationTarget target) {
+  void _handleStreamFailure(
+    ChatStreamFailure event,
+    bool hasContent,
+    int genId,
+    _GenerationTarget target,
+    int automaticRetryAttempt,
+  ) {
     if (!_isGenerationActive(genId)) return;
+
+    if (_shouldAutomaticallyRetry(event, automaticRetryAttempt) &&
+        _prepareAutomaticRetry(genId)) {
+      unawaited(_runGeneration(
+        target,
+        automaticRetryAttempt: automaticRetryAttempt + 1,
+      ));
+      return;
+    }
 
     _finishGeneration(
       generationId: genId,
@@ -936,6 +959,38 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
     }
+  }
+
+  bool _shouldAutomaticallyRetry(
+    ChatStreamFailure event,
+    int automaticRetryAttempt,
+  ) {
+    if (automaticRetryAttempt >= 1) return false;
+    return event.errorType == ChatCompletionErrorType.networkUnavailable ||
+        event.errorType == ChatCompletionErrorType.timeout;
+  }
+
+  bool _prepareAutomaticRetry(int generationId) {
+    if (!_isGenerationActive(generationId)) return false;
+
+    _terminalHandled = true;
+
+    final sub = _streamSubscription;
+    _streamSubscription = null;
+    final token = _cancellationToken;
+    _cancellationToken = null;
+    _activeGenerationId = null;
+
+    _safeCancel(sub);
+    _safeCancelToken(token);
+
+    setState(() {
+      _streamingAssistantText = '';
+      _streamingReasoningText = '';
+      _expandedReasoningKeys.remove(_streamingReasoningKey);
+      _generationPhase = _GenerationPhase.waiting;
+    });
+    return true;
   }
 
   void _handleStreamError(bool hasContent, int genId) {

@@ -1115,10 +1115,36 @@ void main() {
         expect(completedCount, 1);
       });
 
-      test('content without [DONE] still completes on EOF', () async {
+      test('content without terminal signal fails on EOF', () async {
         adapter.statusCode = 200;
         adapter.streamResponse = Stream.fromIterable([
           'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'gpt-4',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 2);
+        expect(events[0], isA<ChatStreamDelta>());
+        expect(events[1], isA<ChatStreamFailure>());
+        expect(
+          (events[1] as ChatStreamFailure).errorType,
+          ChatCompletionErrorType.networkUnavailable,
+        );
+      });
+
+      test('finish_reason completes when provider omits [DONE]', () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n',
+          'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
         ]);
 
         final events = <ChatStreamEvent>[];
