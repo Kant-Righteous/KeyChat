@@ -7,12 +7,14 @@ class ChatMessage {
   final String id;
   final ChatRole role;
   final String content;
+  final String? reasoningContent;
   final DateTime createdAt;
 
   const ChatMessage({
     required this.id,
     required this.role,
     required this.content,
+    this.reasoningContent,
     required this.createdAt,
   });
 }
@@ -115,6 +117,12 @@ sealed class ChatStreamEvent {
 
 final class ChatStreamDelta extends ChatStreamEvent {
   const ChatStreamDelta(this.content);
+
+  final String content;
+}
+
+final class ChatStreamReasoningDelta extends ChatStreamEvent {
+  const ChatStreamReasoningDelta(this.content);
 
   final String content;
 }

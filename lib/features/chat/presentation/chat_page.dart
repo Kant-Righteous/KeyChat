@@ -51,6 +51,13 @@ enum _GenerationKind {
   regenerate,
 }
 
+enum _GenerationPhase {
+  idle,
+  waiting,
+  reasoning,
+  responding,
+}
+
 final class _GenerationTarget {
   const _GenerationTarget({
     required this.kind,
@@ -105,6 +112,10 @@ class _ChatPageState extends State<ChatPage> {
   String? _persistWarning;
   String? _protocolWarning;
   String _streamingAssistantText = '';
+  String _streamingReasoningText = '';
+  final Set<String> _reasoningCapableModels = {};
+  bool _showReasoning = false;
+  _GenerationPhase _generationPhase = _GenerationPhase.idle;
   StreamSubscription<ChatStreamEvent>? _streamSubscription;
   String? _trimWarning;
 
@@ -246,6 +257,23 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canStop => _sending && _activeGenerationId != null;
 
+  String? get _selectedModelCapabilityKey {
+    final model = _selectedModel;
+    if (model == null) return null;
+    return '${model.providerId}:${model.modelId}';
+  }
+
+  bool get _selectedModelSupportsReasoning {
+    final key = _selectedModelCapabilityKey;
+    return key != null && _reasoningCapableModels.contains(key);
+  }
+
+  bool get _hasTransientAssistant {
+    return _sending ||
+        _streamingAssistantText.isNotEmpty ||
+        _streamingReasoningText.isNotEmpty;
+  }
+
   bool get _canRetry {
     if (_sending) return false;
     if (_selectedModel == null) return false;
@@ -290,7 +318,9 @@ class _ChatPageState extends State<ChatPage> {
 
   void _clearStoppedState() {
     _streamingAssistantText = '';
+    _streamingReasoningText = '';
     _userStopped = false;
+    _generationPhase = _GenerationPhase.idle;
     _trimWarning = null;
   }
 
@@ -320,6 +350,7 @@ class _ChatPageState extends State<ChatPage> {
     if (mounted) {
       setState(() {
         _sending = false;
+        _generationPhase = _GenerationPhase.idle;
       });
     }
   }
@@ -592,6 +623,8 @@ class _ChatPageState extends State<ChatPage> {
       _sending = true;
       _userStopped = false;
       _streamingAssistantText = '';
+      _streamingReasoningText = '';
+      _generationPhase = _GenerationPhase.waiting;
     });
 
     _scrollToBottom();
@@ -600,8 +633,10 @@ class _ChatPageState extends State<ChatPage> {
     _activeGenerationId = genId;
     _terminalHandled = false;
     _streamingAssistantText = '';
+    _streamingReasoningText = '';
 
     final localToken = _cancellationToken;
+    final capabilityKey = _selectedModelCapabilityKey;
 
     try {
       // Build context: exclude the target user message from history
@@ -681,10 +716,22 @@ class _ChatPageState extends State<ChatPage> {
         (event) {
           if (!_isGenerationActive(genId)) return;
 
-          if (event is ChatStreamDelta) {
+          if (event is ChatStreamReasoningDelta) {
+            setState(() {
+              if (capabilityKey != null) {
+                _reasoningCapableModels.add(capabilityKey);
+              }
+              _streamingReasoningText += event.content;
+              if (_streamingAssistantText.isEmpty) {
+                _generationPhase = _GenerationPhase.reasoning;
+              }
+            });
+            _scrollIfNearBottom();
+          } else if (event is ChatStreamDelta) {
             hasContent = true;
             setState(() {
               _streamingAssistantText += event.content;
+              _generationPhase = _GenerationPhase.responding;
             });
             _scrollIfNearBottom();
           } else if (event is ChatStreamCompleted) {
@@ -728,6 +775,9 @@ class _ChatPageState extends State<ChatPage> {
         reason: _GenerationEndReason.failed,
       );
       if (mounted) {
+        setState(() {
+          _streamingReasoningText = '';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid provider response')),
         );
@@ -762,10 +812,14 @@ class _ChatPageState extends State<ChatPage> {
                 id: target.replacedAssistantMessage!.id,
                 role: ChatRole.assistant,
                 content: _streamingAssistantText,
+                reasoningContent: _streamingReasoningText.isEmpty
+                    ? null
+                    : _streamingReasoningText,
                 createdAt: target.replacedAssistantMessage!.createdAt,
               );
             }
             _streamingAssistantText = '';
+            _streamingReasoningText = '';
           });
           _scrollIfNearBottom();
         }
@@ -782,6 +836,7 @@ class _ChatPageState extends State<ChatPage> {
           );
           setState(() {
             _streamingAssistantText = '';
+            _streamingReasoningText = '';
           });
         }
       }
@@ -791,6 +846,8 @@ class _ChatPageState extends State<ChatPage> {
         id: _nextId(),
         role: ChatRole.assistant,
         content: _streamingAssistantText,
+        reasoningContent:
+            _streamingReasoningText.isEmpty ? null : _streamingReasoningText,
         createdAt: now,
       );
 
@@ -822,6 +879,7 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _messages.add(assistantMessage);
           _streamingAssistantText = '';
+          _streamingReasoningText = '';
         });
         _scrollIfNearBottom();
       }
@@ -846,6 +904,7 @@ class _ChatPageState extends State<ChatPage> {
         );
         setState(() {
           _streamingAssistantText = '';
+          _streamingReasoningText = '';
         });
       }
     } else {
@@ -856,6 +915,11 @@ class _ChatPageState extends State<ChatPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(event.userMessage)),
         );
+      }
+      if (mounted) {
+        setState(() {
+          _streamingReasoningText = '';
+        });
       }
     }
   }
@@ -877,10 +941,14 @@ class _ChatPageState extends State<ChatPage> {
         );
         setState(() {
           _streamingAssistantText = '';
+          _streamingReasoningText = '';
         });
       }
     } else {
       if (mounted) {
+        setState(() {
+          _streamingReasoningText = '';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to get response')),
         );
@@ -910,6 +978,121 @@ class _ChatPageState extends State<ChatPage> {
   void _scrollIfNearBottom() {
     if (!_isNearBottom()) return;
     _scrollToBottom();
+  }
+
+  Widget _buildGenerationStatus(AppLocalizations l10n) {
+    final (label, icon) = switch (_generationPhase) {
+      _GenerationPhase.waiting => (
+          l10n.waitingForResponse,
+          const Icon(Icons.hourglass_top_rounded, size: 18),
+        ),
+      _GenerationPhase.reasoning => (
+          l10n.thinking,
+          const Icon(Icons.psychology_outlined, size: 18),
+        ),
+      _GenerationPhase.responding => (
+          l10n.generatingResponse,
+          const Icon(Icons.edit_note_rounded, size: 18),
+        ),
+      _GenerationPhase.idle => ('', const SizedBox.shrink()),
+    };
+
+    if (label.isEmpty) return const SizedBox.shrink();
+
+    return Semantics(
+      liveRegion: true,
+      label: label,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        child: Row(
+          key: ValueKey(_generationPhase),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReasoningPanel(
+    AppLocalizations l10n,
+    String reasoning,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.psychology_outlined,
+                size: 17,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                l10n.thinkingProcess,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SelectableText(
+            reasoning,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssistantContent({
+    required AppLocalizations l10n,
+    required String content,
+    required String reasoning,
+    required bool isStreaming,
+    required Key contentKey,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (isStreaming && _generationPhase != _GenerationPhase.idle) ...[
+          _buildGenerationStatus(l10n),
+          if (reasoning.isNotEmpty || content.isNotEmpty)
+            const SizedBox(height: 10),
+        ],
+        if (_showReasoning && reasoning.isNotEmpty)
+          _buildReasoningPanel(l10n, reasoning),
+        if (content.isNotEmpty)
+          AssistantMessageContent(
+            source: content,
+            key: contentKey,
+          ),
+      ],
+    );
   }
 
   @override
@@ -1017,8 +1200,7 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                       ),
                     Expanded(
-                      child: _messages.isEmpty &&
-                              _streamingAssistantText.isEmpty
+                      child: _messages.isEmpty && !_hasTransientAssistant
                           ? Center(
                               child: Text(
                                 l10n.startConversation,
@@ -1029,7 +1211,7 @@ class _ChatPageState extends State<ChatPage> {
                               controller: _scrollController,
                               padding: const EdgeInsets.all(16),
                               itemCount: _messages.length +
-                                  (_streamingAssistantText.isNotEmpty ? 1 : 0),
+                                  (_hasTransientAssistant ? 1 : 0),
                               itemBuilder: (context, index) {
                                 final isStreaming = index == _messages.length;
                                 final isUser = !isStreaming &&
@@ -1041,6 +1223,9 @@ class _ChatPageState extends State<ChatPage> {
                                 final content = isStreaming
                                     ? _streamingAssistantText
                                     : _messages[index].content;
+                                final reasoning = isStreaming
+                                    ? _streamingReasoningText
+                                    : _messages[index].reasoningContent ?? '';
 
                                 return Column(
                                   crossAxisAlignment: isUser
@@ -1078,10 +1263,14 @@ class _ChatPageState extends State<ChatPage> {
                                         ),
                                         child: isUser
                                             ? Text(content)
-                                            : AssistantMessageContent(
-                                                source: content,
-                                                key: ValueKey(
-                                                    'msg_${isStreaming ? 'streaming' : _messages[index].id}'),
+                                            : _buildAssistantContent(
+                                                l10n: l10n,
+                                                content: content,
+                                                reasoning: reasoning,
+                                                isStreaming: isStreaming,
+                                                contentKey: ValueKey(
+                                                  'msg_${isStreaming ? 'streaming' : _messages[index].id}',
+                                                ),
                                               ),
                                       ),
                                     ),
@@ -1168,60 +1357,112 @@ class _ChatPageState extends State<ChatPage> {
                         ],
                       ),
                       child: SafeArea(
-                        child: Row(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_canRetry && !_sending)
-                              Semantics(
-                                label: l10n.retry,
-                                child: IconButton(
-                                  onPressed: _retryLastTurn,
-                                  icon: const Icon(Icons.refresh, size: 20),
-                                  tooltip: l10n.retry,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.psychology_outlined,
+                                  size: 18,
+                                  color: _selectedModelSupportsReasoning
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                 ),
-                              ),
-                            Expanded(
-                              child: TextField(
-                                controller: _messageController,
-                                decoration: InputDecoration(
-                                  hintText: l10n.typeMessage,
-                                  border: const OutlineInputBorder(),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
+                                const SizedBox(width: 8),
+                                Text(
+                                  l10n.showReasoning,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: _selectedModelSupportsReasoning
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                      ),
+                                ),
+                                const Spacer(),
+                                Switch.adaptive(
+                                  value: _selectedModelSupportsReasoning &&
+                                      _showReasoning,
+                                  onChanged: _selectedModelSupportsReasoning
+                                      ? (value) {
+                                          setState(() {
+                                            _showReasoning = value;
+                                          });
+                                        }
+                                      : null,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                if (_canRetry && !_sending)
+                                  Semantics(
+                                    label: l10n.retry,
+                                    child: IconButton(
+                                      onPressed: _retryLastTurn,
+                                      icon: const Icon(Icons.refresh, size: 20),
+                                      tooltip: l10n.retry,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _messageController,
+                                    decoration: InputDecoration(
+                                      hintText: l10n.typeMessage,
+                                      border: const OutlineInputBorder(),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    maxLines: null,
+                                    textInputAction: TextInputAction.send,
+                                    enabled: _canSend,
+                                    onSubmitted:
+                                        _canSend ? (_) => _send() : null,
                                   ),
                                 ),
-                                maxLines: null,
-                                textInputAction: TextInputAction.send,
-                                enabled: _canSend,
-                                onSubmitted: _canSend ? (_) => _send() : null,
-                              ),
+                                const SizedBox(width: 8),
+                                if (_canStop)
+                                  Semantics(
+                                    label: l10n.stopGenerating,
+                                    child: IconButton(
+                                      onPressed: _stopGeneration,
+                                      icon: const Icon(Icons.stop_rounded),
+                                      tooltip: l10n.stopGenerating,
+                                    ),
+                                  )
+                                else
+                                  Semantics(
+                                    label: l10n.send,
+                                    child: IconButton(
+                                      onPressed: _canSend ? _send : null,
+                                      tooltip: l10n.send,
+                                      icon: _sending
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.send),
+                                    ),
+                                  ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            if (_canStop)
-                              Semantics(
-                                label: l10n.stopGenerating,
-                                child: IconButton(
-                                  onPressed: _stopGeneration,
-                                  icon: const Icon(Icons.stop_rounded),
-                                  tooltip: l10n.stopGenerating,
-                                ),
-                              )
-                            else
-                              Semantics(
-                                label: l10n.send,
-                                child: IconButton(
-                                  onPressed: _canSend ? _send : null,
-                                  tooltip: l10n.send,
-                                  icon: _sending
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        )
-                                      : const Icon(Icons.send),
-                                ),
-                              ),
                           ],
                         ),
                       ),

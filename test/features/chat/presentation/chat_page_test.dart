@@ -6625,6 +6625,77 @@ void main() {
       });
     });
 
+    group('Reasoning visibility', () {
+      testWidgets('shows generation phases and enables reasoning after support',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'custom',
+          displayName: 'Reasoning Provider',
+          baseUrl: 'https://api.example.com/v1',
+          defaultModel: 'reasoning-model',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('custom', 'test-key');
+
+        final streamController = chatClient.startStream();
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        var reasoningSwitch = tester.widget<Switch>(find.byType(Switch));
+        expect(reasoningSwitch.onChanged, isNull);
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Explain this',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pump();
+
+        expect(find.text('Waiting for response'), findsOneWidget);
+
+        streamController.add(const ChatStreamReasoningDelta('Step 1'));
+        await tester.pump();
+
+        expect(find.text('Thinking'), findsOneWidget);
+        reasoningSwitch = tester.widget<Switch>(find.byType(Switch));
+        expect(reasoningSwitch.onChanged, isNotNull);
+        expect(find.text('Step 1'), findsNothing);
+
+        await tester.tap(find.byType(Switch));
+        await tester.pump();
+        expect(find.text('Step 1'), findsOneWidget);
+
+        streamController.add(const ChatStreamDelta('Final answer'));
+        await tester.pump();
+
+        expect(find.text('Generating response'), findsOneWidget);
+        expect(find.text('Final answer'), findsOneWidget);
+
+        streamController.add(const ChatStreamCompleted());
+        await streamController.close();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Generating response'), findsNothing);
+        expect(find.text('Step 1'), findsOneWidget);
+        expect(find.text('Final answer'), findsOneWidget);
+
+        await tester.tap(find.byType(Switch));
+        await tester.pump();
+        expect(find.text('Step 1'), findsNothing);
+        expect(find.text('Final answer'), findsOneWidget);
+      });
+    });
+
     group('Language switch during stream', () {
       testWidgets('stream delivers all deltas and completes',
           (WidgetTester tester) async {

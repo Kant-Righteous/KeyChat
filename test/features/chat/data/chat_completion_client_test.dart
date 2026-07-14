@@ -1066,6 +1066,33 @@ void main() {
         expect(events[2], isA<ChatStreamCompleted>());
       });
 
+      test('reasoning SSE delta is emitted separately from answer content',
+          () async {
+        adapter.statusCode = 200;
+        adapter.streamResponse = Stream.fromIterable([
+          'data: {"choices":[{"delta":{"reasoning_content":"Step 1"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"Answer"}}]}\n\n',
+          'data: [DONE]\n\n',
+        ]);
+
+        final events = <ChatStreamEvent>[];
+        client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'reasoning-model',
+          messages: [const ChatRequestMessage(role: 'user', content: 'Hello')],
+        ).listen(events.add);
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        expect(events.length, 3);
+        expect(events[0], isA<ChatStreamReasoningDelta>());
+        expect((events[0] as ChatStreamReasoningDelta).content, 'Step 1');
+        expect(events[1], isA<ChatStreamDelta>());
+        expect((events[1] as ChatStreamDelta).content, 'Answer');
+        expect(events[2], isA<ChatStreamCompleted>());
+      });
+
       test('[DONE] produces exactly one Completed', () async {
         adapter.statusCode = 200;
         adapter.streamResponse = Stream.fromIterable([

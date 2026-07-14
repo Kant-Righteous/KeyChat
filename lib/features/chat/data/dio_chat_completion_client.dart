@@ -295,19 +295,16 @@ class DioChatCompletionClient implements ChatCompletionClient {
           if (sseEvent.data == null) return;
 
           try {
-            final parsed = _parseDelta(sseEvent.data!);
-            if (parsed != null) {
-              if (parsed.isNotEmpty) {
-                hasContent = true;
-                controller.add(ChatStreamDelta(parsed));
-              }
-            } else {
-              // Check if this is a reasoning-only chunk
-              final isReasoning = _hasReasoningContent(sseEvent.data!);
-              if (isReasoning) {
-                hasReasoning = true;
-                // Don't add to stream, just acknowledge it exists
-              }
+            final reasoning = _parseReasoningDelta(sseEvent.data!);
+            if (reasoning != null && reasoning.isNotEmpty) {
+              hasReasoning = true;
+              controller.add(ChatStreamReasoningDelta(reasoning));
+            }
+
+            final content = _parseDelta(sseEvent.data!);
+            if (content != null && content.isNotEmpty) {
+              hasContent = true;
+              controller.add(ChatStreamDelta(content));
             }
           } on FormatException {
             if (!terminated) {
@@ -427,25 +424,25 @@ class DioChatCompletionClient implements ChatCompletionClient {
     return null;
   }
 
-  static bool _hasReasoningContent(String data) {
-    try {
-      final json = jsonDecode(data);
-      if (json is! Map<String, dynamic>) return false;
+  static String? _parseReasoningDelta(String data) {
+    final json = jsonDecode(data);
+    if (json is! Map<String, dynamic>) return null;
 
-      final choices = json['choices'];
-      if (choices is! List || choices.isEmpty) return false;
+    final choices = json['choices'];
+    if (choices is! List || choices.isEmpty) return null;
 
-      final first = choices.first;
-      if (first is! Map<String, dynamic>) return false;
+    final first = choices.first;
+    if (first is! Map<String, dynamic>) return null;
 
-      final delta = first['delta'];
-      if (delta is! Map<String, dynamic>) return false;
+    final delta = first['delta'];
+    if (delta is! Map<String, dynamic>) return null;
 
-      final reasoning = delta['reasoning_content'];
-      return reasoning is String && reasoning.isNotEmpty;
-    } catch (_) {
-      return false;
+    final reasoning = delta['reasoning_content'];
+    if (reasoning is String && reasoning.isNotEmpty) {
+      return reasoning;
     }
+
+    return null;
   }
 
   ChatCompletionResult _mapDioError(DioException e) {
