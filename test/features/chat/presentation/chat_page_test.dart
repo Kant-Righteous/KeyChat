@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../../../test_helpers.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
+import 'package:keychat/features/chat/application/generation_keep_alive.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/chat_context_builder.dart';
@@ -136,6 +137,21 @@ class FakeChatCompletionClient implements ChatCompletionClient {
         userMessage: 'No result configured',
       ),
     ]);
+  }
+}
+
+class FakeGenerationKeepAlive implements GenerationKeepAlive {
+  int startCallCount = 0;
+  int stopCallCount = 0;
+
+  @override
+  Future<void> start() async {
+    startCallCount++;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCallCount++;
   }
 }
 
@@ -1573,6 +1589,64 @@ void main() {
 
       expect(chatClient.streamCallCount, 1);
       expect(chatClient.callCount, 0);
+    });
+
+    testWidgets('keeps generation active while app is paused',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      final streamController = chatClient.startStream();
+      final keepAlive = FakeGenerationKeepAlive();
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+            generationKeepAlive: keepAlive,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      expect(keepAlive.startCallCount, 1);
+      expect(keepAlive.stopCallCount, 0);
+      expect(chatClient.lastCancellationToken?.isCancelled, false);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      streamController.add(const ChatStreamDelta('Background answer'));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      expect(find.text('Background answer'), findsOneWidget);
+      expect(chatClient.lastCancellationToken?.isCancelled, false);
+
+      streamController.add(const ChatStreamCompleted());
+      await streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(keepAlive.stopCallCount, 1);
+      final conversation = await historyStore.readLatestConversation();
+      final messages = await historyStore.readMessages(conversation!.id);
+      expect(messages.last.content, 'Background answer');
     });
 
     testWidgets('delta does not write to history store',

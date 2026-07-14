@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/agents/data/drift_agent_profile_store.dart';
 import 'package:keychat/features/agents/presentation/agents_page.dart';
+import 'package:keychat/features/chat/application/generation_keep_alive.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/dio_chat_completion_client.dart';
 import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
@@ -34,6 +35,7 @@ class _AppShellState extends State<AppShell> {
   late final DefaultChatClientResolver _chatClientResolver;
   late final DefaultConnectionTesterResolver _connectionTesterResolver;
   late final DriftAgentProfileStore _agentStore;
+  late final AndroidGenerationKeepAlive _generationKeepAlive;
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _AppShellState extends State<AppShell> {
       openAiCompatibleTester: _connectionTester,
     );
     _agentStore = DriftAgentProfileStore(_database);
+    _generationKeepAlive = AndroidGenerationKeepAlive();
   }
 
   @override
@@ -70,6 +73,7 @@ class _AppShellState extends State<AppShell> {
         configStore: _configStore,
         historyStore: _historyStore,
         agentStore: _agentStore,
+        generationKeepAlive: _generationKeepAlive,
       ),
       ProvidersPage(
         apiKeyStore: _apiKeyStore,

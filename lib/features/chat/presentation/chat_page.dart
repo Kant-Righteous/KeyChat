@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
+import 'package:keychat/features/chat/application/generation_keep_alive.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
@@ -77,6 +78,7 @@ class ChatPage extends StatefulWidget {
   final ChatHistoryStore historyStore;
   final AgentProfileStore agentStore;
   final ChatContextBuilder contextBuilder;
+  final GenerationKeepAlive generationKeepAlive;
 
   ChatPage({
     super.key,
@@ -86,7 +88,10 @@ class ChatPage extends StatefulWidget {
     required this.historyStore,
     required this.agentStore,
     ChatContextBuilder? contextBuilder,
-  }) : contextBuilder = contextBuilder ?? ChatContextBuilder();
+    GenerationKeepAlive? generationKeepAlive,
+  })  : contextBuilder = contextBuilder ?? ChatContextBuilder(),
+        generationKeepAlive =
+            generationKeepAlive ?? const NoopGenerationKeepAlive();
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -344,6 +349,7 @@ class _ChatPageState extends State<ChatPage> {
 
     _safeCancel(sub);
     _safeCancelToken(token);
+    unawaited(widget.generationKeepAlive.stop());
 
     if (reason == _GenerationEndReason.disposed) return;
 
@@ -634,6 +640,9 @@ class _ChatPageState extends State<ChatPage> {
     _terminalHandled = false;
     _streamingAssistantText = '';
     _streamingReasoningText = '';
+
+    await widget.generationKeepAlive.start();
+    if (!_isGenerationActive(genId)) return;
 
     final localToken = _cancellationToken;
     final capabilityKey = _selectedModelCapabilityKey;

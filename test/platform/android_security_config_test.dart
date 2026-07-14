@@ -9,6 +9,22 @@ void main() {
       expect(manifest, contains('android.permission.INTERNET'));
     });
 
+    test('main Manifest declares background generation permissions', () {
+      final manifest =
+          File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+      expect(manifest, contains('android.permission.FOREGROUND_SERVICE'));
+      expect(
+          manifest, contains('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
+    });
+
+    test('main Manifest registers dataSync generation service', () {
+      final manifest =
+          File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+      expect(manifest, contains('android:name=".KeyChatApplication"'));
+      expect(manifest, contains('android:name=".BackgroundGenerationService"'));
+      expect(manifest, contains('android:foregroundServiceType="dataSync"'));
+    });
+
     test('main Manifest has allowBackup=false', () {
       final manifest =
           File('android/app/src/main/AndroidManifest.xml').readAsStringSync();

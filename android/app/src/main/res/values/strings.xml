@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KeyChat</string>
+    <string name="background_generation_channel_name">Background answers</string>
+    <string name="background_generation_channel_description">Keeps an answer running after KeyChat leaves the screen</string>
+    <string name="background_generation_notification">Generating an answer in the background</string>
+</resources>
