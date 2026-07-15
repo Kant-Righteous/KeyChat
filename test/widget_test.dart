@@ -92,6 +92,9 @@ class _FakeHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required String messageId,
     required String content,
+    String? providerIdSnapshot,
+    String? providerNameSnapshot,
+    String? modelIdSnapshot,
     required DateTime conversationUpdatedAt,
   }) async {}
 }

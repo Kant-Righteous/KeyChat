@@ -1281,6 +1281,24 @@ class $ChatMessagesTable extends ChatMessages
   late final GeneratedColumn<String> content = GeneratedColumn<String>(
       'content', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _providerIdSnapshotMeta =
+      const VerificationMeta('providerIdSnapshot');
+  @override
+  late final GeneratedColumn<String> providerIdSnapshot =
+      GeneratedColumn<String>('provider_id_snapshot', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _providerNameSnapshotMeta =
+      const VerificationMeta('providerNameSnapshot');
+  @override
+  late final GeneratedColumn<String> providerNameSnapshot =
+      GeneratedColumn<String>('provider_name_snapshot', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _modelIdSnapshotMeta =
+      const VerificationMeta('modelIdSnapshot');
+  @override
+  late final GeneratedColumn<String> modelIdSnapshot = GeneratedColumn<String>(
+      'model_id_snapshot', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -1288,8 +1306,16 @@ class $ChatMessagesTable extends ChatMessages
       'created_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, conversationId, role, content, createdAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        conversationId,
+        role,
+        content,
+        providerIdSnapshot,
+        providerNameSnapshot,
+        modelIdSnapshot,
+        createdAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1325,6 +1351,24 @@ class $ChatMessagesTable extends ChatMessages
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('provider_id_snapshot')) {
+      context.handle(
+          _providerIdSnapshotMeta,
+          providerIdSnapshot.isAcceptableOrUnknown(
+              data['provider_id_snapshot']!, _providerIdSnapshotMeta));
+    }
+    if (data.containsKey('provider_name_snapshot')) {
+      context.handle(
+          _providerNameSnapshotMeta,
+          providerNameSnapshot.isAcceptableOrUnknown(
+              data['provider_name_snapshot']!, _providerNameSnapshotMeta));
+    }
+    if (data.containsKey('model_id_snapshot')) {
+      context.handle(
+          _modelIdSnapshotMeta,
+          modelIdSnapshot.isAcceptableOrUnknown(
+              data['model_id_snapshot']!, _modelIdSnapshotMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -1348,6 +1392,13 @@ class $ChatMessagesTable extends ChatMessages
           .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
       content: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      providerIdSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}provider_id_snapshot']),
+      providerNameSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}provider_name_snapshot']),
+      modelIdSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}model_id_snapshot']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
@@ -1364,12 +1415,18 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
   final String conversationId;
   final String role;
   final String content;
+  final String? providerIdSnapshot;
+  final String? providerNameSnapshot;
+  final String? modelIdSnapshot;
   final DateTime createdAt;
   const ChatMessage(
       {required this.id,
       required this.conversationId,
       required this.role,
       required this.content,
+      this.providerIdSnapshot,
+      this.providerNameSnapshot,
+      this.modelIdSnapshot,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1378,6 +1435,15 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
     map['conversation_id'] = Variable<String>(conversationId);
     map['role'] = Variable<String>(role);
     map['content'] = Variable<String>(content);
+    if (!nullToAbsent || providerIdSnapshot != null) {
+      map['provider_id_snapshot'] = Variable<String>(providerIdSnapshot);
+    }
+    if (!nullToAbsent || providerNameSnapshot != null) {
+      map['provider_name_snapshot'] = Variable<String>(providerNameSnapshot);
+    }
+    if (!nullToAbsent || modelIdSnapshot != null) {
+      map['model_id_snapshot'] = Variable<String>(modelIdSnapshot);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -1388,6 +1454,15 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       conversationId: Value(conversationId),
       role: Value(role),
       content: Value(content),
+      providerIdSnapshot: providerIdSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerIdSnapshot),
+      providerNameSnapshot: providerNameSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerNameSnapshot),
+      modelIdSnapshot: modelIdSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelIdSnapshot),
       createdAt: Value(createdAt),
     );
   }
@@ -1400,6 +1475,11 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       conversationId: serializer.fromJson<String>(json['conversationId']),
       role: serializer.fromJson<String>(json['role']),
       content: serializer.fromJson<String>(json['content']),
+      providerIdSnapshot:
+          serializer.fromJson<String?>(json['providerIdSnapshot']),
+      providerNameSnapshot:
+          serializer.fromJson<String?>(json['providerNameSnapshot']),
+      modelIdSnapshot: serializer.fromJson<String?>(json['modelIdSnapshot']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1411,6 +1491,9 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
       'conversationId': serializer.toJson<String>(conversationId),
       'role': serializer.toJson<String>(role),
       'content': serializer.toJson<String>(content),
+      'providerIdSnapshot': serializer.toJson<String?>(providerIdSnapshot),
+      'providerNameSnapshot': serializer.toJson<String?>(providerNameSnapshot),
+      'modelIdSnapshot': serializer.toJson<String?>(modelIdSnapshot),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1420,12 +1503,24 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           String? conversationId,
           String? role,
           String? content,
+          Value<String?> providerIdSnapshot = const Value.absent(),
+          Value<String?> providerNameSnapshot = const Value.absent(),
+          Value<String?> modelIdSnapshot = const Value.absent(),
           DateTime? createdAt}) =>
       ChatMessage(
         id: id ?? this.id,
         conversationId: conversationId ?? this.conversationId,
         role: role ?? this.role,
         content: content ?? this.content,
+        providerIdSnapshot: providerIdSnapshot.present
+            ? providerIdSnapshot.value
+            : this.providerIdSnapshot,
+        providerNameSnapshot: providerNameSnapshot.present
+            ? providerNameSnapshot.value
+            : this.providerNameSnapshot,
+        modelIdSnapshot: modelIdSnapshot.present
+            ? modelIdSnapshot.value
+            : this.modelIdSnapshot,
         createdAt: createdAt ?? this.createdAt,
       );
   ChatMessage copyWithCompanion(ChatMessagesCompanion data) {
@@ -1436,6 +1531,15 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           : this.conversationId,
       role: data.role.present ? data.role.value : this.role,
       content: data.content.present ? data.content.value : this.content,
+      providerIdSnapshot: data.providerIdSnapshot.present
+          ? data.providerIdSnapshot.value
+          : this.providerIdSnapshot,
+      providerNameSnapshot: data.providerNameSnapshot.present
+          ? data.providerNameSnapshot.value
+          : this.providerNameSnapshot,
+      modelIdSnapshot: data.modelIdSnapshot.present
+          ? data.modelIdSnapshot.value
+          : this.modelIdSnapshot,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1447,13 +1551,17 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           ..write('conversationId: $conversationId, ')
           ..write('role: $role, ')
           ..write('content: $content, ')
+          ..write('providerIdSnapshot: $providerIdSnapshot, ')
+          ..write('providerNameSnapshot: $providerNameSnapshot, ')
+          ..write('modelIdSnapshot: $modelIdSnapshot, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, conversationId, role, content, createdAt);
+  int get hashCode => Object.hash(id, conversationId, role, content,
+      providerIdSnapshot, providerNameSnapshot, modelIdSnapshot, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1462,6 +1570,9 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
           other.conversationId == this.conversationId &&
           other.role == this.role &&
           other.content == this.content &&
+          other.providerIdSnapshot == this.providerIdSnapshot &&
+          other.providerNameSnapshot == this.providerNameSnapshot &&
+          other.modelIdSnapshot == this.modelIdSnapshot &&
           other.createdAt == this.createdAt);
 }
 
@@ -1470,6 +1581,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
   final Value<String> conversationId;
   final Value<String> role;
   final Value<String> content;
+  final Value<String?> providerIdSnapshot;
+  final Value<String?> providerNameSnapshot;
+  final Value<String?> modelIdSnapshot;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const ChatMessagesCompanion({
@@ -1477,6 +1591,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     this.conversationId = const Value.absent(),
     this.role = const Value.absent(),
     this.content = const Value.absent(),
+    this.providerIdSnapshot = const Value.absent(),
+    this.providerNameSnapshot = const Value.absent(),
+    this.modelIdSnapshot = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1485,6 +1602,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     required String conversationId,
     required String role,
     required String content,
+    this.providerIdSnapshot = const Value.absent(),
+    this.providerNameSnapshot = const Value.absent(),
+    this.modelIdSnapshot = const Value.absent(),
     required DateTime createdAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -1497,6 +1617,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     Expression<String>? conversationId,
     Expression<String>? role,
     Expression<String>? content,
+    Expression<String>? providerIdSnapshot,
+    Expression<String>? providerNameSnapshot,
+    Expression<String>? modelIdSnapshot,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -1505,6 +1628,11 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
       if (conversationId != null) 'conversation_id': conversationId,
       if (role != null) 'role': role,
       if (content != null) 'content': content,
+      if (providerIdSnapshot != null)
+        'provider_id_snapshot': providerIdSnapshot,
+      if (providerNameSnapshot != null)
+        'provider_name_snapshot': providerNameSnapshot,
+      if (modelIdSnapshot != null) 'model_id_snapshot': modelIdSnapshot,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1515,6 +1643,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
       Value<String>? conversationId,
       Value<String>? role,
       Value<String>? content,
+      Value<String?>? providerIdSnapshot,
+      Value<String?>? providerNameSnapshot,
+      Value<String?>? modelIdSnapshot,
       Value<DateTime>? createdAt,
       Value<int>? rowid}) {
     return ChatMessagesCompanion(
@@ -1522,6 +1653,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
       conversationId: conversationId ?? this.conversationId,
       role: role ?? this.role,
       content: content ?? this.content,
+      providerIdSnapshot: providerIdSnapshot ?? this.providerIdSnapshot,
+      providerNameSnapshot: providerNameSnapshot ?? this.providerNameSnapshot,
+      modelIdSnapshot: modelIdSnapshot ?? this.modelIdSnapshot,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1542,6 +1676,16 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (providerIdSnapshot.present) {
+      map['provider_id_snapshot'] = Variable<String>(providerIdSnapshot.value);
+    }
+    if (providerNameSnapshot.present) {
+      map['provider_name_snapshot'] =
+          Variable<String>(providerNameSnapshot.value);
+    }
+    if (modelIdSnapshot.present) {
+      map['model_id_snapshot'] = Variable<String>(modelIdSnapshot.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1558,6 +1702,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
           ..write('conversationId: $conversationId, ')
           ..write('role: $role, ')
           ..write('content: $content, ')
+          ..write('providerIdSnapshot: $providerIdSnapshot, ')
+          ..write('providerNameSnapshot: $providerNameSnapshot, ')
+          ..write('modelIdSnapshot: $modelIdSnapshot, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2314,6 +2461,9 @@ typedef $$ChatMessagesTableCreateCompanionBuilder = ChatMessagesCompanion
   required String conversationId,
   required String role,
   required String content,
+  Value<String?> providerIdSnapshot,
+  Value<String?> providerNameSnapshot,
+  Value<String?> modelIdSnapshot,
   required DateTime createdAt,
   Value<int> rowid,
 });
@@ -2323,6 +2473,9 @@ typedef $$ChatMessagesTableUpdateCompanionBuilder = ChatMessagesCompanion
   Value<String> conversationId,
   Value<String> role,
   Value<String> content,
+  Value<String?> providerIdSnapshot,
+  Value<String?> providerNameSnapshot,
+  Value<String?> modelIdSnapshot,
   Value<DateTime> createdAt,
   Value<int> rowid,
 });
@@ -2364,6 +2517,18 @@ class $$ChatMessagesTableFilterComposer
 
   ColumnFilters<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get providerIdSnapshot => $composableBuilder(
+      column: $table.providerIdSnapshot,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get providerNameSnapshot => $composableBuilder(
+      column: $table.providerNameSnapshot,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get modelIdSnapshot => $composableBuilder(
+      column: $table.modelIdSnapshot,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -2407,6 +2572,18 @@ class $$ChatMessagesTableOrderingComposer
   ColumnOrderings<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get providerIdSnapshot => $composableBuilder(
+      column: $table.providerIdSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get providerNameSnapshot => $composableBuilder(
+      column: $table.providerNameSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get modelIdSnapshot => $composableBuilder(
+      column: $table.modelIdSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -2448,6 +2625,15 @@ class $$ChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get providerIdSnapshot => $composableBuilder(
+      column: $table.providerIdSnapshot, builder: (column) => column);
+
+  GeneratedColumn<String> get providerNameSnapshot => $composableBuilder(
+      column: $table.providerNameSnapshot, builder: (column) => column);
+
+  GeneratedColumn<String> get modelIdSnapshot => $composableBuilder(
+      column: $table.modelIdSnapshot, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -2500,6 +2686,9 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             Value<String> conversationId = const Value.absent(),
             Value<String> role = const Value.absent(),
             Value<String> content = const Value.absent(),
+            Value<String?> providerIdSnapshot = const Value.absent(),
+            Value<String?> providerNameSnapshot = const Value.absent(),
+            Value<String?> modelIdSnapshot = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2508,6 +2697,9 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             conversationId: conversationId,
             role: role,
             content: content,
+            providerIdSnapshot: providerIdSnapshot,
+            providerNameSnapshot: providerNameSnapshot,
+            modelIdSnapshot: modelIdSnapshot,
             createdAt: createdAt,
             rowid: rowid,
           ),
@@ -2516,6 +2708,9 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             required String conversationId,
             required String role,
             required String content,
+            Value<String?> providerIdSnapshot = const Value.absent(),
+            Value<String?> providerNameSnapshot = const Value.absent(),
+            Value<String?> modelIdSnapshot = const Value.absent(),
             required DateTime createdAt,
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2524,6 +2719,9 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             conversationId: conversationId,
             role: role,
             content: content,
+            providerIdSnapshot: providerIdSnapshot,
+            providerNameSnapshot: providerNameSnapshot,
+            modelIdSnapshot: modelIdSnapshot,
             createdAt: createdAt,
             rowid: rowid,
           ),

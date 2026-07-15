@@ -64,6 +64,90 @@ void main() {
       expect(asst.content, 'New reply');
     });
 
+    test('persists provider and model snapshots without endpoint secrets',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_snapshot',
+          title: 'Snapshot',
+          providerId: 'openai',
+          model: 'gpt-4.1',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_snapshot_user',
+          role: domain.ChatRole.user,
+          content: 'Hello',
+          providerIdSnapshot: 'openai',
+          providerNameSnapshot: 'OpenAI at send time',
+          modelIdSnapshot: 'gpt-4.1',
+          createdAt: DateTime(2024),
+        ),
+      );
+      await store.appendMessage(
+        conversationId: 'conv_snapshot',
+        message: domain.ChatMessage(
+          id: 'msg_snapshot_assistant',
+          role: domain.ChatRole.assistant,
+          content: 'Hi',
+          providerIdSnapshot: 'openai',
+          providerNameSnapshot: 'OpenAI at send time',
+          modelIdSnapshot: 'gpt-4.1',
+          createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+        ),
+      );
+
+      final messages = await store.readMessages('conv_snapshot');
+      expect(messages, hasLength(2));
+      expect(messages.first.providerIdSnapshot, 'openai');
+      expect(messages.first.providerNameSnapshot, 'OpenAI at send time');
+      expect(messages.first.modelIdSnapshot, 'gpt-4.1');
+      expect(messages.last.providerIdSnapshot, 'openai');
+      expect(messages.last.providerNameSnapshot, 'OpenAI at send time');
+      expect(messages.last.modelIdSnapshot, 'gpt-4.1');
+
+      final columns = db.chatMessages.$columns.map((column) => column.name);
+      expect(columns, isNot(contains('api_key')));
+      expect(columns, isNot(contains('base_url')));
+      expect(columns, isNot(contains('authorization')));
+    });
+
+    test('legacy rows read with null model snapshots', () async {
+      await seedBasicData();
+
+      final messages = await store.readMessages('conv_1');
+      final assistant = messages.firstWhere(
+        (message) => message.role == domain.ChatRole.assistant,
+      );
+
+      expect(assistant.providerIdSnapshot, isNull);
+      expect(assistant.providerNameSnapshot, isNull);
+      expect(assistant.modelIdSnapshot, isNull);
+    });
+
+    test('regenerate replacement stores the model snapshot it used', () async {
+      await seedBasicData();
+
+      await store.replaceAssistantMessage(
+        conversationId: 'conv_1',
+        messageId: 'msg_asst',
+        content: 'Regenerated reply',
+        providerIdSnapshot: 'deepseek',
+        providerNameSnapshot: 'DeepSeek',
+        modelIdSnapshot: 'deepseek-chat',
+        conversationUpdatedAt: DateTime(2024, 2),
+      );
+
+      final messages = await store.readMessages('conv_1');
+      final assistant = messages.firstWhere((message) =>
+          message.id == 'msg_asst' &&
+          message.role == domain.ChatRole.assistant);
+      expect(assistant.providerIdSnapshot, 'deepseek');
+      expect(assistant.providerNameSnapshot, 'DeepSeek');
+      expect(assistant.modelIdSnapshot, 'deepseek-chat');
+    });
+
     test('preserves message id', () async {
       await seedBasicData();
 

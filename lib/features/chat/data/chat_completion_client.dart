@@ -8,6 +8,9 @@ class ChatMessage {
   final ChatRole role;
   final String content;
   final String? reasoningContent;
+  final String? providerIdSnapshot;
+  final String? providerNameSnapshot;
+  final String? modelIdSnapshot;
   final DateTime createdAt;
 
   const ChatMessage({
@@ -15,6 +18,9 @@ class ChatMessage {
     required this.role,
     required this.content,
     this.reasoningContent,
+    this.providerIdSnapshot,
+    this.providerNameSnapshot,
+    this.modelIdSnapshot,
     required this.createdAt,
   });
 }

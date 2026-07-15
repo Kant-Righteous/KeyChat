@@ -80,6 +80,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
                   ? 'user'
                   : 'assistant'),
               content: Value(firstMessage.content),
+              providerIdSnapshot: Value(firstMessage.providerIdSnapshot),
+              providerNameSnapshot: Value(firstMessage.providerNameSnapshot),
+              modelIdSnapshot: Value(firstMessage.modelIdSnapshot),
               createdAt: Value(firstMessage.createdAt),
             ),
           );
@@ -98,6 +101,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
             role: Value(
                 message.role == domain.ChatRole.user ? 'user' : 'assistant'),
             content: Value(message.content),
+            providerIdSnapshot: Value(message.providerIdSnapshot),
+            providerNameSnapshot: Value(message.providerNameSnapshot),
+            modelIdSnapshot: Value(message.modelIdSnapshot),
             createdAt: Value(message.createdAt),
           ),
         );
@@ -151,6 +157,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required String messageId,
     required String content,
+    String? providerIdSnapshot,
+    String? providerNameSnapshot,
+    String? modelIdSnapshot,
     required DateTime conversationUpdatedAt,
   }) async {
     await _db.transaction(() async {
@@ -172,6 +181,15 @@ class DriftChatHistoryStore implements ChatHistoryStore {
       await (_db.update(_db.chatMessages)..where((t) => t.id.equals(messageId)))
           .write(ChatMessagesCompanion(
         content: Value(content),
+        providerIdSnapshot: providerIdSnapshot == null
+            ? const Value.absent()
+            : Value(providerIdSnapshot),
+        providerNameSnapshot: providerNameSnapshot == null
+            ? const Value.absent()
+            : Value(providerNameSnapshot),
+        modelIdSnapshot: modelIdSnapshot == null
+            ? const Value.absent()
+            : Value(modelIdSnapshot),
       ));
 
       // Update conversation timestamp
@@ -203,6 +221,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
       role:
           row.role == 'user' ? domain.ChatRole.user : domain.ChatRole.assistant,
       content: row.content,
+      providerIdSnapshot: row.providerIdSnapshot,
+      providerNameSnapshot: row.providerNameSnapshot,
+      modelIdSnapshot: row.modelIdSnapshot,
       createdAt: row.createdAt,
     );
   }

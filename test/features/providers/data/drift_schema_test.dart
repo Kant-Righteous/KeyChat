@@ -81,8 +81,8 @@ void main() {
       expect(protocolCol.data['dflt_value'], "'openai_compatible'");
     });
 
-    test('schemaVersion is 4', () {
-      expect(db.schemaVersion, 4);
+    test('schemaVersion is 5', () {
+      expect(db.schemaVersion, 5);
     });
   });
 
@@ -142,17 +142,23 @@ void main() {
       expect(columnNames, contains('conversation_id'));
       expect(columnNames, contains('role'));
       expect(columnNames, contains('content'));
+      expect(columnNames, contains('provider_id_snapshot'));
+      expect(columnNames, contains('provider_name_snapshot'));
+      expect(columnNames, contains('model_id_snapshot'));
       expect(columnNames, contains('created_at'));
-      expect(columnNames.length, 5);
+      expect(columnNames.length, 8);
     });
 
-    test('table does not contain API key column', () {
+    test('table does not contain credentials or endpoint columns', () {
       final table = db.chatMessages;
       final columnNames = table.$columns.map((c) => c.name).toList();
 
       expect(columnNames, isNot(contains('api_key')));
       expect(columnNames, isNot(contains('apiKey')));
       expect(columnNames, isNot(contains('secret')));
+      expect(columnNames, isNot(contains('base_url')));
+      expect(columnNames, isNot(contains('authorization')));
+      expect(columnNames, isNot(contains('authorization_header')));
     });
   });
 }

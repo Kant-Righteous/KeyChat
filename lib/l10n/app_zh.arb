@@ -19,6 +19,7 @@
       "model": {"type": "String"}
     }
   },
+  "legacyModel": "历史模型",
   "newChat": "新对话",
   "history": "历史",
   "typeMessage": "输入消息...",

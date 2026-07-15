@@ -19,6 +19,7 @@
       "model": {"type": "String"}
     }
   },
+  "legacyModel": "Legacy model",
   "newChat": "New Chat",
   "history": "History",
   "typeMessage": "Type a message...",

@@ -41,6 +41,16 @@ class _ReadyProvider {
   });
 }
 
+final class _ModelSelection {
+  const _ModelSelection({
+    required this.provider,
+    required this.modelId,
+  });
+
+  final _ReadyProvider provider;
+  final String modelId;
+}
+
 enum _GenerationEndReason {
   completed,
   failed,
@@ -65,12 +75,16 @@ final class _GenerationTarget {
   const _GenerationTarget({
     required this.kind,
     required this.userMessage,
+    required this.provider,
+    required this.modelId,
     this.replacedAssistantMessage,
   });
 
   final ChatMessage userMessage;
   final ChatMessage? replacedAssistantMessage;
   final _GenerationKind kind;
+  final _ReadyProvider provider;
+  final String modelId;
 }
 
 class ChatPage extends StatefulWidget {
@@ -110,9 +124,11 @@ class _ChatPageState extends State<ChatPage> {
   final List<_ReadyProvider> _readyProviders = [];
   _ReadyProvider? _selectedProvider;
   final List<String> _availableModels = [];
+  final Map<String, List<String>> _modelsByProvider = {};
+  final Set<String> _loadedProviderIds = {};
+  final Set<String> _loadingProviderIds = {};
   String? _selectedModelId;
   bool _loadingModels = false;
-  int _modelLoadCounter = 0;
   final List<AgentProfileData> _agents = [];
   AgentProfileData? _selectedAgent;
   bool _loading = true;
@@ -128,6 +144,8 @@ class _ChatPageState extends State<ChatPage> {
   String? _protocolWarning;
   String _streamingAssistantText = '';
   String _streamingReasoningText = '';
+  String? _streamingProviderName;
+  String? _streamingModelId;
   final Set<String> _expandedReasoningKeys = {};
   _GenerationPhase _generationPhase = _GenerationPhase.idle;
   StreamSubscription<ChatStreamEvent>? _streamSubscription;
@@ -192,6 +210,18 @@ class _ChatPageState extends State<ChatPage> {
       historyMessages = await widget.historyStore.readMessages(conversation.id);
       restoredProviderId = conversation.providerId;
       restoredModelId = conversation.model;
+      for (final message in historyMessages.reversed) {
+        final providerId = message.providerIdSnapshot?.trim();
+        final modelId = message.modelIdSnapshot?.trim();
+        if (providerId != null &&
+            providerId.isNotEmpty &&
+            modelId != null &&
+            modelId.isNotEmpty) {
+          restoredProviderId = providerId;
+          restoredModelId = modelId;
+          break;
+        }
+      }
     }
 
     _ReadyProvider? selectedProvider;
@@ -205,10 +235,9 @@ class _ChatPageState extends State<ChatPage> {
       }
     }
 
-    if (selectedProvider == null &&
-        conversation == null &&
-        readyProviders.isNotEmpty) {
+    if (selectedProvider == null && readyProviders.isNotEmpty) {
       selectedProvider = readyProviders.first;
+      restoredModelId = selectedProvider.defaultModelId;
     }
 
     final selectedModelId = selectedProvider == null
@@ -244,11 +273,27 @@ class _ChatPageState extends State<ChatPage> {
       setState(() {
         _readyProviders.clear();
         _readyProviders.addAll(readyProviders);
+        _modelsByProvider
+          ..clear()
+          ..addEntries(readyProviders.map(
+            (provider) => MapEntry(
+              provider.providerId,
+              <String>[provider.defaultModelId],
+            ),
+          ));
+        _loadedProviderIds.clear();
+        _loadingProviderIds.clear();
         _selectedProvider = selectedProvider;
         _selectedModelId = selectedModelId;
         _availableModels.clear();
         if (selectedModelId != null) {
           _availableModels.add(selectedModelId);
+          final selectedModels =
+              _modelsByProvider[selectedProvider?.providerId];
+          if (selectedModels != null &&
+              !selectedModels.contains(selectedModelId)) {
+            selectedModels.add(selectedModelId);
+          }
         }
         _agents.clear();
         _agents.addAll(agents);
@@ -260,26 +305,24 @@ class _ChatPageState extends State<ChatPage> {
         _protocolWarning = protocolWarning;
 
         if (conversation != null &&
-            selectedProvider == null &&
+            readyProviders.isEmpty &&
             _persistWarning == null &&
             _protocolWarning == null) {
           _persistWarning = 'Provider is no longer available';
         }
       });
 
-      if (conversation == null && selectedProvider != null) {
+      if (selectedProvider != null) {
         unawaited(_loadModels(selectedProvider));
       }
     }
   }
 
-  bool get _isSelectionLocked => _activeConversationId != null;
+  bool get _isSelectionLocked => _activeConversationId != null || _sending;
 
   bool get _canSend {
     if (_sending) return false;
     if (_selectedProvider == null || _selectedModelId == null) return false;
-    if (_persistWarning != null) return false;
-    if (_protocolWarning != null) return false;
     return true;
   }
 
@@ -293,25 +336,21 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canRetry {
     if (_sending) return false;
-    if (_selectedProvider == null || _selectedModelId == null) return false;
-    if (_persistWarning != null) return false;
-    if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
     if (_messages.isEmpty) return false;
     final last = _messages.last;
-    return last.role == ChatRole.user;
+    return last.role == ChatRole.user && _selectionForMessage(last) != null;
   }
 
   bool get _canRegenerate {
     if (_sending) return false;
-    if (_selectedProvider == null || _selectedModelId == null) return false;
-    if (_persistWarning != null) return false;
-    if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
     if (_messages.length < 2) return false;
     final last = _messages.last;
     final secondLast = _messages[_messages.length - 2];
-    return last.role == ChatRole.assistant && secondLast.role == ChatRole.user;
+    return last.role == ChatRole.assistant &&
+        secondLast.role == ChatRole.user &&
+        _selectionForMessage(last) != null;
   }
 
   ChatMessage? get _lastUserMessage {
@@ -328,6 +367,27 @@ class _ChatPageState extends State<ChatPage> {
     return null;
   }
 
+  _ModelSelection? _selectionForMessage(ChatMessage message) {
+    final providerId = message.providerIdSnapshot?.trim();
+    final modelId = message.modelIdSnapshot?.trim();
+    if (providerId != null &&
+        providerId.isNotEmpty &&
+        modelId != null &&
+        modelId.isNotEmpty) {
+      for (final provider in _readyProviders) {
+        if (provider.providerId == providerId) {
+          return _ModelSelection(provider: provider, modelId: modelId);
+        }
+      }
+      return null;
+    }
+
+    final provider = _selectedProvider;
+    final selectedModelId = _selectedModelId;
+    if (provider == null || selectedModelId == null) return null;
+    return _ModelSelection(provider: provider, modelId: selectedModelId);
+  }
+
   String _nextId() {
     _idCounter++;
     return '${DateTime.now().microsecondsSinceEpoch}_$_idCounter';
@@ -336,6 +396,8 @@ class _ChatPageState extends State<ChatPage> {
   void _clearStoppedState() {
     _streamingAssistantText = '';
     _streamingReasoningText = '';
+    _streamingProviderName = null;
+    _streamingModelId = null;
     _expandedReasoningKeys.clear();
     _userStopped = false;
     _generationPhase = _GenerationPhase.idle;
@@ -387,8 +449,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _resetProviderSelection() {
-    _modelLoadCounter++;
     _loadingModels = false;
+    _loadingProviderIds.clear();
     _selectedProvider =
         _readyProviders.isNotEmpty ? _readyProviders.first : null;
     _selectedModelId = _selectedProvider?.defaultModelId;
@@ -398,36 +460,28 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _selectProvider(_ReadyProvider provider) async {
-    setState(() {
-      _modelLoadCounter++;
-      _loadingModels = false;
-      _selectedProvider = provider;
-      _selectedModelId = provider.defaultModelId;
-      _availableModels
-        ..clear()
-        ..add(provider.defaultModelId);
-    });
-    await _loadModels(provider);
-  }
-
   Future<void> _loadModels(_ReadyProvider provider) async {
+    if (_loadedProviderIds.contains(provider.providerId) ||
+        _loadingProviderIds.contains(provider.providerId)) {
+      return;
+    }
     final tester = widget.connectionTesterResolver?.resolve(provider.protocol);
-    if (tester == null || _isSelectionLocked) return;
+    if (tester == null) {
+      _loadedProviderIds.add(provider.providerId);
+      return;
+    }
 
-    final requestId = ++_modelLoadCounter;
-    setState(() => _loadingModels = true);
+    _loadingProviderIds.add(provider.providerId);
+    if (mounted) {
+      setState(() => _loadingModels = true);
+    }
 
     try {
       final result = await tester.testConnection(
         baseUrl: provider.baseUrl,
         apiKey: provider.apiKey,
       );
-      if (!mounted ||
-          requestId != _modelLoadCounter ||
-          _selectedProvider?.providerId != provider.providerId) {
-        return;
-      }
+      if (!mounted) return;
 
       if (result.success) {
         final models = <String>{provider.defaultModelId};
@@ -438,11 +492,14 @@ class _ChatPageState extends State<ChatPage> {
           }
         }
         setState(() {
-          _availableModels
-            ..clear()
-            ..addAll(models);
-          if (!_availableModels.contains(_selectedModelId)) {
-            _selectedModelId = provider.defaultModelId;
+          _modelsByProvider[provider.providerId] = models.toList();
+          if (_selectedProvider?.providerId == provider.providerId) {
+            _availableModels
+              ..clear()
+              ..addAll(models);
+            if (!_availableModels.contains(_selectedModelId)) {
+              _selectedModelId = provider.defaultModelId;
+            }
           }
         });
       }
@@ -450,12 +507,105 @@ class _ChatPageState extends State<ChatPage> {
       // Keep the configured default model when the provider does not expose
       // a compatible models endpoint or the request fails.
     } finally {
-      if (mounted &&
-          requestId == _modelLoadCounter &&
-          _selectedProvider?.providerId == provider.providerId) {
-        setState(() => _loadingModels = false);
+      _loadedProviderIds.add(provider.providerId);
+      _loadingProviderIds.remove(provider.providerId);
+      if (mounted) {
+        setState(() => _loadingModels = _loadingProviderIds.isNotEmpty);
       }
     }
+  }
+
+  Future<void> _showModelPicker() async {
+    if (_sending || _readyProviders.isEmpty) return;
+
+    await Future.wait(_readyProviders.map(_loadModels));
+    if (!mounted) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.7,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Text(
+                    l10n.selectModel,
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      for (final provider in _readyProviders) ...[
+                        Padding(
+                          key: Key(
+                            'model_provider_group_${provider.providerId}',
+                          ),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+                          child: Text(
+                            provider.providerDisplayName,
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: Theme.of(sheetContext)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                        for (final modelId
+                            in _modelsByProvider[provider.providerId] ??
+                                <String>[provider.defaultModelId])
+                          ListTile(
+                            key: Key(
+                              'model_option_${provider.providerId}_$modelId',
+                            ),
+                            title: Text(modelId),
+                            trailing: _selectedProvider?.providerId ==
+                                        provider.providerId &&
+                                    _selectedModelId == modelId
+                                ? Icon(
+                                    Icons.check_rounded,
+                                    color: Theme.of(sheetContext)
+                                        .colorScheme
+                                        .primary,
+                                  )
+                                : null,
+                            selected: _selectedProvider?.providerId ==
+                                    provider.providerId &&
+                                _selectedModelId == modelId,
+                            onTap: () {
+                              setState(() {
+                                _selectedProvider = provider;
+                                _selectedModelId = modelId;
+                                _availableModels
+                                  ..clear()
+                                  ..addAll(
+                                      _modelsByProvider[provider.providerId] ??
+                                          <String>[provider.defaultModelId]);
+                                _persistWarning = null;
+                                _protocolWarning = null;
+                              });
+                              Navigator.pop(sheetContext);
+                            },
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _newChat() async {
@@ -535,13 +685,32 @@ class _ChatPageState extends State<ChatPage> {
 
       final messages = await widget.historyStore.readMessages(conversationId);
 
+      var restoredProviderId = conversation.providerId;
+      var restoredModelId = conversation.model;
+      for (final message in messages.reversed) {
+        final providerId = message.providerIdSnapshot?.trim();
+        final modelId = message.modelIdSnapshot?.trim();
+        if (providerId != null &&
+            providerId.isNotEmpty &&
+            modelId != null &&
+            modelId.isNotEmpty) {
+          restoredProviderId = providerId;
+          restoredModelId = modelId;
+          break;
+        }
+      }
+
       _ReadyProvider? selectedProvider;
       try {
         selectedProvider = _readyProviders.firstWhere(
-          (provider) => provider.providerId == conversation.providerId,
+          (provider) => provider.providerId == restoredProviderId,
         );
       } catch (_) {
         selectedProvider = null;
+      }
+      if (selectedProvider == null && _readyProviders.isNotEmpty) {
+        selectedProvider = _readyProviders.first;
+        restoredModelId = selectedProvider.defaultModelId;
       }
 
       AgentProfileData? selectedAgent;
@@ -556,7 +725,7 @@ class _ChatPageState extends State<ChatPage> {
 
       String? protocolWarning;
       String? persistWarning;
-      if (selectedProvider == null) {
+      if (selectedProvider == null && _readyProviders.isEmpty) {
         try {
           final convConfig =
               await widget.configStore.readConfig(conversation.providerId);
@@ -577,11 +746,16 @@ class _ChatPageState extends State<ChatPage> {
           _messages.addAll(messages);
           _activeConversationId = conversationId;
           _selectedProvider = selectedProvider;
-          _selectedModelId =
-              selectedProvider == null ? null : conversation.model;
+          _selectedModelId = selectedProvider == null ? null : restoredModelId;
           _availableModels.clear();
           if (_selectedModelId != null) {
             _availableModels.add(_selectedModelId!);
+            final selectedModels =
+                _modelsByProvider[selectedProvider?.providerId];
+            if (selectedModels != null &&
+                !selectedModels.contains(_selectedModelId)) {
+              selectedModels.add(_selectedModelId!);
+            }
           }
           _selectedAgent = selectedAgent;
           _persistWarning = persistWarning;
@@ -619,6 +793,10 @@ class _ChatPageState extends State<ChatPage> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     if (!_canSend) return;
+    final selection = _ModelSelection(
+      provider: _selectedProvider!,
+      modelId: _selectedModelId!,
+    );
 
     final isFirstMessage = _activeConversationId == null;
 
@@ -626,6 +804,9 @@ class _ChatPageState extends State<ChatPage> {
       id: _nextId(),
       role: ChatRole.user,
       content: text,
+      providerIdSnapshot: selection.provider.providerId,
+      providerNameSnapshot: selection.provider.providerDisplayName,
+      modelIdSnapshot: selection.modelId,
       createdAt: DateTime.now(),
     );
 
@@ -634,8 +815,8 @@ class _ChatPageState extends State<ChatPage> {
       final conversation = ChatConversation(
         id: conversationId,
         title: ChatConversation.generateTitle(text),
-        providerId: _selectedProvider!.providerId,
-        model: _selectedModelId!,
+        providerId: selection.provider.providerId,
+        model: selection.modelId,
         agentId: _selectedAgent?.id,
         agentNameSnapshot: _selectedAgent?.name,
         systemPromptSnapshot: _selectedAgent?.systemPrompt,
@@ -688,6 +869,8 @@ class _ChatPageState extends State<ChatPage> {
     final target = _GenerationTarget(
       kind: _GenerationKind.normal,
       userMessage: userMessage,
+      provider: selection.provider,
+      modelId: selection.modelId,
     );
 
     await _runGeneration(target);
@@ -698,10 +881,14 @@ class _ChatPageState extends State<ChatPage> {
 
     final userMsg = _lastUserMessage;
     if (userMsg == null) return;
+    final selection = _selectionForMessage(userMsg);
+    if (selection == null) return;
 
     final target = _GenerationTarget(
       kind: _GenerationKind.retry,
       userMessage: userMsg,
+      provider: selection.provider,
+      modelId: selection.modelId,
     );
 
     await _runGeneration(target);
@@ -713,11 +900,15 @@ class _ChatPageState extends State<ChatPage> {
     final userMsg = _lastUserMessage;
     final assistantMsg = _lastAssistantMessage;
     if (userMsg == null || assistantMsg == null) return;
+    final selection = _selectionForMessage(assistantMsg);
+    if (selection == null) return;
 
     final target = _GenerationTarget(
       kind: _GenerationKind.regenerate,
       userMessage: userMsg,
       replacedAssistantMessage: assistantMsg,
+      provider: selection.provider,
+      modelId: selection.modelId,
     );
 
     await _runGeneration(target);
@@ -732,6 +923,8 @@ class _ChatPageState extends State<ChatPage> {
       _userStopped = false;
       _streamingAssistantText = '';
       _streamingReasoningText = '';
+      _streamingProviderName = target.provider.providerDisplayName;
+      _streamingModelId = target.modelId;
       _expandedReasoningKeys.remove(_streamingReasoningKey);
       _generationPhase = _GenerationPhase.waiting;
     });
@@ -813,10 +1006,10 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
 
-      final stream = _selectedProvider!.client.streamComplete(
-        baseUrl: _selectedProvider!.baseUrl,
-        apiKey: _selectedProvider!.apiKey,
-        model: _selectedModelId!,
+      final stream = target.provider.client.streamComplete(
+        baseUrl: target.provider.baseUrl,
+        apiKey: target.provider.apiKey,
+        model: target.modelId,
         messages: contextResult.messages,
         cancellationToken: localToken,
       );
@@ -913,6 +1106,9 @@ class _ChatPageState extends State<ChatPage> {
           conversationId: _activeConversationId!,
           messageId: target.replacedAssistantMessage!.id,
           content: _streamingAssistantText,
+          providerIdSnapshot: target.provider.providerId,
+          providerNameSnapshot: target.provider.providerDisplayName,
+          modelIdSnapshot: target.modelId,
           conversationUpdatedAt: now,
         );
 
@@ -933,6 +1129,9 @@ class _ChatPageState extends State<ChatPage> {
                 reasoningContent: _streamingReasoningText.isEmpty
                     ? null
                     : _streamingReasoningText,
+                providerIdSnapshot: target.provider.providerId,
+                providerNameSnapshot: target.provider.providerDisplayName,
+                modelIdSnapshot: target.modelId,
                 createdAt: target.replacedAssistantMessage!.createdAt,
               );
             }
@@ -973,6 +1172,9 @@ class _ChatPageState extends State<ChatPage> {
         content: _streamingAssistantText,
         reasoningContent:
             _streamingReasoningText.isEmpty ? null : _streamingReasoningText,
+        providerIdSnapshot: target.provider.providerId,
+        providerNameSnapshot: target.provider.providerDisplayName,
+        modelIdSnapshot: target.modelId,
         createdAt: now,
       );
 
@@ -1288,10 +1490,28 @@ class _ChatPageState extends State<ChatPage> {
     required String content,
     required bool isStreaming,
     required Key contentKey,
+    required Key modelLabelKey,
+    required String? providerName,
+    required String? modelId,
   }) {
+    final hasSnapshot = providerName != null &&
+        providerName.trim().isNotEmpty &&
+        modelId != null &&
+        modelId.trim().isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          hasSnapshot
+              ? l10n.providerModel(providerName, modelId)
+              : l10n.legacyModel,
+          key: modelLabelKey,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+        ),
+        const SizedBox(height: 6),
         if (isStreaming && _generationPhase != _GenerationPhase.idle) ...[
           _buildGenerationStatus(l10n),
           if (content.isNotEmpty) const SizedBox(height: 10),
@@ -1351,6 +1571,7 @@ class _ChatPageState extends State<ChatPage> {
                   !_isSelectionLocked &&
                   _persistWarning == null
               ? Center(
+                  key: const Key('no_models_empty_state'),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -1361,6 +1582,12 @@ class _ChatPageState extends State<ChatPage> {
                         l10n.noReadyProvider,
                         style: TextStyle(
                             fontSize: 16, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.noModelAvailable,
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1508,6 +1735,17 @@ class _ChatPageState extends State<ChatPage> {
                                                 contentKey: ValueKey(
                                                   'msg_${isStreaming ? 'streaming' : _messages[index].id}',
                                                 ),
+                                                modelLabelKey: ValueKey(
+                                                  'assistant_model_label_${isStreaming ? 'streaming' : _messages[index].id}',
+                                                ),
+                                                providerName: isStreaming
+                                                    ? _streamingProviderName
+                                                    : _messages[index]
+                                                        .providerNameSnapshot,
+                                                modelId: isStreaming
+                                                    ? _streamingModelId
+                                                    : _messages[index]
+                                                        .modelIdSnapshot,
                                               ),
                                       ),
                                     ),
@@ -1594,61 +1832,141 @@ class _ChatPageState extends State<ChatPage> {
                         ],
                       ),
                       child: SafeArea(
-                        child: Row(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (_canRetry && !_sending)
-                              Semantics(
-                                label: l10n.retry,
-                                child: IconButton(
-                                  onPressed: _retryLastTurn,
-                                  icon: const Icon(Icons.refresh, size: 20),
-                                  tooltip: l10n.retry,
-                                ),
-                              ),
-                            Expanded(
-                              child: TextField(
-                                controller: _messageController,
-                                decoration: InputDecoration(
-                                  hintText: l10n.typeMessage,
-                                  border: const OutlineInputBorder(),
-                                  contentPadding: const EdgeInsets.symmetric(
+                            if (_selectedProvider != null &&
+                                _selectedModelId != null)
+                              OutlinedButton(
+                                key: const Key('model_selector'),
+                                onPressed: _sending || _loadingModels
+                                    ? null
+                                    : _showModelPicker,
+                                style: OutlinedButton.styleFrom(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                     vertical: 8,
                                   ),
                                 ),
-                                maxLines: null,
-                                textInputAction: TextInputAction.send,
-                                enabled: _canSend,
-                                onSubmitted: _canSend ? (_) => _send() : null,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (_canStop)
-                              Semantics(
-                                label: l10n.stopGenerating,
-                                child: IconButton(
-                                  onPressed: _stopGeneration,
-                                  icon: const Icon(Icons.stop_rounded),
-                                  tooltip: l10n.stopGenerating,
-                                ),
-                              )
-                            else
-                              Semantics(
-                                label: l10n.send,
-                                child: IconButton(
-                                  onPressed: _canSend ? _send : null,
-                                  tooltip: l10n.send,
-                                  icon: _sending
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
+                                child: Row(
+                                  children: [
+                                    if (_loadingModels)
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8),
+                                        child: SizedBox.square(
+                                          dimension: 16,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
                                           ),
-                                        )
-                                      : const Icon(Icons.send),
+                                        ),
+                                      )
+                                    else
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8),
+                                        child: Icon(
+                                          Icons.tune_rounded,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.providerModel(
+                                          _selectedProvider!
+                                              .providerDisplayName,
+                                          _selectedModelId!,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.expand_more_rounded,
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Container(
+                                key: const Key('no_models_empty_state'),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  l10n.noModelAvailable,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
                                 ),
                               ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                if (_canRetry && !_sending)
+                                  Semantics(
+                                    label: l10n.retry,
+                                    child: IconButton(
+                                      onPressed: _retryLastTurn,
+                                      icon: const Icon(Icons.refresh, size: 20),
+                                      tooltip: l10n.retry,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _messageController,
+                                    decoration: InputDecoration(
+                                      hintText: l10n.typeMessage,
+                                      border: const OutlineInputBorder(),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    maxLines: null,
+                                    textInputAction: TextInputAction.send,
+                                    enabled: _canSend,
+                                    onSubmitted:
+                                        _canSend ? (_) => _send() : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (_canStop)
+                                  Semantics(
+                                    label: l10n.stopGenerating,
+                                    child: IconButton(
+                                      onPressed: _stopGeneration,
+                                      icon: const Icon(Icons.stop_rounded),
+                                      tooltip: l10n.stopGenerating,
+                                    ),
+                                  )
+                                else
+                                  Semantics(
+                                    label: l10n.send,
+                                    child: IconButton(
+                                      onPressed: _canSend ? _send : null,
+                                      tooltip: l10n.send,
+                                      icon: _sending
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.send),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -1661,23 +1979,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildSelectors(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildAgentSelector(l10n),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildProviderSelector(l10n),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildModelSelector(l10n),
-        ],
-      ),
+      child: _buildAgentSelector(l10n),
     );
   }
 
@@ -1709,99 +2011,6 @@ class _ChatPageState extends State<ChatPage> {
           : (agent) {
               if (mounted) {
                 setState(() => _selectedAgent = agent);
-              }
-            },
-    );
-  }
-
-  Widget _buildProviderSelector(AppLocalizations l10n) {
-    if (_readyProviders.isEmpty) {
-      return Text(
-        l10n.noProvider,
-        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-      );
-    }
-
-    return DropdownButton<_ReadyProvider>(
-      key: const Key('provider_selector'),
-      value: _selectedProvider,
-      isExpanded: true,
-      underline: const SizedBox(),
-      items: _readyProviders
-          .map((provider) => DropdownMenuItem<_ReadyProvider>(
-                value: provider,
-                child: Text(
-                  provider.providerDisplayName,
-                  style: const TextStyle(fontSize: 14),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ))
-          .toList(),
-      onChanged: _isSelectionLocked
-          ? null
-          : (provider) {
-              if (provider != null) {
-                unawaited(_selectProvider(provider));
-              }
-            },
-    );
-  }
-
-  Widget _buildModelSelector(AppLocalizations l10n) {
-    if (_availableModels.isEmpty) {
-      return Text(
-        l10n.noModelAvailable,
-        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-      );
-    }
-
-    return DropdownButtonFormField<String>(
-      key: const Key('model_selector'),
-      value: _selectedModelId,
-      isExpanded: true,
-      itemHeight: null,
-      decoration: InputDecoration(
-        labelText: l10n.model,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        suffixIcon: _loadingModels
-            ? const Padding(
-                padding: EdgeInsets.all(14),
-                child: SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : null,
-      ),
-      selectedItemBuilder: (context) => _availableModels
-          .map((modelId) => Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  modelId,
-                  style: const TextStyle(fontSize: 14),
-                  softWrap: true,
-                ),
-              ))
-          .toList(),
-      items: _availableModels
-          .map((modelId) => DropdownMenuItem<String>(
-                value: modelId,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Text(
-                    modelId,
-                    style: const TextStyle(fontSize: 14),
-                    softWrap: true,
-                  ),
-                ),
-              ))
-          .toList(),
-      onChanged: _isSelectionLocked || _loadingModels
-          ? null
-          : (modelId) {
-              if (modelId != null) {
-                setState(() => _selectedModelId = modelId);
               }
             },
     );

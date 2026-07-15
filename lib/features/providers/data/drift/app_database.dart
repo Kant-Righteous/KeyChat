@@ -54,6 +54,9 @@ class ChatMessages extends Table {
       text().references(Conversations, #id, onDelete: KeyAction.cascade)();
   TextColumn get role => text()();
   TextColumn get content => text()();
+  TextColumn get providerIdSnapshot => text().nullable()();
+  TextColumn get providerNameSnapshot => text().nullable()();
+  TextColumn get modelIdSnapshot => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 
   @override
@@ -68,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -91,6 +94,11 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await m.createTable(agentProfiles);
+          }
+          if (from >= 2 && from < 5) {
+            await m.addColumn(chatMessages, chatMessages.providerIdSnapshot);
+            await m.addColumn(chatMessages, chatMessages.providerNameSnapshot);
+            await m.addColumn(chatMessages, chatMessages.modelIdSnapshot);
           }
         },
         beforeOpen: (details) async {

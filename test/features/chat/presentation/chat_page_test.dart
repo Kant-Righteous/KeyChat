@@ -6540,7 +6540,7 @@ void main() {
         expect(find.text('Agent B'), findsWidgets);
       });
 
-      testWidgets('provider and model are shown in separate selectors',
+      testWidgets('current provider and model are shown in input selector',
           (WidgetTester tester) async {
         await configStore.saveConfig(ProviderConfigData(
           providerId: 'openai',
@@ -6563,9 +6563,8 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        expect(find.text('OpenAI'), findsOneWidget);
-        expect(find.text('gpt-4'), findsOneWidget);
-        expect(find.text('OpenAI · gpt-4'), findsNothing);
+        expect(find.byKey(const Key('model_selector')), findsOneWidget);
+        expect(find.text('OpenAI · gpt-4'), findsOneWidget);
       });
 
       testWidgets('selecting a provider loads and selects its models',
@@ -6610,28 +6609,18 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(connectionTester.callCount, 1);
-        await tester.tap(find.byKey(const Key('model_selector')));
-        await tester.pumpAndSettle();
-        expect(find.text('gpt-4.1'), findsOneWidget);
-        await tester.tap(find.text('gpt-4').last);
-        await tester.pumpAndSettle();
-
         connectionTester.setResult(const ConnectionTestResult.success(
           modelIds: ['deepseek-chat', 'deepseek-reasoner'],
         ));
-        await tester.tap(find.byKey(const Key('provider_selector')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('DeepSeek').last);
+        await tester.tap(find.byKey(const Key('model_selector')));
         await tester.pumpAndSettle();
 
         expect(connectionTester.lastBaseUrl, 'https://api.deepseek.com/v1');
         expect(connectionTester.lastApiKey, 'deepseek-key');
-        expect(find.text('deepseek-chat'), findsOneWidget);
-
-        await tester.tap(find.byKey(const Key('model_selector')));
-        await tester.pumpAndSettle();
         expect(find.text('deepseek-reasoner'), findsOneWidget);
-        await tester.tap(find.text('deepseek-reasoner').last);
+        await tester.tap(find.byKey(
+          const Key('model_option_deepseek_deepseek-reasoner'),
+        ));
         await tester.pumpAndSettle();
 
         chatClient.setResult(const ChatCompletionResult.success(
@@ -6675,11 +6664,12 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        expect(find.text(longModelId), findsOneWidget);
+        expect(find.textContaining(longModelId), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('agent and model lock after first message',
+      testWidgets(
+          'agent locks but model remains switchable after first message',
           (WidgetTester tester) async {
         await configStore.saveConfig(ProviderConfigData(
           providerId: 'openai',
@@ -6717,8 +6707,9 @@ void main() {
         await tester.tap(find.byIcon(Icons.send));
         await tester.pumpAndSettle();
 
-        // After sending, dropdowns are hidden (locked)
+        // Agent is conversation-scoped, while model remains available per turn.
         expect(find.byType(DropdownButton<AgentProfileData?>), findsNothing);
+        expect(find.byKey(const Key('model_selector')), findsOneWidget);
       });
 
       testWidgets('New Chat unlocks selectors', (WidgetTester tester) async {

@@ -159,6 +159,9 @@ class FakeChatHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required String messageId,
     required String content,
+    String? providerIdSnapshot,
+    String? providerNameSnapshot,
+    String? modelIdSnapshot,
     required DateTime conversationUpdatedAt,
   }) async {
     // Record call parameters before any failure
@@ -192,6 +195,10 @@ class FakeChatHistoryStore implements ChatHistoryStore {
       id: messageId,
       role: ChatRole.assistant,
       content: content,
+      providerIdSnapshot: providerIdSnapshot ?? msgs[index].providerIdSnapshot,
+      providerNameSnapshot:
+          providerNameSnapshot ?? msgs[index].providerNameSnapshot,
+      modelIdSnapshot: modelIdSnapshot ?? msgs[index].modelIdSnapshot,
       createdAt: msgs[index].createdAt,
     );
 
