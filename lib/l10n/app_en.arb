@@ -100,6 +100,8 @@
     }
   },
   "planEndpointWarning": "The plan endpoint must be paired with its plan-specific API key and used within the provider's permitted scope.",
+  "visitOfficialWebsite": "Visit official website",
+  "unableToOpenOfficialWebsite": "Unable to open the official website. Please try again.",
   "chinaApiOption": "China API",
   "globalApiOption": "Global API",
   "kimiCodeOption": "Kimi Code",

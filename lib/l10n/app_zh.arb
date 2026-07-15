@@ -100,6 +100,8 @@
     }
   },
   "planEndpointWarning": "套餐地址必须与套餐专用 API Key 配套使用，并遵守提供商的适用范围。",
+  "visitOfficialWebsite": "前往官网",
+  "unableToOpenOfficialWebsite": "无法打开官网，请稍后重试",
   "chinaApiOption": "中国普通 API",
   "globalApiOption": "国际普通 API",
   "kimiCodeOption": "Kimi Code",

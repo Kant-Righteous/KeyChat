@@ -8,12 +8,16 @@ import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+typedef ExternalUrlLauncher = Future<bool> Function(Uri uri);
 
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
   final ConnectionTesterResolver? connectionTesterResolver;
+  final ExternalUrlLauncher? externalUrlLauncher;
 
   const ProviderConfigPage({
     super.key,
@@ -21,6 +25,7 @@ class ProviderConfigPage extends StatefulWidget {
     required this.apiKeyStore,
     required this.configStore,
     this.connectionTesterResolver,
+    this.externalUrlLauncher,
   });
 
   @override
@@ -189,6 +194,29 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       _nameController.text = _defaultDisplayName(l10n, template, endpoint);
       _urlController.text = endpoint.defaultBaseUrl;
     });
+  }
+
+  Future<void> _openOfficialWebsite() async {
+    final endpoint = _selectedEndpoint;
+    if (endpoint == null) return;
+
+    final uri = Uri.parse(endpoint.apiKeyUrl);
+    var launched = false;
+    try {
+      launched = await (widget.externalUrlLauncher?.call(uri) ??
+          launchUrl(uri, mode: LaunchMode.externalApplication));
+    } catch (_) {
+      launched = false;
+    }
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(AppLocalizations.of(context)!.unableToOpenOfficialWebsite),
+        ),
+      );
+    }
   }
 
   @override
@@ -566,6 +594,17 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                           validator: _validateApiKey,
                           obscureText: _obscureApiKey,
                         ),
+                        if (_selectedEndpoint != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _saving ? null : _openOfficialWebsite,
+                              icon: const Icon(Icons.open_in_new),
+                              label: Text(l10n.visitOfficialWebsite),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         if (_connectionTestSupported)
                           OutlinedButton.icon(

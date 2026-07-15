@@ -54,6 +54,22 @@ void main() {
       configStore = FakeProviderConfigStore();
     });
 
+    test('Every provider endpoint has an HTTPS API key page', () {
+      final endpoints = providerTemplatePresets
+          .expand((template) => template.endpoints)
+          .toList();
+
+      expect(endpoints, isNotEmpty);
+      for (final endpoint in endpoints) {
+        final apiKeyUrl = endpoint.apiKeyUrl;
+        expect(apiKeyUrl, isNotEmpty, reason: endpoint.id);
+
+        final uri = Uri.parse(apiKeyUrl);
+        expect(uri.scheme, 'https', reason: endpoint.id);
+        expect(uri.host, isNotEmpty, reason: endpoint.id);
+      }
+    });
+
     testWidgets('OpenAI preset auto-fills Base URL',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
@@ -191,6 +207,43 @@ void main() {
       expect(nameField.enabled, isTrue);
       expect(urlField.enabled, isTrue);
       expect(find.textContaining('套餐地址必须与套餐专用 API Key'), findsOneWidget);
+    });
+
+    testWidgets('Visit official website opens selected endpoint API key page',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+      Uri? launchedUri;
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            externalUrlLauncher: (uri) async {
+              launchedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('前往官网'), findsNothing);
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('中国普通 API'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi Code').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('前往官网'));
+      await tester.pumpAndSettle();
+
+      expect(launchedUri, Uri.parse('https://www.kimi.com/code/console'));
     });
 
     testWidgets('MiMo Token Plan regions and Qwen plans are selectable',

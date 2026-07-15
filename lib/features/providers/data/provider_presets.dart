@@ -21,12 +21,14 @@ class ProviderPreset {
 class ProviderEndpointPreset {
   final String id;
   final String defaultBaseUrl;
+  final String apiKeyUrl;
   final String? apiKeyPrefix;
   final bool isPlan;
 
   const ProviderEndpointPreset({
     required this.id,
     required this.defaultBaseUrl,
+    required this.apiKeyUrl,
     this.apiKeyPrefix,
     this.isPlan = false,
   });
@@ -89,6 +91,7 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'openai_default',
         defaultBaseUrl: 'https://api.openai.com/v1',
+        apiKeyUrl: 'https://platform.openai.com/api-keys',
       ),
     ],
   ),
@@ -99,6 +102,7 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'deepseek_default',
         defaultBaseUrl: 'https://api.deepseek.com/v1',
+        apiKeyUrl: 'https://platform.deepseek.com/api_keys',
       ),
     ],
   ),
@@ -109,6 +113,7 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'openrouter_default',
         defaultBaseUrl: 'https://openrouter.ai/api/v1',
+        apiKeyUrl: 'https://openrouter.ai/settings/keys',
       ),
     ],
   ),
@@ -119,14 +124,17 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'kimi_china',
         defaultBaseUrl: 'https://api.moonshot.cn/v1',
+        apiKeyUrl: 'https://platform.kimi.com/console/api-keys',
       ),
       ProviderEndpointPreset(
         id: 'kimi_global',
         defaultBaseUrl: 'https://api.moonshot.ai/v1',
+        apiKeyUrl: 'https://platform.kimi.ai/console/api-keys',
       ),
       ProviderEndpointPreset(
         id: 'kimi_code',
         defaultBaseUrl: 'https://api.kimi.com/coding/v1',
+        apiKeyUrl: 'https://www.kimi.com/code/console',
         isPlan: true,
       ),
     ],
@@ -138,23 +146,27 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'mimo_pay_as_you_go',
         defaultBaseUrl: 'https://api.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/console/api-keys',
         apiKeyPrefix: 'sk-',
       ),
       ProviderEndpointPreset(
         id: 'mimo_token_china',
         defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
         apiKeyPrefix: 'tp-',
         isPlan: true,
       ),
       ProviderEndpointPreset(
         id: 'mimo_token_singapore',
         defaultBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
         apiKeyPrefix: 'tp-',
         isPlan: true,
       ),
       ProviderEndpointPreset(
         id: 'mimo_token_europe',
         defaultBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
         apiKeyPrefix: 'tp-',
         isPlan: true,
       ),
@@ -167,19 +179,23 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'glm_china_general',
         defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        apiKeyUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
       ),
       ProviderEndpointPreset(
         id: 'glm_global_general',
         defaultBaseUrl: 'https://api.z.ai/api/paas/v4',
+        apiKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
       ),
       ProviderEndpointPreset(
         id: 'glm_china_coding',
         defaultBaseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        apiKeyUrl: 'https://bigmodel.cn/coding-plan/personal/overview',
         isPlan: true,
       ),
       ProviderEndpointPreset(
         id: 'glm_global_coding',
         defaultBaseUrl: 'https://api.z.ai/api/coding/paas/v4',
+        apiKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
         isPlan: true,
       ),
     ],
@@ -192,6 +208,7 @@ const providerTemplatePresets = [
         id: 'gemini_default',
         defaultBaseUrl:
             'https://generativelanguage.googleapis.com/v1beta/openai',
+        apiKeyUrl: 'https://aistudio.google.com/app/apikey',
       ),
     ],
   ),
@@ -202,29 +219,36 @@ const providerTemplatePresets = [
       ProviderEndpointPreset(
         id: 'qwen_pay_as_you_go_beijing',
         defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://bailian.console.aliyun.com/cn-beijing?tab=model',
         apiKeyPrefix: 'sk-',
       ),
       ProviderEndpointPreset(
         id: 'qwen_pay_as_you_go_singapore',
         defaultBaseUrl:
             'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl:
+            'https://bailian.console.alibabacloud.com/ap-southeast-1?tab=model',
         apiKeyPrefix: 'sk-',
       ),
       ProviderEndpointPreset(
         id: 'qwen_pay_as_you_go_us',
         defaultBaseUrl: 'https://dashscope-us.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://modelstudio.console.aliyun.com/us-east-1',
         apiKeyPrefix: 'sk-',
       ),
       ProviderEndpointPreset(
         id: 'qwen_token_beijing',
         defaultBaseUrl:
             'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://bailian.console.aliyun.com/cn-beijing?tab=plan',
         apiKeyPrefix: 'sk-sp-',
         isPlan: true,
       ),
       ProviderEndpointPreset(
         id: 'qwen_coding_beijing',
         defaultBaseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+        apiKeyUrl:
+            'https://bailian.console.aliyun.com/cn-beijing/?tab=coding-plan#/efm/coding-plan-index',
         apiKeyPrefix: 'sk-sp-',
         isPlan: true,
       ),
