@@ -798,6 +798,131 @@ $$''',
     });
   });
 
+  group('Mermaid diagrams', () {
+    testWidgets('renders a Mermaid flowchart instead of raw source',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+graph LR
+A[今天晴天]
+B[明天晴天]
+C[明天雨天]
+A -- 0.9 --> B
+A -->|0.1| C
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('今天晴天'), findsWidgets);
+      expect(find.text('明天晴天'), findsOneWidget);
+      expect(find.text('明天雨天'), findsOneWidget);
+      expect(find.text('0.9'), findsOneWidget);
+      expect(find.text('0.1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders repeated state-transition edges from model output',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+graph LR
+A[今天晴天] -->|0.9| A[明天晴天]
+A -->|0.1| B[明天雨天]
+B -->|0.5| A[明天晴天]
+B -->|0.5| B[明天雨天]
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 380,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('今天晴天'), findsOneWidget);
+      expect(find.text('明天晴天'), findsWidgets);
+      expect(find.text('明天雨天'), findsWidgets);
+      expect(find.text('0.5'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('keeps unsupported Mermaid source as a code block',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '```mermaid\\nsequenceDiagram\\nA->>B: Hello\\n```',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsNothing);
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('does not change ordinary fenced code blocks',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '```dart\\nvoid main() {}\\n```',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsNothing);
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('long node labels wrap without overflow on narrow screens',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+flowchart LR
+A[这是一个需要完整显示的很长节点名称] -->|转移概率 0.95| B[另一个同样需要完整显示的节点名称]
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 280,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('这是一个需要完整显示的很长节点名称'), findsOneWidget);
+      expect(find.text('另一个同样需要完整显示的节点名称'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('Source immutability', () {
     testWidgets('source string is not modified', (WidgetTester tester) async {
       const original = '**bold** and *italic*';
