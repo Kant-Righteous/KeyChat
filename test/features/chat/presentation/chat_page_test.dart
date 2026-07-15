@@ -11,10 +11,13 @@ import 'package:keychat/features/chat/domain/chat_context_builder.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
+import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
 import '../../agents/data/fake_agent_profile_store.dart';
 import '../../providers/data/fake_api_key_store.dart';
+import '../../providers/data/fake_connection_tester_resolver.dart';
+import '../../providers/data/fake_provider_connection_tester.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_client_resolver.dart';
 import '../data/fake_chat_history_store.dart';
@@ -386,6 +389,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hi there!'), findsOneWidget);
+    });
+
+    testWidgets('assistant bubble fills available message width',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+      chatClient.setResult(
+        const ChatCompletionResult.success(assistantContent: 'Hi there!'),
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final screenWidth = tester.getSize(find.byType(Scaffold)).width;
+      final assistantWidth = tester
+          .getSize(find.byKey(const Key('assistant_message_bubble_1')))
+          .width;
+      final userWidth =
+          tester.getSize(find.byKey(const Key('user_message_bubble_0'))).width;
+
+      expect(assistantWidth, closeTo(screenWidth - 32, 0.1));
+      expect(userWidth, lessThan(assistantWidth));
     });
 
     testWidgets('input cleared after successful send',
@@ -6491,7 +6540,7 @@ void main() {
         expect(find.text('Agent B'), findsWidgets);
       });
 
-      testWidgets('model list shows provider and model',
+      testWidgets('provider and model are shown in separate selectors',
           (WidgetTester tester) async {
         await configStore.saveConfig(ProviderConfigData(
           providerId: 'openai',
@@ -6514,7 +6563,120 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        expect(find.text('OpenAI · gpt-4'), findsOneWidget);
+        expect(find.text('OpenAI'), findsOneWidget);
+        expect(find.text('gpt-4'), findsOneWidget);
+        expect(find.text('OpenAI · gpt-4'), findsNothing);
+      });
+
+      testWidgets('selecting a provider loads and selects its models',
+          (WidgetTester tester) async {
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'deepseek',
+          displayName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          defaultModel: 'deepseek-chat',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('openai', 'openai-key');
+        await apiKeyStore.saveKey('deepseek', 'deepseek-key');
+
+        final connectionTester = FakeProviderConnectionTester()
+          ..setResult(const ConnectionTestResult.success(
+            modelIds: ['gpt-4', 'gpt-4.1'],
+          ));
+        final connectionTesterResolver = FakeConnectionTesterResolver(
+          openAiCompatibleTester: connectionTester,
+        );
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+            connectionTesterResolver: connectionTesterResolver,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(connectionTester.callCount, 1);
+        await tester.tap(find.byKey(const Key('model_selector')));
+        await tester.pumpAndSettle();
+        expect(find.text('gpt-4.1'), findsOneWidget);
+        await tester.tap(find.text('gpt-4').last);
+        await tester.pumpAndSettle();
+
+        connectionTester.setResult(const ConnectionTestResult.success(
+          modelIds: ['deepseek-chat', 'deepseek-reasoner'],
+        ));
+        await tester.tap(find.byKey(const Key('provider_selector')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('DeepSeek').last);
+        await tester.pumpAndSettle();
+
+        expect(connectionTester.lastBaseUrl, 'https://api.deepseek.com/v1');
+        expect(connectionTester.lastApiKey, 'deepseek-key');
+        expect(find.text('deepseek-chat'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('model_selector')));
+        await tester.pumpAndSettle();
+        expect(find.text('deepseek-reasoner'), findsOneWidget);
+        await tester.tap(find.text('deepseek-reasoner').last);
+        await tester.pumpAndSettle();
+
+        chatClient.setResult(const ChatCompletionResult.success(
+          assistantContent: 'Hi',
+        ));
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Type a message...'),
+          'Hello',
+        );
+        await tester.tap(find.byIcon(Icons.send));
+        await tester.pumpAndSettle();
+
+        expect(chatClient.lastModel, 'deepseek-reasoner');
+      });
+
+      testWidgets('long model id wraps without layout overflow',
+          (WidgetTester tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        const longModelId =
+            'provider/team/very-long-model-name-with-version-and-context-window-2026-07';
+        await configStore.saveConfig(ProviderConfigData(
+          providerId: 'custom',
+          displayName: 'Custom Provider',
+          baseUrl: 'https://example.com/v1',
+          defaultModel: longModelId,
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ));
+        await apiKeyStore.saveKey('custom', 'test-key');
+
+        await tester.pumpWidget(buildTestApp(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text(longModelId), findsOneWidget);
+        expect(tester.takeException(), isNull);
       });
 
       testWidgets('agent and model lock after first message',

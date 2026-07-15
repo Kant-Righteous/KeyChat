@@ -14,29 +14,31 @@ import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
+import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-class _ReadyModel {
+class _ReadyProvider {
   final String providerId;
   final String providerDisplayName;
   final String baseUrl;
-  final String modelId;
+  final String defaultModelId;
   final String apiKey;
+  final ProviderProtocol protocol;
   final ChatCompletionClient client;
 
-  const _ReadyModel({
+  const _ReadyProvider({
     required this.providerId,
     required this.providerDisplayName,
     required this.baseUrl,
-    required this.modelId,
+    required this.defaultModelId,
     required this.apiKey,
+    required this.protocol,
     required this.client,
   });
-
-  String get displayLabel => '$providerDisplayName · $modelId';
 }
 
 enum _GenerationEndReason {
@@ -77,6 +79,7 @@ class ChatPage extends StatefulWidget {
   final ProviderConfigStore configStore;
   final ChatHistoryStore historyStore;
   final AgentProfileStore agentStore;
+  final ConnectionTesterResolver? connectionTesterResolver;
   final ChatContextBuilder contextBuilder;
   final GenerationKeepAlive generationKeepAlive;
 
@@ -87,6 +90,7 @@ class ChatPage extends StatefulWidget {
     required this.configStore,
     required this.historyStore,
     required this.agentStore,
+    this.connectionTesterResolver,
     ChatContextBuilder? contextBuilder,
     GenerationKeepAlive? generationKeepAlive,
   })  : contextBuilder = contextBuilder ?? ChatContextBuilder(),
@@ -103,8 +107,12 @@ class _ChatPageState extends State<ChatPage> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = <ChatMessage>[];
-  final List<_ReadyModel> _readyModels = [];
-  _ReadyModel? _selectedModel;
+  final List<_ReadyProvider> _readyProviders = [];
+  _ReadyProvider? _selectedProvider;
+  final List<String> _availableModels = [];
+  String? _selectedModelId;
+  bool _loadingModels = false;
+  int _modelLoadCounter = 0;
   final List<AgentProfileData> _agents = [];
   AgentProfileData? _selectedAgent;
   bool _loading = true;
@@ -145,7 +153,7 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
-    final readyModels = <_ReadyModel>[];
+    final readyProviders = <_ReadyProvider>[];
     for (final config in configs) {
       if (!config.enabled) continue;
       if (config.baseUrl.trim().isEmpty) continue;
@@ -162,12 +170,13 @@ class _ChatPageState extends State<ChatPage> {
       final client = widget.chatClientResolver.resolve(config.protocol);
       if (client == null) continue;
 
-      readyModels.add(_ReadyModel(
+      readyProviders.add(_ReadyProvider(
         providerId: config.providerId,
         providerDisplayName: config.displayName,
         baseUrl: config.baseUrl,
-        modelId: config.defaultModel!,
+        defaultModelId: config.defaultModel!,
         apiKey: apiKey,
+        protocol: config.protocol,
         client: client,
       ));
     }
@@ -185,22 +194,26 @@ class _ChatPageState extends State<ChatPage> {
       restoredModelId = conversation.model;
     }
 
-    _ReadyModel? selectedModel;
-    if (restoredProviderId != null && restoredModelId != null) {
+    _ReadyProvider? selectedProvider;
+    if (restoredProviderId != null) {
       try {
-        selectedModel = readyModels.firstWhere(
-          (m) =>
-              m.providerId == restoredProviderId &&
-              m.modelId == restoredModelId,
+        selectedProvider = readyProviders.firstWhere(
+          (provider) => provider.providerId == restoredProviderId,
         );
       } catch (_) {
-        selectedModel = null;
+        selectedProvider = null;
       }
     }
 
-    if (selectedModel == null && readyModels.isNotEmpty) {
-      selectedModel = readyModels.first;
+    if (selectedProvider == null &&
+        conversation == null &&
+        readyProviders.isNotEmpty) {
+      selectedProvider = readyProviders.first;
     }
+
+    final selectedModelId = selectedProvider == null
+        ? null
+        : restoredModelId ?? selectedProvider.defaultModelId;
 
     AgentProfileData? selectedAgent;
     if (conversation?.agentId != null) {
@@ -212,7 +225,7 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     String? protocolWarning;
-    if (conversation != null && selectedModel == null) {
+    if (conversation != null && selectedProvider == null) {
       try {
         final convConfig =
             await widget.configStore.readConfig(conversation.providerId);
@@ -229,9 +242,14 @@ class _ChatPageState extends State<ChatPage> {
 
     if (mounted) {
       setState(() {
-        _readyModels.clear();
-        _readyModels.addAll(readyModels);
-        _selectedModel = selectedModel;
+        _readyProviders.clear();
+        _readyProviders.addAll(readyProviders);
+        _selectedProvider = selectedProvider;
+        _selectedModelId = selectedModelId;
+        _availableModels.clear();
+        if (selectedModelId != null) {
+          _availableModels.add(selectedModelId);
+        }
         _agents.clear();
         _agents.addAll(agents);
         _selectedAgent = selectedAgent;
@@ -242,12 +260,16 @@ class _ChatPageState extends State<ChatPage> {
         _protocolWarning = protocolWarning;
 
         if (conversation != null &&
-            selectedModel == null &&
+            selectedProvider == null &&
             _persistWarning == null &&
             _protocolWarning == null) {
           _persistWarning = 'Provider is no longer available';
         }
       });
+
+      if (conversation == null && selectedProvider != null) {
+        unawaited(_loadModels(selectedProvider));
+      }
     }
   }
 
@@ -255,7 +277,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canSend {
     if (_sending) return false;
-    if (_selectedModel == null) return false;
+    if (_selectedProvider == null || _selectedModelId == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     return true;
@@ -271,7 +293,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canRetry {
     if (_sending) return false;
-    if (_selectedModel == null) return false;
+    if (_selectedProvider == null || _selectedModelId == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
@@ -282,7 +304,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _canRegenerate {
     if (_sending) return false;
-    if (_selectedModel == null) return false;
+    if (_selectedProvider == null || _selectedModelId == null) return false;
     if (_persistWarning != null) return false;
     if (_protocolWarning != null) return false;
     if (_activeConversationId == null) return false;
@@ -364,18 +386,95 @@ class _ChatPageState extends State<ChatPage> {
     } catch (_) {}
   }
 
+  void _resetProviderSelection() {
+    _modelLoadCounter++;
+    _loadingModels = false;
+    _selectedProvider =
+        _readyProviders.isNotEmpty ? _readyProviders.first : null;
+    _selectedModelId = _selectedProvider?.defaultModelId;
+    _availableModels.clear();
+    if (_selectedModelId != null) {
+      _availableModels.add(_selectedModelId!);
+    }
+  }
+
+  Future<void> _selectProvider(_ReadyProvider provider) async {
+    setState(() {
+      _modelLoadCounter++;
+      _loadingModels = false;
+      _selectedProvider = provider;
+      _selectedModelId = provider.defaultModelId;
+      _availableModels
+        ..clear()
+        ..add(provider.defaultModelId);
+    });
+    await _loadModels(provider);
+  }
+
+  Future<void> _loadModels(_ReadyProvider provider) async {
+    final tester = widget.connectionTesterResolver?.resolve(provider.protocol);
+    if (tester == null || _isSelectionLocked) return;
+
+    final requestId = ++_modelLoadCounter;
+    setState(() => _loadingModels = true);
+
+    try {
+      final result = await tester.testConnection(
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+      );
+      if (!mounted ||
+          requestId != _modelLoadCounter ||
+          _selectedProvider?.providerId != provider.providerId) {
+        return;
+      }
+
+      if (result.success) {
+        final models = <String>{provider.defaultModelId};
+        for (final modelId in result.modelIds) {
+          final trimmedModelId = modelId.trim();
+          if (trimmedModelId.isNotEmpty) {
+            models.add(trimmedModelId);
+          }
+        }
+        setState(() {
+          _availableModels
+            ..clear()
+            ..addAll(models);
+          if (!_availableModels.contains(_selectedModelId)) {
+            _selectedModelId = provider.defaultModelId;
+          }
+        });
+      }
+    } catch (_) {
+      // Keep the configured default model when the provider does not expose
+      // a compatible models endpoint or the request fails.
+    } finally {
+      if (mounted &&
+          requestId == _modelLoadCounter &&
+          _selectedProvider?.providerId == provider.providerId) {
+        setState(() => _loadingModels = false);
+      }
+    }
+  }
+
   Future<void> _newChat() async {
     if (_sending) return;
+    _ReadyProvider? provider;
     setState(() {
       _messages.clear();
       _activeConversationId = null;
       _persistWarning = null;
       _protocolWarning = null;
-      _selectedModel = _readyModels.isNotEmpty ? _readyModels.first : null;
+      _resetProviderSelection();
+      provider = _selectedProvider;
       _selectedAgent = null;
       _messageController.clear();
       _clearStoppedState();
     });
+    if (provider != null) {
+      unawaited(_loadModels(provider!));
+    }
   }
 
   Future<void> _openConversationList() async {
@@ -396,16 +495,21 @@ class _ChatPageState extends State<ChatPage> {
     if (!mounted) return;
 
     if (result.action == ConversationListAction.activeConversationDeleted) {
+      _ReadyProvider? provider;
       setState(() {
         _messages.clear();
         _activeConversationId = null;
         _persistWarning = null;
         _protocolWarning = null;
-        _selectedModel = _readyModels.isNotEmpty ? _readyModels.first : null;
+        _resetProviderSelection();
+        provider = _selectedProvider;
         _selectedAgent = null;
         _messageController.clear();
         _clearStoppedState();
       });
+      if (provider != null) {
+        unawaited(_loadModels(provider!));
+      }
     } else if (result.action == ConversationListAction.selected &&
         result.conversationId != null &&
         result.conversationId != _activeConversationId) {
@@ -431,15 +535,13 @@ class _ChatPageState extends State<ChatPage> {
 
       final messages = await widget.historyStore.readMessages(conversationId);
 
-      _ReadyModel? selectedModel;
+      _ReadyProvider? selectedProvider;
       try {
-        selectedModel = _readyModels.firstWhere(
-          (m) =>
-              m.providerId == conversation.providerId &&
-              m.modelId == conversation.model,
+        selectedProvider = _readyProviders.firstWhere(
+          (provider) => provider.providerId == conversation.providerId,
         );
       } catch (_) {
-        selectedModel = null;
+        selectedProvider = null;
       }
 
       AgentProfileData? selectedAgent;
@@ -454,7 +556,7 @@ class _ChatPageState extends State<ChatPage> {
 
       String? protocolWarning;
       String? persistWarning;
-      if (selectedModel == null) {
+      if (selectedProvider == null) {
         try {
           final convConfig =
               await widget.configStore.readConfig(conversation.providerId);
@@ -474,7 +576,13 @@ class _ChatPageState extends State<ChatPage> {
           _messages.clear();
           _messages.addAll(messages);
           _activeConversationId = conversationId;
-          _selectedModel = selectedModel;
+          _selectedProvider = selectedProvider;
+          _selectedModelId =
+              selectedProvider == null ? null : conversation.model;
+          _availableModels.clear();
+          if (_selectedModelId != null) {
+            _availableModels.add(_selectedModelId!);
+          }
           _selectedAgent = selectedAgent;
           _persistWarning = persistWarning;
           _protocolWarning = protocolWarning;
@@ -526,8 +634,8 @@ class _ChatPageState extends State<ChatPage> {
       final conversation = ChatConversation(
         id: conversationId,
         title: ChatConversation.generateTitle(text),
-        providerId: _selectedModel!.providerId,
-        model: _selectedModel!.modelId,
+        providerId: _selectedProvider!.providerId,
+        model: _selectedModelId!,
         agentId: _selectedAgent?.id,
         agentNameSnapshot: _selectedAgent?.name,
         systemPromptSnapshot: _selectedAgent?.systemPrompt,
@@ -705,10 +813,10 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
 
-      final stream = _selectedModel!.client.streamComplete(
-        baseUrl: _selectedModel!.baseUrl,
-        apiKey: _selectedModel!.apiKey,
-        model: _selectedModel!.modelId,
+      final stream = _selectedProvider!.client.streamComplete(
+        baseUrl: _selectedProvider!.baseUrl,
+        apiKey: _selectedProvider!.apiKey,
+        model: _selectedModelId!,
         messages: contextResult.messages,
         cancellationToken: localToken,
       );
@@ -1239,7 +1347,7 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedModel == null &&
+          : _selectedProvider == null &&
                   !_isSelectionLocked &&
                   _persistWarning == null
               ? Center(
@@ -1361,17 +1469,23 @@ class _ChatPageState extends State<ChatPage> {
                                           ? Alignment.centerRight
                                           : Alignment.centerLeft,
                                       child: Container(
+                                        key: ValueKey(
+                                          '${isUser ? 'user' : 'assistant'}_message_bubble_$index',
+                                        ),
                                         margin:
                                             const EdgeInsets.only(bottom: 4),
+                                        width: isUser ? null : double.infinity,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
                                           vertical: 8,
                                         ),
                                         constraints: BoxConstraints(
-                                          maxWidth: MediaQuery.of(context)
-                                                  .size
-                                                  .width *
-                                              0.75,
+                                          maxWidth: isUser
+                                              ? MediaQuery.of(context)
+                                                      .size
+                                                      .width *
+                                                  0.75
+                                              : double.infinity,
                                           minHeight: 44,
                                         ),
                                         decoration: BoxDecoration(
@@ -1547,15 +1661,21 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildSelectors(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _buildAgentSelector(l10n),
+          Row(
+            children: [
+              Expanded(
+                child: _buildAgentSelector(l10n),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildProviderSelector(l10n),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildModelSelector(l10n),
-          ),
+          const SizedBox(height: 8),
+          _buildModelSelector(l10n),
         ],
       ),
     );
@@ -1594,23 +1714,24 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildModelSelector(AppLocalizations l10n) {
-    if (_readyModels.isEmpty) {
+  Widget _buildProviderSelector(AppLocalizations l10n) {
+    if (_readyProviders.isEmpty) {
       return Text(
-        l10n.noModelAvailable,
+        l10n.noProvider,
         style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
       );
     }
 
-    return DropdownButton<_ReadyModel>(
-      value: _selectedModel,
+    return DropdownButton<_ReadyProvider>(
+      key: const Key('provider_selector'),
+      value: _selectedProvider,
       isExpanded: true,
       underline: const SizedBox(),
-      items: _readyModels
-          .map((model) => DropdownMenuItem<_ReadyModel>(
-                value: model,
+      items: _readyProviders
+          .map((provider) => DropdownMenuItem<_ReadyProvider>(
+                value: provider,
                 child: Text(
-                  model.displayLabel,
+                  provider.providerDisplayName,
                   style: const TextStyle(fontSize: 14),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1618,9 +1739,69 @@ class _ChatPageState extends State<ChatPage> {
           .toList(),
       onChanged: _isSelectionLocked
           ? null
-          : (model) {
-              if (model != null) {
-                setState(() => _selectedModel = model);
+          : (provider) {
+              if (provider != null) {
+                unawaited(_selectProvider(provider));
+              }
+            },
+    );
+  }
+
+  Widget _buildModelSelector(AppLocalizations l10n) {
+    if (_availableModels.isEmpty) {
+      return Text(
+        l10n.noModelAvailable,
+        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      key: const Key('model_selector'),
+      value: _selectedModelId,
+      isExpanded: true,
+      itemHeight: null,
+      decoration: InputDecoration(
+        labelText: l10n.model,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        suffixIcon: _loadingModels
+            ? const Padding(
+                padding: EdgeInsets.all(14),
+                child: SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : null,
+      ),
+      selectedItemBuilder: (context) => _availableModels
+          .map((modelId) => Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  modelId,
+                  style: const TextStyle(fontSize: 14),
+                  softWrap: true,
+                ),
+              ))
+          .toList(),
+      items: _availableModels
+          .map((modelId) => DropdownMenuItem<String>(
+                value: modelId,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Text(
+                    modelId,
+                    style: const TextStyle(fontSize: 14),
+                    softWrap: true,
+                  ),
+                ),
+              ))
+          .toList(),
+      onChanged: _isSelectionLocked || _loadingModels
+          ? null
+          : (modelId) {
+              if (modelId != null) {
+                setState(() => _selectedModelId = modelId);
               }
             },
     );

@@ -73,6 +73,7 @@ class _AppShellState extends State<AppShell> {
         configStore: _configStore,
         historyStore: _historyStore,
         agentStore: _agentStore,
+        connectionTesterResolver: _connectionTesterResolver,
         generationKeepAlive: _generationKeepAlive,
       ),
       ProvidersPage(

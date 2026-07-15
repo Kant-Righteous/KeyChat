@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 
@@ -351,6 +352,120 @@ void main() {
 
       expect(find.text('Title'), findsOneWidget);
       expect(find.text('List item 1'), findsOneWidget);
+    });
+
+    testWidgets('renders dollar-delimited inline formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'Einstein wrote $E = mc^2$.',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(find.text(r'E = mc^2'), findsNothing);
+    });
+
+    testWidgets('renders parenthesis-delimited inline formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'转移矩阵 \(\mathbf{A}\) 的大小为 \(N \times N\)。',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders dollar-delimited display formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'''概率公式：
+
+$$
+P(O \mid \lambda) = \sum_i \alpha_T(i)
+$$''',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders bracket-delimited matrix formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'''矩阵：
+
+\[
+\mathbf{A} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+\]''',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('formula inside inline code remains code',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(source: r'`$E = mc^2$`'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsNothing);
+      expect(find.text(r'$E = mc^2$'), findsOneWidget);
+    });
+
+    testWidgets('long display formula scrolls without narrow-screen overflow',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SizedBox(
+            width: 320,
+            child: Scaffold(
+              body: AssistantMessageContent(
+                source: r'''$$
+\mathbf{B}_{i,j}=P(o_j \mid s_i)=\frac{\alpha_i\beta_j}{\sum_{k=1}^{N}\alpha_k\beta_k}
+$$''',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
