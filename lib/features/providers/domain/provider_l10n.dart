@@ -14,7 +14,7 @@ String localizedProviderName(
     'deepseek' => 'DeepSeek',
     'openrouter' => 'OpenRouter',
     'custom' => l10n.customProvider,
-    _ => preset.id,
+    _ => preset.name,
   };
 }
 

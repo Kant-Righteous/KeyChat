@@ -94,6 +94,35 @@ void main() {
       expect(urlField, findsOneWidget);
     });
 
+    testWidgets('Dynamic custom Provider does not expose its internal ID',
+        (WidgetTester tester) async {
+      const preset = ProviderPreset(
+        id: 'custom_123456',
+        name: '自定义提供商',
+        description: '配置任意兼容 OpenAI 协议的服务',
+        defaultBaseUrl: '',
+        isCustom: true,
+        protocol: ProviderProtocol.openAiCompatible,
+      );
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(TextFormField, '自定义提供商'),
+        findsOneWidget,
+      );
+      expect(find.text('custom_123456'), findsNothing);
+    });
+
     testWidgets('Custom Provider shows provider preset selector',
         (WidgetTester tester) async {
       final preset = providerPresets[3]; // Custom
