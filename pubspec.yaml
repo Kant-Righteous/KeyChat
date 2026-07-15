@@ -46,6 +46,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_markdown_plus: ^1.0.3
   shared_preferences: ^2.3.4
+  share_plus: ^10.1.4
   markdown: ^7.3.0
   flutter_math_fork:
     git:

@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-Widget buildTestApp({required Widget home}) {
+Widget buildTestApp({
+  required Widget home,
+  Locale locale = const Locale('en'),
+}) {
   return MaterialApp(
+    locale: locale,
     localizationsDelegates: const [
       AppLocalizations.delegate,
       GlobalMaterialLocalizations.delegate,

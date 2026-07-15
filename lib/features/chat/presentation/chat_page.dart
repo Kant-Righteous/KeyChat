@@ -121,6 +121,7 @@ class _ChatPageState extends State<ChatPage> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = <ChatMessage>[];
+  final Map<String, GlobalKey> _messageKeys = {};
   final List<_ReadyProvider> _readyProviders = [];
   _ReadyProvider? _selectedProvider;
   final List<String> _availableModels = [];
@@ -150,6 +151,8 @@ class _ChatPageState extends State<ChatPage> {
   _GenerationPhase _generationPhase = _GenerationPhase.idle;
   StreamSubscription<ChatStreamEvent>? _streamSubscription;
   String? _trimWarning;
+  String? _highlightedMessageId;
+  Timer? _highlightTimer;
 
   @override
   void initState() {
@@ -300,6 +303,7 @@ class _ChatPageState extends State<ChatPage> {
         _selectedAgent = selectedAgent;
         _messages.clear();
         _messages.addAll(historyMessages);
+        _messageKeys.clear();
         _activeConversationId = conversation?.id;
         _loading = false;
         _protocolWarning = protocolWarning;
@@ -613,6 +617,8 @@ class _ChatPageState extends State<ChatPage> {
     _ReadyProvider? provider;
     setState(() {
       _messages.clear();
+      _messageKeys.clear();
+      _highlightedMessageId = null;
       _activeConversationId = null;
       _persistWarning = null;
       _protocolWarning = null;
@@ -648,6 +654,8 @@ class _ChatPageState extends State<ChatPage> {
       _ReadyProvider? provider;
       setState(() {
         _messages.clear();
+        _messageKeys.clear();
+        _highlightedMessageId = null;
         _activeConversationId = null;
         _persistWarning = null;
         _protocolWarning = null;
@@ -744,6 +752,8 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _messages.clear();
           _messages.addAll(messages);
+          _messageKeys.clear();
+          _highlightedMessageId = null;
           _activeConversationId = conversationId;
           _selectedProvider = selectedProvider;
           _selectedModelId = selectedProvider == null ? null : restoredModelId;
@@ -1356,6 +1366,133 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  GlobalKey _messageKey(String messageId) {
+    return _messageKeys.putIfAbsent(messageId, GlobalKey.new);
+  }
+
+  String _outlineTitle(String content) {
+    return content.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  Future<void> _showConversationOutline() async {
+    final userMessages = _messages
+        .where((message) => message.role == ChatRole.user)
+        .toList(growable: false);
+    final selectedMessageId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final l10n = AppLocalizations.of(sheetContext)!;
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.65,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.conversationOutline,
+                          style: Theme.of(sheetContext).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(sheetContext)
+                            .closeButtonTooltip,
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: userMessages.isEmpty
+                      ? Center(
+                          key: const Key('conversation_outline_empty'),
+                          child: Text(
+                            l10n.noOutline,
+                            style: TextStyle(color: Colors.grey.shade700),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: userMessages.length,
+                          separatorBuilder: (_, __) => const Divider(
+                              height: 1, indent: 20, endIndent: 20),
+                          itemBuilder: (context, index) {
+                            final message = userMessages[index];
+                            return ListTile(
+                              key: ValueKey('outline_item_${message.id}'),
+                              leading: CircleAvatar(
+                                radius: 14,
+                                child: Text('${index + 1}'),
+                              ),
+                              title: Text(
+                                _outlineTitle(message.content),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () =>
+                                  Navigator.pop(sheetContext, message.id),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedMessageId != null && mounted) {
+      await _jumpToMessage(selectedMessageId);
+    }
+  }
+
+  Future<void> _jumpToMessage(String messageId) async {
+    final index = _messages.indexWhere((message) => message.id == messageId);
+    if (index < 0) return;
+
+    _highlightTimer?.cancel();
+    setState(() => _highlightedMessageId = messageId);
+
+    for (var attempt = 0; attempt < 3 && mounted; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      final targetContext = _messageKeys[messageId]?.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.2,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+        );
+        break;
+      }
+
+      if (_scrollController.hasClients) {
+        final denominator = _messages.length <= 1 ? 1 : _messages.length - 1;
+        final targetOffset =
+            _scrollController.position.maxScrollExtent * (index / denominator);
+        await _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+
+    _highlightTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted && _highlightedMessageId == messageId) {
+        setState(() => _highlightedMessageId = null);
+      }
+    });
+  }
+
   void _scrollIfNearBottom() {
     if (!_isNearBottom()) return;
     _scrollToBottom();
@@ -1536,6 +1673,7 @@ class _ChatPageState extends State<ChatPage> {
     }
     _messageController.dispose();
     _scrollController.dispose();
+    _highlightTimer?.cancel();
     super.dispose();
   }
 
@@ -1547,6 +1685,14 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         title: const Text('KeyChat'),
         actions: [
+          Semantics(
+            label: l10n.conversationOutline,
+            child: IconButton(
+              onPressed: _showConversationOutline,
+              icon: const Icon(Icons.format_list_bulleted_rounded),
+              tooltip: l10n.conversationOutline,
+            ),
+          ),
           Semantics(
             label: l10n.history,
             child: IconButton(
@@ -1667,154 +1813,181 @@ class _ChatPageState extends State<ChatPage> {
                                     ? _streamingReasoningKey
                                     : _messages[index].id;
 
-                                return Column(
-                                  crossAxisAlignment: isUser
-                                      ? CrossAxisAlignment.end
-                                      : CrossAxisAlignment.start,
-                                  children: [
-                                    if (!isUser && reasoning.isNotEmpty)
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: Container(
-                                          margin:
-                                              const EdgeInsets.only(bottom: 3),
-                                          constraints: BoxConstraints(
-                                            maxWidth: MediaQuery.of(context)
-                                                    .size
-                                                    .width *
-                                                0.75,
-                                          ),
-                                          child: _buildReasoningDisclosure(
-                                            l10n,
-                                            reasoning,
-                                            reasoningExpansionKey,
-                                          ),
-                                        ),
-                                      ),
-                                    Align(
-                                      alignment: isUser
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      child: Container(
-                                        key: ValueKey(
-                                          '${isUser ? 'user' : 'assistant'}_message_bubble_$index',
-                                        ),
-                                        margin:
-                                            const EdgeInsets.only(bottom: 4),
-                                        width: isUser ? null : double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        constraints: BoxConstraints(
-                                          maxWidth: isUser
-                                              ? MediaQuery.of(context)
+                                final messageId =
+                                    isStreaming ? null : _messages[index].id;
+                                final isHighlighted = messageId != null &&
+                                    messageId == _highlightedMessageId;
+
+                                return KeyedSubtree(
+                                  key: isHighlighted
+                                      ? ValueKey(
+                                          'highlighted_message_$messageId')
+                                      : ValueKey('message_$messageId'),
+                                  child: Column(
+                                    key: messageId == null
+                                        ? null
+                                        : _messageKey(messageId),
+                                    crossAxisAlignment: isUser
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
+                                    children: [
+                                      if (!isUser && reasoning.isNotEmpty)
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Container(
+                                            margin: const EdgeInsets.only(
+                                                bottom: 3),
+                                            constraints: BoxConstraints(
+                                              maxWidth: MediaQuery.of(context)
                                                       .size
                                                       .width *
-                                                  0.75
-                                              : double.infinity,
-                                          minHeight: 44,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isUser
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primaryContainer
-                                              : Theme.of(context)
-                                                  .colorScheme
-                                                  .surfaceContainerHighest,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: isUser
-                                            ? Text(content)
-                                            : _buildAssistantContent(
-                                                l10n: l10n,
-                                                content: content,
-                                                isStreaming: isStreaming,
-                                                contentKey: ValueKey(
-                                                  'msg_${isStreaming ? 'streaming' : _messages[index].id}',
-                                                ),
-                                                modelLabelKey: ValueKey(
-                                                  'assistant_model_label_${isStreaming ? 'streaming' : _messages[index].id}',
-                                                ),
-                                                providerName: isStreaming
-                                                    ? _streamingProviderName
-                                                    : _messages[index]
-                                                        .providerNameSnapshot,
-                                                modelId: isStreaming
-                                                    ? _streamingModelId
-                                                    : _messages[index]
-                                                        .modelIdSnapshot,
-                                              ),
-                                      ),
-                                    ),
-                                    if (isAssistant)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 4),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Semantics(
-                                              label: l10n.copyResponse,
-                                              child: IconButton(
-                                                icon: const Icon(Icons.copy,
-                                                    size: 16),
-                                                tooltip: l10n.copyResponse,
-                                                onPressed: () async {
-                                                  final messenger =
-                                                      ScaffoldMessenger.of(
-                                                          context);
-                                                  await Clipboard.setData(
-                                                    ClipboardData(
-                                                        text: content),
-                                                  );
-                                                  if (mounted) {
-                                                    messenger.showSnackBar(
-                                                      SnackBar(
-                                                        content:
-                                                            Text(l10n.copied),
-                                                        duration:
-                                                            const Duration(
-                                                                seconds: 1),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                              ),
+                                                  0.75,
                                             ),
-                                            if (isLastAssistant &&
-                                                _canRegenerate &&
-                                                !_sending)
-                                              Semantics(
-                                                label: l10n.regenerateResponse,
-                                                child: IconButton(
-                                                  icon: const Icon(
-                                                      Icons.refresh_rounded,
-                                                      size: 16),
-                                                  tooltip:
-                                                      l10n.regenerateResponse,
-                                                  onPressed:
-                                                      _regenerateLastResponse,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    if (isStreaming && _userStopped)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                            left: 12, bottom: 8),
-                                        child: Text(
-                                          l10n.stopped,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                            fontStyle: FontStyle.italic,
+                                            child: _buildReasoningDisclosure(
+                                              l10n,
+                                              reasoning,
+                                              reasoningExpansionKey,
+                                            ),
                                           ),
                                         ),
+                                      Align(
+                                        alignment: isUser
+                                            ? Alignment.centerRight
+                                            : Alignment.centerLeft,
+                                        child: AnimatedContainer(
+                                          key: ValueKey(
+                                            '${isUser ? 'user' : 'assistant'}_message_bubble_$index',
+                                          ),
+                                          duration:
+                                              const Duration(milliseconds: 180),
+                                          margin:
+                                              const EdgeInsets.only(bottom: 4),
+                                          width:
+                                              isUser ? null : double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          constraints: BoxConstraints(
+                                            maxWidth: isUser
+                                                ? MediaQuery.of(context)
+                                                        .size
+                                                        .width *
+                                                    0.75
+                                                : double.infinity,
+                                            minHeight: 44,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isUser
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primaryContainer
+                                                : Theme.of(context)
+                                                    .colorScheme
+                                                    .surfaceContainerHighest,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: isHighlighted
+                                                ? Border.all(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .primary,
+                                                    width: 2,
+                                                  )
+                                                : null,
+                                          ),
+                                          child: isUser
+                                              ? Text(content)
+                                              : _buildAssistantContent(
+                                                  l10n: l10n,
+                                                  content: content,
+                                                  isStreaming: isStreaming,
+                                                  contentKey: ValueKey(
+                                                    'msg_${isStreaming ? 'streaming' : _messages[index].id}',
+                                                  ),
+                                                  modelLabelKey: ValueKey(
+                                                    'assistant_model_label_${isStreaming ? 'streaming' : _messages[index].id}',
+                                                  ),
+                                                  providerName: isStreaming
+                                                      ? _streamingProviderName
+                                                      : _messages[index]
+                                                          .providerNameSnapshot,
+                                                  modelId: isStreaming
+                                                      ? _streamingModelId
+                                                      : _messages[index]
+                                                          .modelIdSnapshot,
+                                                ),
+                                        ),
                                       ),
-                                  ],
+                                      if (isAssistant)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 4),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Semantics(
+                                                label: l10n.copyResponse,
+                                                child: IconButton(
+                                                  icon: const Icon(Icons.copy,
+                                                      size: 16),
+                                                  tooltip: l10n.copyResponse,
+                                                  onPressed: () async {
+                                                    final messenger =
+                                                        ScaffoldMessenger.of(
+                                                            context);
+                                                    await Clipboard.setData(
+                                                      ClipboardData(
+                                                          text: content),
+                                                    );
+                                                    if (mounted) {
+                                                      messenger.showSnackBar(
+                                                        SnackBar(
+                                                          content:
+                                                              Text(l10n.copied),
+                                                          duration:
+                                                              const Duration(
+                                                                  seconds: 1),
+                                                        ),
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                              if (isLastAssistant &&
+                                                  _canRegenerate &&
+                                                  !_sending)
+                                                Semantics(
+                                                  label:
+                                                      l10n.regenerateResponse,
+                                                  child: IconButton(
+                                                    icon: const Icon(
+                                                        Icons.refresh_rounded,
+                                                        size: 16),
+                                                    tooltip:
+                                                        l10n.regenerateResponse,
+                                                    onPressed:
+                                                        _regenerateLastResponse,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      if (isStreaming && _userStopped)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                              left: 12, bottom: 8),
+                                          child: Text(
+                                            l10n.stopped,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 );
                               },
                             ),
