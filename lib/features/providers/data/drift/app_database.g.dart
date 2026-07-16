@@ -57,6 +57,26 @@ class $ProviderConfigsTable extends ProviderConfigs
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('openai_compatible'));
+  static const VerificationMeta _supportsImageInputMeta =
+      const VerificationMeta('supportsImageInput');
+  @override
+  late final GeneratedColumn<bool> supportsImageInput = GeneratedColumn<bool>(
+      'supports_image_input', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("supports_image_input" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _supportsFileInputMeta =
+      const VerificationMeta('supportsFileInput');
+  @override
+  late final GeneratedColumn<bool> supportsFileInput = GeneratedColumn<bool>(
+      'supports_file_input', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("supports_file_input" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
   List<GeneratedColumn> get $columns => [
         providerId,
@@ -65,7 +85,9 @@ class $ProviderConfigsTable extends ProviderConfigs
         defaultModel,
         enabled,
         updatedAt,
-        protocol
+        protocol,
+        supportsImageInput,
+        supportsFileInput
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -119,6 +141,18 @@ class $ProviderConfigsTable extends ProviderConfigs
       context.handle(_protocolMeta,
           protocol.isAcceptableOrUnknown(data['protocol']!, _protocolMeta));
     }
+    if (data.containsKey('supports_image_input')) {
+      context.handle(
+          _supportsImageInputMeta,
+          supportsImageInput.isAcceptableOrUnknown(
+              data['supports_image_input']!, _supportsImageInputMeta));
+    }
+    if (data.containsKey('supports_file_input')) {
+      context.handle(
+          _supportsFileInputMeta,
+          supportsFileInput.isAcceptableOrUnknown(
+              data['supports_file_input']!, _supportsFileInputMeta));
+    }
     return context;
   }
 
@@ -142,6 +176,10 @@ class $ProviderConfigsTable extends ProviderConfigs
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       protocol: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}protocol'])!,
+      supportsImageInput: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}supports_image_input'])!,
+      supportsFileInput: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}supports_file_input'])!,
     );
   }
 
@@ -159,6 +197,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
   final bool enabled;
   final DateTime updatedAt;
   final String protocol;
+  final bool supportsImageInput;
+  final bool supportsFileInput;
   const ProviderConfig(
       {required this.providerId,
       required this.displayName,
@@ -166,7 +206,9 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       this.defaultModel,
       required this.enabled,
       required this.updatedAt,
-      required this.protocol});
+      required this.protocol,
+      required this.supportsImageInput,
+      required this.supportsFileInput});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -179,6 +221,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
     map['enabled'] = Variable<bool>(enabled);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['protocol'] = Variable<String>(protocol);
+    map['supports_image_input'] = Variable<bool>(supportsImageInput);
+    map['supports_file_input'] = Variable<bool>(supportsFileInput);
     return map;
   }
 
@@ -193,6 +237,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       enabled: Value(enabled),
       updatedAt: Value(updatedAt),
       protocol: Value(protocol),
+      supportsImageInput: Value(supportsImageInput),
+      supportsFileInput: Value(supportsFileInput),
     );
   }
 
@@ -207,6 +253,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       enabled: serializer.fromJson<bool>(json['enabled']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       protocol: serializer.fromJson<String>(json['protocol']),
+      supportsImageInput: serializer.fromJson<bool>(json['supportsImageInput']),
+      supportsFileInput: serializer.fromJson<bool>(json['supportsFileInput']),
     );
   }
   @override
@@ -220,6 +268,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       'enabled': serializer.toJson<bool>(enabled),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'protocol': serializer.toJson<String>(protocol),
+      'supportsImageInput': serializer.toJson<bool>(supportsImageInput),
+      'supportsFileInput': serializer.toJson<bool>(supportsFileInput),
     };
   }
 
@@ -230,7 +280,9 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           Value<String?> defaultModel = const Value.absent(),
           bool? enabled,
           DateTime? updatedAt,
-          String? protocol}) =>
+          String? protocol,
+          bool? supportsImageInput,
+          bool? supportsFileInput}) =>
       ProviderConfig(
         providerId: providerId ?? this.providerId,
         displayName: displayName ?? this.displayName,
@@ -240,6 +292,8 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
         enabled: enabled ?? this.enabled,
         updatedAt: updatedAt ?? this.updatedAt,
         protocol: protocol ?? this.protocol,
+        supportsImageInput: supportsImageInput ?? this.supportsImageInput,
+        supportsFileInput: supportsFileInput ?? this.supportsFileInput,
       );
   ProviderConfig copyWithCompanion(ProviderConfigsCompanion data) {
     return ProviderConfig(
@@ -254,6 +308,12 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       protocol: data.protocol.present ? data.protocol.value : this.protocol,
+      supportsImageInput: data.supportsImageInput.present
+          ? data.supportsImageInput.value
+          : this.supportsImageInput,
+      supportsFileInput: data.supportsFileInput.present
+          ? data.supportsFileInput.value
+          : this.supportsFileInput,
     );
   }
 
@@ -266,14 +326,24 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           ..write('defaultModel: $defaultModel, ')
           ..write('enabled: $enabled, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('protocol: $protocol')
+          ..write('protocol: $protocol, ')
+          ..write('supportsImageInput: $supportsImageInput, ')
+          ..write('supportsFileInput: $supportsFileInput')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(providerId, displayName, baseUrl,
-      defaultModel, enabled, updatedAt, protocol);
+  int get hashCode => Object.hash(
+      providerId,
+      displayName,
+      baseUrl,
+      defaultModel,
+      enabled,
+      updatedAt,
+      protocol,
+      supportsImageInput,
+      supportsFileInput);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -284,7 +354,9 @@ class ProviderConfig extends DataClass implements Insertable<ProviderConfig> {
           other.defaultModel == this.defaultModel &&
           other.enabled == this.enabled &&
           other.updatedAt == this.updatedAt &&
-          other.protocol == this.protocol);
+          other.protocol == this.protocol &&
+          other.supportsImageInput == this.supportsImageInput &&
+          other.supportsFileInput == this.supportsFileInput);
 }
 
 class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
@@ -295,6 +367,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
   final Value<bool> enabled;
   final Value<DateTime> updatedAt;
   final Value<String> protocol;
+  final Value<bool> supportsImageInput;
+  final Value<bool> supportsFileInput;
   final Value<int> rowid;
   const ProviderConfigsCompanion({
     this.providerId = const Value.absent(),
@@ -304,6 +378,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     this.enabled = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.protocol = const Value.absent(),
+    this.supportsImageInput = const Value.absent(),
+    this.supportsFileInput = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProviderConfigsCompanion.insert({
@@ -314,6 +390,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     this.enabled = const Value.absent(),
     required DateTime updatedAt,
     this.protocol = const Value.absent(),
+    this.supportsImageInput = const Value.absent(),
+    this.supportsFileInput = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : providerId = Value(providerId),
         displayName = Value(displayName),
@@ -327,6 +405,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     Expression<bool>? enabled,
     Expression<DateTime>? updatedAt,
     Expression<String>? protocol,
+    Expression<bool>? supportsImageInput,
+    Expression<bool>? supportsFileInput,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -337,6 +417,9 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       if (enabled != null) 'enabled': enabled,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (protocol != null) 'protocol': protocol,
+      if (supportsImageInput != null)
+        'supports_image_input': supportsImageInput,
+      if (supportsFileInput != null) 'supports_file_input': supportsFileInput,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -349,6 +432,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       Value<bool>? enabled,
       Value<DateTime>? updatedAt,
       Value<String>? protocol,
+      Value<bool>? supportsImageInput,
+      Value<bool>? supportsFileInput,
       Value<int>? rowid}) {
     return ProviderConfigsCompanion(
       providerId: providerId ?? this.providerId,
@@ -358,6 +443,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
       enabled: enabled ?? this.enabled,
       updatedAt: updatedAt ?? this.updatedAt,
       protocol: protocol ?? this.protocol,
+      supportsImageInput: supportsImageInput ?? this.supportsImageInput,
+      supportsFileInput: supportsFileInput ?? this.supportsFileInput,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -386,6 +473,12 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
     if (protocol.present) {
       map['protocol'] = Variable<String>(protocol.value);
     }
+    if (supportsImageInput.present) {
+      map['supports_image_input'] = Variable<bool>(supportsImageInput.value);
+    }
+    if (supportsFileInput.present) {
+      map['supports_file_input'] = Variable<bool>(supportsFileInput.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -402,6 +495,8 @@ class ProviderConfigsCompanion extends UpdateCompanion<ProviderConfig> {
           ..write('enabled: $enabled, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('protocol: $protocol, ')
+          ..write('supportsImageInput: $supportsImageInput, ')
+          ..write('supportsFileInput: $supportsFileInput, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1712,6 +1807,805 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
   }
 }
 
+class $ChatAttachmentsTable extends ChatAttachments
+    with TableInfo<$ChatAttachmentsTable, ChatAttachment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChatAttachmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fileNameMeta =
+      const VerificationMeta('fileName');
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+      'file_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _mimeTypeMeta =
+      const VerificationMeta('mimeType');
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+      'mime_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fileSizeMeta =
+      const VerificationMeta('fileSize');
+  @override
+  late final GeneratedColumn<int> fileSize = GeneratedColumn<int>(
+      'file_size', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _localPathMeta =
+      const VerificationMeta('localPath');
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+      'local_path', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _messageIdMeta =
+      const VerificationMeta('messageId');
+  @override
+  late final GeneratedColumn<String> messageId = GeneratedColumn<String>(
+      'message_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES chat_messages (id) ON DELETE CASCADE'));
+  static const VerificationMeta _conversationIdMeta =
+      const VerificationMeta('conversationId');
+  @override
+  late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
+      'conversation_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES conversations (id) ON DELETE CASCADE'));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        fileName,
+        mimeType,
+        fileSize,
+        localPath,
+        kind,
+        messageId,
+        conversationId
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chat_attachments';
+  @override
+  VerificationContext validateIntegrity(Insertable<ChatAttachment> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(_fileNameMeta,
+          fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta));
+    } else if (isInserting) {
+      context.missing(_fileNameMeta);
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(_mimeTypeMeta,
+          mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta));
+    } else if (isInserting) {
+      context.missing(_mimeTypeMeta);
+    }
+    if (data.containsKey('file_size')) {
+      context.handle(_fileSizeMeta,
+          fileSize.isAcceptableOrUnknown(data['file_size']!, _fileSizeMeta));
+    } else if (isInserting) {
+      context.missing(_fileSizeMeta);
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(_localPathMeta,
+          localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta));
+    } else if (isInserting) {
+      context.missing(_localPathMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('message_id')) {
+      context.handle(_messageIdMeta,
+          messageId.isAcceptableOrUnknown(data['message_id']!, _messageIdMeta));
+    } else if (isInserting) {
+      context.missing(_messageIdMeta);
+    }
+    if (data.containsKey('conversation_id')) {
+      context.handle(
+          _conversationIdMeta,
+          conversationId.isAcceptableOrUnknown(
+              data['conversation_id']!, _conversationIdMeta));
+    } else if (isInserting) {
+      context.missing(_conversationIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChatAttachment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChatAttachment(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      fileName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}file_name'])!,
+      mimeType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mime_type'])!,
+      fileSize: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}file_size'])!,
+      localPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}local_path'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      messageId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}message_id'])!,
+      conversationId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}conversation_id'])!,
+    );
+  }
+
+  @override
+  $ChatAttachmentsTable createAlias(String alias) {
+    return $ChatAttachmentsTable(attachedDatabase, alias);
+  }
+}
+
+class ChatAttachment extends DataClass implements Insertable<ChatAttachment> {
+  final String id;
+  final String fileName;
+  final String mimeType;
+  final int fileSize;
+  final String localPath;
+  final String kind;
+  final String messageId;
+  final String conversationId;
+  const ChatAttachment(
+      {required this.id,
+      required this.fileName,
+      required this.mimeType,
+      required this.fileSize,
+      required this.localPath,
+      required this.kind,
+      required this.messageId,
+      required this.conversationId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['file_name'] = Variable<String>(fileName);
+    map['mime_type'] = Variable<String>(mimeType);
+    map['file_size'] = Variable<int>(fileSize);
+    map['local_path'] = Variable<String>(localPath);
+    map['kind'] = Variable<String>(kind);
+    map['message_id'] = Variable<String>(messageId);
+    map['conversation_id'] = Variable<String>(conversationId);
+    return map;
+  }
+
+  ChatAttachmentsCompanion toCompanion(bool nullToAbsent) {
+    return ChatAttachmentsCompanion(
+      id: Value(id),
+      fileName: Value(fileName),
+      mimeType: Value(mimeType),
+      fileSize: Value(fileSize),
+      localPath: Value(localPath),
+      kind: Value(kind),
+      messageId: Value(messageId),
+      conversationId: Value(conversationId),
+    );
+  }
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChatAttachment(
+      id: serializer.fromJson<String>(json['id']),
+      fileName: serializer.fromJson<String>(json['fileName']),
+      mimeType: serializer.fromJson<String>(json['mimeType']),
+      fileSize: serializer.fromJson<int>(json['fileSize']),
+      localPath: serializer.fromJson<String>(json['localPath']),
+      kind: serializer.fromJson<String>(json['kind']),
+      messageId: serializer.fromJson<String>(json['messageId']),
+      conversationId: serializer.fromJson<String>(json['conversationId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'fileName': serializer.toJson<String>(fileName),
+      'mimeType': serializer.toJson<String>(mimeType),
+      'fileSize': serializer.toJson<int>(fileSize),
+      'localPath': serializer.toJson<String>(localPath),
+      'kind': serializer.toJson<String>(kind),
+      'messageId': serializer.toJson<String>(messageId),
+      'conversationId': serializer.toJson<String>(conversationId),
+    };
+  }
+
+  ChatAttachment copyWith(
+          {String? id,
+          String? fileName,
+          String? mimeType,
+          int? fileSize,
+          String? localPath,
+          String? kind,
+          String? messageId,
+          String? conversationId}) =>
+      ChatAttachment(
+        id: id ?? this.id,
+        fileName: fileName ?? this.fileName,
+        mimeType: mimeType ?? this.mimeType,
+        fileSize: fileSize ?? this.fileSize,
+        localPath: localPath ?? this.localPath,
+        kind: kind ?? this.kind,
+        messageId: messageId ?? this.messageId,
+        conversationId: conversationId ?? this.conversationId,
+      );
+  ChatAttachment copyWithCompanion(ChatAttachmentsCompanion data) {
+    return ChatAttachment(
+      id: data.id.present ? data.id.value : this.id,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      fileSize: data.fileSize.present ? data.fileSize.value : this.fileSize,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatAttachment(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('fileSize: $fileSize, ')
+          ..write('localPath: $localPath, ')
+          ..write('kind: $kind, ')
+          ..write('messageId: $messageId, ')
+          ..write('conversationId: $conversationId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, fileName, mimeType, fileSize, localPath,
+      kind, messageId, conversationId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChatAttachment &&
+          other.id == this.id &&
+          other.fileName == this.fileName &&
+          other.mimeType == this.mimeType &&
+          other.fileSize == this.fileSize &&
+          other.localPath == this.localPath &&
+          other.kind == this.kind &&
+          other.messageId == this.messageId &&
+          other.conversationId == this.conversationId);
+}
+
+class ChatAttachmentsCompanion extends UpdateCompanion<ChatAttachment> {
+  final Value<String> id;
+  final Value<String> fileName;
+  final Value<String> mimeType;
+  final Value<int> fileSize;
+  final Value<String> localPath;
+  final Value<String> kind;
+  final Value<String> messageId;
+  final Value<String> conversationId;
+  final Value<int> rowid;
+  const ChatAttachmentsCompanion({
+    this.id = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.fileSize = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.messageId = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChatAttachmentsCompanion.insert({
+    required String id,
+    required String fileName,
+    required String mimeType,
+    required int fileSize,
+    required String localPath,
+    required String kind,
+    required String messageId,
+    required String conversationId,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        fileName = Value(fileName),
+        mimeType = Value(mimeType),
+        fileSize = Value(fileSize),
+        localPath = Value(localPath),
+        kind = Value(kind),
+        messageId = Value(messageId),
+        conversationId = Value(conversationId);
+  static Insertable<ChatAttachment> custom({
+    Expression<String>? id,
+    Expression<String>? fileName,
+    Expression<String>? mimeType,
+    Expression<int>? fileSize,
+    Expression<String>? localPath,
+    Expression<String>? kind,
+    Expression<String>? messageId,
+    Expression<String>? conversationId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (fileName != null) 'file_name': fileName,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (fileSize != null) 'file_size': fileSize,
+      if (localPath != null) 'local_path': localPath,
+      if (kind != null) 'kind': kind,
+      if (messageId != null) 'message_id': messageId,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChatAttachmentsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? fileName,
+      Value<String>? mimeType,
+      Value<int>? fileSize,
+      Value<String>? localPath,
+      Value<String>? kind,
+      Value<String>? messageId,
+      Value<String>? conversationId,
+      Value<int>? rowid}) {
+    return ChatAttachmentsCompanion(
+      id: id ?? this.id,
+      fileName: fileName ?? this.fileName,
+      mimeType: mimeType ?? this.mimeType,
+      fileSize: fileSize ?? this.fileSize,
+      localPath: localPath ?? this.localPath,
+      kind: kind ?? this.kind,
+      messageId: messageId ?? this.messageId,
+      conversationId: conversationId ?? this.conversationId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (fileSize.present) {
+      map['file_size'] = Variable<int>(fileSize.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (messageId.present) {
+      map['message_id'] = Variable<String>(messageId.value);
+    }
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<String>(conversationId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatAttachmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('fileSize: $fileSize, ')
+          ..write('localPath: $localPath, ')
+          ..write('kind: $kind, ')
+          ..write('messageId: $messageId, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ModelAttachmentCapabilitiesTable extends ModelAttachmentCapabilities
+    with
+        TableInfo<$ModelAttachmentCapabilitiesTable,
+            ModelAttachmentCapabilityRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ModelAttachmentCapabilitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _providerIdMeta =
+      const VerificationMeta('providerId');
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+      'provider_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES provider_configs (provider_id) ON DELETE CASCADE'));
+  static const VerificationMeta _modelIdMeta =
+      const VerificationMeta('modelId');
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+      'model_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modalityMeta =
+      const VerificationMeta('modality');
+  @override
+  late final GeneratedColumn<String> modality = GeneratedColumn<String>(
+      'modality', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+      'source', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [providerId, modelId, modality, status, source, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'model_attachment_capabilities';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ModelAttachmentCapabilityRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('provider_id')) {
+      context.handle(
+          _providerIdMeta,
+          providerId.isAcceptableOrUnknown(
+              data['provider_id']!, _providerIdMeta));
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(_modelIdMeta,
+          modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta));
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('modality')) {
+      context.handle(_modalityMeta,
+          modality.isAcceptableOrUnknown(data['modality']!, _modalityMeta));
+    } else if (isInserting) {
+      context.missing(_modalityMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(_sourceMeta,
+          source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey =>
+      {providerId, modelId, modality, source};
+  @override
+  ModelAttachmentCapabilityRow map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ModelAttachmentCapabilityRow(
+      providerId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}provider_id'])!,
+      modelId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model_id'])!,
+      modality: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}modality'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      source: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $ModelAttachmentCapabilitiesTable createAlias(String alias) {
+    return $ModelAttachmentCapabilitiesTable(attachedDatabase, alias);
+  }
+}
+
+class ModelAttachmentCapabilityRow extends DataClass
+    implements Insertable<ModelAttachmentCapabilityRow> {
+  final String providerId;
+  final String modelId;
+  final String modality;
+  final String status;
+  final String source;
+  final DateTime updatedAt;
+  const ModelAttachmentCapabilityRow(
+      {required this.providerId,
+      required this.modelId,
+      required this.modality,
+      required this.status,
+      required this.source,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['provider_id'] = Variable<String>(providerId);
+    map['model_id'] = Variable<String>(modelId);
+    map['modality'] = Variable<String>(modality);
+    map['status'] = Variable<String>(status);
+    map['source'] = Variable<String>(source);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ModelAttachmentCapabilitiesCompanion toCompanion(bool nullToAbsent) {
+    return ModelAttachmentCapabilitiesCompanion(
+      providerId: Value(providerId),
+      modelId: Value(modelId),
+      modality: Value(modality),
+      status: Value(status),
+      source: Value(source),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ModelAttachmentCapabilityRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ModelAttachmentCapabilityRow(
+      providerId: serializer.fromJson<String>(json['providerId']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      modality: serializer.fromJson<String>(json['modality']),
+      status: serializer.fromJson<String>(json['status']),
+      source: serializer.fromJson<String>(json['source']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'providerId': serializer.toJson<String>(providerId),
+      'modelId': serializer.toJson<String>(modelId),
+      'modality': serializer.toJson<String>(modality),
+      'status': serializer.toJson<String>(status),
+      'source': serializer.toJson<String>(source),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ModelAttachmentCapabilityRow copyWith(
+          {String? providerId,
+          String? modelId,
+          String? modality,
+          String? status,
+          String? source,
+          DateTime? updatedAt}) =>
+      ModelAttachmentCapabilityRow(
+        providerId: providerId ?? this.providerId,
+        modelId: modelId ?? this.modelId,
+        modality: modality ?? this.modality,
+        status: status ?? this.status,
+        source: source ?? this.source,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  ModelAttachmentCapabilityRow copyWithCompanion(
+      ModelAttachmentCapabilitiesCompanion data) {
+    return ModelAttachmentCapabilityRow(
+      providerId:
+          data.providerId.present ? data.providerId.value : this.providerId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      modality: data.modality.present ? data.modality.value : this.modality,
+      status: data.status.present ? data.status.value : this.status,
+      source: data.source.present ? data.source.value : this.source,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelAttachmentCapabilityRow(')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('modality: $modality, ')
+          ..write('status: $status, ')
+          ..write('source: $source, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(providerId, modelId, modality, status, source, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ModelAttachmentCapabilityRow &&
+          other.providerId == this.providerId &&
+          other.modelId == this.modelId &&
+          other.modality == this.modality &&
+          other.status == this.status &&
+          other.source == this.source &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ModelAttachmentCapabilitiesCompanion
+    extends UpdateCompanion<ModelAttachmentCapabilityRow> {
+  final Value<String> providerId;
+  final Value<String> modelId;
+  final Value<String> modality;
+  final Value<String> status;
+  final Value<String> source;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ModelAttachmentCapabilitiesCompanion({
+    this.providerId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.modality = const Value.absent(),
+    this.status = const Value.absent(),
+    this.source = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ModelAttachmentCapabilitiesCompanion.insert({
+    required String providerId,
+    required String modelId,
+    required String modality,
+    required String status,
+    required String source,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  })  : providerId = Value(providerId),
+        modelId = Value(modelId),
+        modality = Value(modality),
+        status = Value(status),
+        source = Value(source),
+        updatedAt = Value(updatedAt);
+  static Insertable<ModelAttachmentCapabilityRow> custom({
+    Expression<String>? providerId,
+    Expression<String>? modelId,
+    Expression<String>? modality,
+    Expression<String>? status,
+    Expression<String>? source,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (providerId != null) 'provider_id': providerId,
+      if (modelId != null) 'model_id': modelId,
+      if (modality != null) 'modality': modality,
+      if (status != null) 'status': status,
+      if (source != null) 'source': source,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ModelAttachmentCapabilitiesCompanion copyWith(
+      {Value<String>? providerId,
+      Value<String>? modelId,
+      Value<String>? modality,
+      Value<String>? status,
+      Value<String>? source,
+      Value<DateTime>? updatedAt,
+      Value<int>? rowid}) {
+    return ModelAttachmentCapabilitiesCompanion(
+      providerId: providerId ?? this.providerId,
+      modelId: modelId ?? this.modelId,
+      modality: modality ?? this.modality,
+      status: status ?? this.status,
+      source: source ?? this.source,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (modality.present) {
+      map['modality'] = Variable<String>(modality.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ModelAttachmentCapabilitiesCompanion(')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('modality: $modality, ')
+          ..write('status: $status, ')
+          ..write('source: $source, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1720,12 +2614,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AgentProfilesTable agentProfiles = $AgentProfilesTable(this);
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $ChatMessagesTable chatMessages = $ChatMessagesTable(this);
+  late final $ChatAttachmentsTable chatAttachments =
+      $ChatAttachmentsTable(this);
+  late final $ModelAttachmentCapabilitiesTable modelAttachmentCapabilities =
+      $ModelAttachmentCapabilitiesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [providerConfigs, agentProfiles, conversations, chatMessages];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        providerConfigs,
+        agentProfiles,
+        conversations,
+        chatMessages,
+        chatAttachments,
+        modelAttachmentCapabilities
+      ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -1734,6 +2638,28 @@ abstract class _$AppDatabase extends GeneratedDatabase {
                 limitUpdateKind: UpdateKind.delete),
             result: [
               TableUpdate('chat_messages', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('chat_messages',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('chat_attachments', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('conversations',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('chat_attachments', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('provider_configs',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('model_attachment_capabilities',
+                  kind: UpdateKind.delete),
             ],
           ),
         ],
@@ -1749,6 +2675,8 @@ typedef $$ProviderConfigsTableCreateCompanionBuilder = ProviderConfigsCompanion
   Value<bool> enabled,
   required DateTime updatedAt,
   Value<String> protocol,
+  Value<bool> supportsImageInput,
+  Value<bool> supportsFileInput,
   Value<int> rowid,
 });
 typedef $$ProviderConfigsTableUpdateCompanionBuilder = ProviderConfigsCompanion
@@ -1760,8 +2688,36 @@ typedef $$ProviderConfigsTableUpdateCompanionBuilder = ProviderConfigsCompanion
   Value<bool> enabled,
   Value<DateTime> updatedAt,
   Value<String> protocol,
+  Value<bool> supportsImageInput,
+  Value<bool> supportsFileInput,
   Value<int> rowid,
 });
+
+final class $$ProviderConfigsTableReferences extends BaseReferences<
+    _$AppDatabase, $ProviderConfigsTable, ProviderConfig> {
+  $$ProviderConfigsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ModelAttachmentCapabilitiesTable,
+      List<ModelAttachmentCapabilityRow>> _modelAttachmentCapabilitiesRefsTable(
+          _$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.modelAttachmentCapabilities,
+          aliasName: $_aliasNameGenerator(db.providerConfigs.providerId,
+              db.modelAttachmentCapabilities.providerId));
+
+  $$ModelAttachmentCapabilitiesTableProcessedTableManager
+      get modelAttachmentCapabilitiesRefs {
+    final manager = $$ModelAttachmentCapabilitiesTableTableManager(
+            $_db, $_db.modelAttachmentCapabilities)
+        .filter((f) => f.providerId.providerId
+            .sqlEquals($_itemColumn<String>('provider_id')!));
+
+    final cache = $_typedResult
+        .readTableOrNull(_modelAttachmentCapabilitiesRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
 
 class $$ProviderConfigsTableFilterComposer
     extends Composer<_$AppDatabase, $ProviderConfigsTable> {
@@ -1792,6 +2748,38 @@ class $$ProviderConfigsTableFilterComposer
 
   ColumnFilters<String> get protocol => $composableBuilder(
       column: $table.protocol, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get supportsImageInput => $composableBuilder(
+      column: $table.supportsImageInput,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get supportsFileInput => $composableBuilder(
+      column: $table.supportsFileInput,
+      builder: (column) => ColumnFilters(column));
+
+  Expression<bool> modelAttachmentCapabilitiesRefs(
+      Expression<bool> Function(
+              $$ModelAttachmentCapabilitiesTableFilterComposer f)
+          f) {
+    final $$ModelAttachmentCapabilitiesTableFilterComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.providerId,
+            referencedTable: $db.modelAttachmentCapabilities,
+            getReferencedColumn: (t) => t.providerId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ModelAttachmentCapabilitiesTableFilterComposer(
+                  $db: $db,
+                  $table: $db.modelAttachmentCapabilities,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
 }
 
 class $$ProviderConfigsTableOrderingComposer
@@ -1824,6 +2812,14 @@ class $$ProviderConfigsTableOrderingComposer
 
   ColumnOrderings<String> get protocol => $composableBuilder(
       column: $table.protocol, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get supportsImageInput => $composableBuilder(
+      column: $table.supportsImageInput,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get supportsFileInput => $composableBuilder(
+      column: $table.supportsFileInput,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProviderConfigsTableAnnotationComposer
@@ -1855,6 +2851,36 @@ class $$ProviderConfigsTableAnnotationComposer
 
   GeneratedColumn<String> get protocol =>
       $composableBuilder(column: $table.protocol, builder: (column) => column);
+
+  GeneratedColumn<bool> get supportsImageInput => $composableBuilder(
+      column: $table.supportsImageInput, builder: (column) => column);
+
+  GeneratedColumn<bool> get supportsFileInput => $composableBuilder(
+      column: $table.supportsFileInput, builder: (column) => column);
+
+  Expression<T> modelAttachmentCapabilitiesRefs<T extends Object>(
+      Expression<T> Function(
+              $$ModelAttachmentCapabilitiesTableAnnotationComposer a)
+          f) {
+    final $$ModelAttachmentCapabilitiesTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.providerId,
+            referencedTable: $db.modelAttachmentCapabilities,
+            getReferencedColumn: (t) => t.providerId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ModelAttachmentCapabilitiesTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.modelAttachmentCapabilities,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
 }
 
 class $$ProviderConfigsTableTableManager extends RootTableManager<
@@ -1866,12 +2892,9 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
     $$ProviderConfigsTableAnnotationComposer,
     $$ProviderConfigsTableCreateCompanionBuilder,
     $$ProviderConfigsTableUpdateCompanionBuilder,
-    (
-      ProviderConfig,
-      BaseReferences<_$AppDatabase, $ProviderConfigsTable, ProviderConfig>
-    ),
+    (ProviderConfig, $$ProviderConfigsTableReferences),
     ProviderConfig,
-    PrefetchHooks Function()> {
+    PrefetchHooks Function({bool modelAttachmentCapabilitiesRefs})> {
   $$ProviderConfigsTableTableManager(
       _$AppDatabase db, $ProviderConfigsTable table)
       : super(TableManagerState(
@@ -1891,6 +2914,8 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             Value<bool> enabled = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<String> protocol = const Value.absent(),
+            Value<bool> supportsImageInput = const Value.absent(),
+            Value<bool> supportsFileInput = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProviderConfigsCompanion(
@@ -1901,6 +2926,8 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             enabled: enabled,
             updatedAt: updatedAt,
             protocol: protocol,
+            supportsImageInput: supportsImageInput,
+            supportsFileInput: supportsFileInput,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -1911,6 +2938,8 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             Value<bool> enabled = const Value.absent(),
             required DateTime updatedAt,
             Value<String> protocol = const Value.absent(),
+            Value<bool> supportsImageInput = const Value.absent(),
+            Value<bool> supportsFileInput = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProviderConfigsCompanion.insert(
@@ -1921,12 +2950,45 @@ class $$ProviderConfigsTableTableManager extends RootTableManager<
             enabled: enabled,
             updatedAt: updatedAt,
             protocol: protocol,
+            supportsImageInput: supportsImageInput,
+            supportsFileInput: supportsFileInput,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable(table),
+                    $$ProviderConfigsTableReferences(db, table, e)
+                  ))
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({modelAttachmentCapabilitiesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (modelAttachmentCapabilitiesRefs)
+                  db.modelAttachmentCapabilities
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (modelAttachmentCapabilitiesRefs)
+                    await $_getPrefetchedData<
+                            ProviderConfig,
+                            $ProviderConfigsTable,
+                            ModelAttachmentCapabilityRow>(
+                        currentTable: table,
+                        referencedTable: $$ProviderConfigsTableReferences
+                            ._modelAttachmentCapabilitiesRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ProviderConfigsTableReferences(db, table, p0)
+                                .modelAttachmentCapabilitiesRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.providerId == item.providerId),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
         ));
 }
 
@@ -1939,12 +3001,9 @@ typedef $$ProviderConfigsTableProcessedTableManager = ProcessedTableManager<
     $$ProviderConfigsTableAnnotationComposer,
     $$ProviderConfigsTableCreateCompanionBuilder,
     $$ProviderConfigsTableUpdateCompanionBuilder,
-    (
-      ProviderConfig,
-      BaseReferences<_$AppDatabase, $ProviderConfigsTable, ProviderConfig>
-    ),
+    (ProviderConfig, $$ProviderConfigsTableReferences),
     ProviderConfig,
-    PrefetchHooks Function()>;
+    PrefetchHooks Function({bool modelAttachmentCapabilitiesRefs})>;
 typedef $$AgentProfilesTableCreateCompanionBuilder = AgentProfilesCompanion
     Function({
   required String id,
@@ -2181,6 +3240,23 @@ final class $$ConversationsTableReferences
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$ChatAttachmentsTable, List<ChatAttachment>>
+      _chatAttachmentsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.chatAttachments,
+              aliasName: $_aliasNameGenerator(
+                  db.conversations.id, db.chatAttachments.conversationId));
+
+  $$ChatAttachmentsTableProcessedTableManager get chatAttachmentsRefs {
+    final manager =
+        $$ChatAttachmentsTableTableManager($_db, $_db.chatAttachments).filter(
+            (f) => f.conversationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_chatAttachmentsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$ConversationsTableFilterComposer
@@ -2234,6 +3310,27 @@ class $$ConversationsTableFilterComposer
             $$ChatMessagesTableFilterComposer(
               $db: $db,
               $table: $db.chatMessages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> chatAttachmentsRefs(
+      Expression<bool> Function($$ChatAttachmentsTableFilterComposer f) f) {
+    final $$ChatAttachmentsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.conversationId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableFilterComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -2338,6 +3435,27 @@ class $$ConversationsTableAnnotationComposer
             ));
     return f(composer);
   }
+
+  Expression<T> chatAttachmentsRefs<T extends Object>(
+      Expression<T> Function($$ChatAttachmentsTableAnnotationComposer a) f) {
+    final $$ChatAttachmentsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.conversationId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$ConversationsTableTableManager extends RootTableManager<
@@ -2351,7 +3469,7 @@ class $$ConversationsTableTableManager extends RootTableManager<
     $$ConversationsTableUpdateCompanionBuilder,
     (Conversation, $$ConversationsTableReferences),
     Conversation,
-    PrefetchHooks Function({bool chatMessagesRefs})> {
+    PrefetchHooks Function({bool chatMessagesRefs, bool chatAttachmentsRefs})> {
   $$ConversationsTableTableManager(_$AppDatabase db, $ConversationsTable table)
       : super(TableManagerState(
           db: db,
@@ -2416,10 +3534,14 @@ class $$ConversationsTableTableManager extends RootTableManager<
                     $$ConversationsTableReferences(db, table, e)
                   ))
               .toList(),
-          prefetchHooksCallback: ({chatMessagesRefs = false}) {
+          prefetchHooksCallback: (
+              {chatMessagesRefs = false, chatAttachmentsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (chatMessagesRefs) db.chatMessages],
+              explicitlyWatchedTables: [
+                if (chatMessagesRefs) db.chatMessages,
+                if (chatAttachmentsRefs) db.chatAttachments
+              ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -2432,6 +3554,18 @@ class $$ConversationsTableTableManager extends RootTableManager<
                         managerFromTypedResult: (p0) =>
                             $$ConversationsTableReferences(db, table, p0)
                                 .chatMessagesRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.conversationId == item.id),
+                        typedResults: items),
+                  if (chatAttachmentsRefs)
+                    await $_getPrefetchedData<Conversation, $ConversationsTable, ChatAttachment>(
+                        currentTable: table,
+                        referencedTable: $$ConversationsTableReferences
+                            ._chatAttachmentsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ConversationsTableReferences(db, table, p0)
+                                .chatAttachmentsRefs,
                         referencedItemsForCurrentItem:
                             (item, referencedItems) => referencedItems
                                 .where((e) => e.conversationId == item.id),
@@ -2454,7 +3588,7 @@ typedef $$ConversationsTableProcessedTableManager = ProcessedTableManager<
     $$ConversationsTableUpdateCompanionBuilder,
     (Conversation, $$ConversationsTableReferences),
     Conversation,
-    PrefetchHooks Function({bool chatMessagesRefs})>;
+    PrefetchHooks Function({bool chatMessagesRefs, bool chatAttachmentsRefs})>;
 typedef $$ChatMessagesTableCreateCompanionBuilder = ChatMessagesCompanion
     Function({
   required String id,
@@ -2497,6 +3631,23 @@ final class $$ChatMessagesTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$ChatAttachmentsTable, List<ChatAttachment>>
+      _chatAttachmentsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.chatAttachments,
+              aliasName: $_aliasNameGenerator(
+                  db.chatMessages.id, db.chatAttachments.messageId));
+
+  $$ChatAttachmentsTableProcessedTableManager get chatAttachmentsRefs {
+    final manager = $$ChatAttachmentsTableTableManager(
+            $_db, $_db.chatAttachments)
+        .filter((f) => f.messageId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_chatAttachmentsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
   }
 }
 
@@ -2551,6 +3702,27 @@ class $$ChatMessagesTableFilterComposer
                   $removeJoinBuilderFromRootComposer,
             ));
     return composer;
+  }
+
+  Expression<bool> chatAttachmentsRefs(
+      Expression<bool> Function($$ChatAttachmentsTableFilterComposer f) f) {
+    final $$ChatAttachmentsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.messageId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableFilterComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
   }
 }
 
@@ -2657,6 +3829,27 @@ class $$ChatMessagesTableAnnotationComposer
             ));
     return composer;
   }
+
+  Expression<T> chatAttachmentsRefs<T extends Object>(
+      Expression<T> Function($$ChatAttachmentsTableAnnotationComposer a) f) {
+    final $$ChatAttachmentsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.messageId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$ChatMessagesTableTableManager extends RootTableManager<
@@ -2670,7 +3863,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
     $$ChatMessagesTableUpdateCompanionBuilder,
     (ChatMessage, $$ChatMessagesTableReferences),
     ChatMessage,
-    PrefetchHooks Function({bool conversationId})> {
+    PrefetchHooks Function({bool conversationId, bool chatAttachmentsRefs})> {
   $$ChatMessagesTableTableManager(_$AppDatabase db, $ChatMessagesTable table)
       : super(TableManagerState(
           db: db,
@@ -2731,10 +3924,13 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
                     $$ChatMessagesTableReferences(db, table, e)
                   ))
               .toList(),
-          prefetchHooksCallback: ({conversationId = false}) {
+          prefetchHooksCallback: (
+              {conversationId = false, chatAttachmentsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [],
+              explicitlyWatchedTables: [
+                if (chatAttachmentsRefs) db.chatAttachments
+              ],
               addJoins: <
                   T extends TableManagerState<
                       dynamic,
@@ -2763,7 +3959,21 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
                 return state;
               },
               getPrefetchedDataCallback: (items) async {
-                return [];
+                return [
+                  if (chatAttachmentsRefs)
+                    await $_getPrefetchedData<ChatMessage, $ChatMessagesTable,
+                            ChatAttachment>(
+                        currentTable: table,
+                        referencedTable: $$ChatMessagesTableReferences
+                            ._chatAttachmentsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ChatMessagesTableReferences(db, table, p0)
+                                .chatAttachmentsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.messageId == item.id),
+                        typedResults: items)
+                ];
               },
             );
           },
@@ -2781,7 +3991,715 @@ typedef $$ChatMessagesTableProcessedTableManager = ProcessedTableManager<
     $$ChatMessagesTableUpdateCompanionBuilder,
     (ChatMessage, $$ChatMessagesTableReferences),
     ChatMessage,
-    PrefetchHooks Function({bool conversationId})>;
+    PrefetchHooks Function({bool conversationId, bool chatAttachmentsRefs})>;
+typedef $$ChatAttachmentsTableCreateCompanionBuilder = ChatAttachmentsCompanion
+    Function({
+  required String id,
+  required String fileName,
+  required String mimeType,
+  required int fileSize,
+  required String localPath,
+  required String kind,
+  required String messageId,
+  required String conversationId,
+  Value<int> rowid,
+});
+typedef $$ChatAttachmentsTableUpdateCompanionBuilder = ChatAttachmentsCompanion
+    Function({
+  Value<String> id,
+  Value<String> fileName,
+  Value<String> mimeType,
+  Value<int> fileSize,
+  Value<String> localPath,
+  Value<String> kind,
+  Value<String> messageId,
+  Value<String> conversationId,
+  Value<int> rowid,
+});
+
+final class $$ChatAttachmentsTableReferences extends BaseReferences<
+    _$AppDatabase, $ChatAttachmentsTable, ChatAttachment> {
+  $$ChatAttachmentsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $ChatMessagesTable _messageIdTable(_$AppDatabase db) =>
+      db.chatMessages.createAlias($_aliasNameGenerator(
+          db.chatAttachments.messageId, db.chatMessages.id));
+
+  $$ChatMessagesTableProcessedTableManager get messageId {
+    final $_column = $_itemColumn<String>('message_id')!;
+
+    final manager = $$ChatMessagesTableTableManager($_db, $_db.chatMessages)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_messageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $ConversationsTable _conversationIdTable(_$AppDatabase db) =>
+      db.conversations.createAlias($_aliasNameGenerator(
+          db.chatAttachments.conversationId, db.conversations.id));
+
+  $$ConversationsTableProcessedTableManager get conversationId {
+    final $_column = $_itemColumn<String>('conversation_id')!;
+
+    final manager = $$ConversationsTableTableManager($_db, $_db.conversations)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_conversationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$ChatAttachmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $ChatAttachmentsTable> {
+  $$ChatAttachmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+      column: $table.fileName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get fileSize => $composableBuilder(
+      column: $table.fileSize, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+      column: $table.localPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  $$ChatMessagesTableFilterComposer get messageId {
+    final $$ChatMessagesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.messageId,
+        referencedTable: $db.chatMessages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatMessagesTableFilterComposer(
+              $db: $db,
+              $table: $db.chatMessages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ConversationsTableFilterComposer get conversationId {
+    final $$ConversationsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.conversationId,
+        referencedTable: $db.conversations,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ConversationsTableFilterComposer(
+              $db: $db,
+              $table: $db.conversations,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ChatAttachmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChatAttachmentsTable> {
+  $$ChatAttachmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+      column: $table.fileName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get fileSize => $composableBuilder(
+      column: $table.fileSize, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+      column: $table.localPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  $$ChatMessagesTableOrderingComposer get messageId {
+    final $$ChatMessagesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.messageId,
+        referencedTable: $db.chatMessages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatMessagesTableOrderingComposer(
+              $db: $db,
+              $table: $db.chatMessages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ConversationsTableOrderingComposer get conversationId {
+    final $$ConversationsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.conversationId,
+        referencedTable: $db.conversations,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ConversationsTableOrderingComposer(
+              $db: $db,
+              $table: $db.conversations,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ChatAttachmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChatAttachmentsTable> {
+  $$ChatAttachmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<int> get fileSize =>
+      $composableBuilder(column: $table.fileSize, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  $$ChatMessagesTableAnnotationComposer get messageId {
+    final $$ChatMessagesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.messageId,
+        referencedTable: $db.chatMessages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatMessagesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.chatMessages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ConversationsTableAnnotationComposer get conversationId {
+    final $$ConversationsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.conversationId,
+        referencedTable: $db.conversations,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ConversationsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.conversations,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ChatAttachmentsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ChatAttachmentsTable,
+    ChatAttachment,
+    $$ChatAttachmentsTableFilterComposer,
+    $$ChatAttachmentsTableOrderingComposer,
+    $$ChatAttachmentsTableAnnotationComposer,
+    $$ChatAttachmentsTableCreateCompanionBuilder,
+    $$ChatAttachmentsTableUpdateCompanionBuilder,
+    (ChatAttachment, $$ChatAttachmentsTableReferences),
+    ChatAttachment,
+    PrefetchHooks Function({bool messageId, bool conversationId})> {
+  $$ChatAttachmentsTableTableManager(
+      _$AppDatabase db, $ChatAttachmentsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChatAttachmentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChatAttachmentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChatAttachmentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> fileName = const Value.absent(),
+            Value<String> mimeType = const Value.absent(),
+            Value<int> fileSize = const Value.absent(),
+            Value<String> localPath = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> messageId = const Value.absent(),
+            Value<String> conversationId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ChatAttachmentsCompanion(
+            id: id,
+            fileName: fileName,
+            mimeType: mimeType,
+            fileSize: fileSize,
+            localPath: localPath,
+            kind: kind,
+            messageId: messageId,
+            conversationId: conversationId,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String fileName,
+            required String mimeType,
+            required int fileSize,
+            required String localPath,
+            required String kind,
+            required String messageId,
+            required String conversationId,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ChatAttachmentsCompanion.insert(
+            id: id,
+            fileName: fileName,
+            mimeType: mimeType,
+            fileSize: fileSize,
+            localPath: localPath,
+            kind: kind,
+            messageId: messageId,
+            conversationId: conversationId,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$ChatAttachmentsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({messageId = false, conversationId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (messageId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.messageId,
+                    referencedTable:
+                        $$ChatAttachmentsTableReferences._messageIdTable(db),
+                    referencedColumn:
+                        $$ChatAttachmentsTableReferences._messageIdTable(db).id,
+                  ) as T;
+                }
+                if (conversationId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.conversationId,
+                    referencedTable: $$ChatAttachmentsTableReferences
+                        ._conversationIdTable(db),
+                    referencedColumn: $$ChatAttachmentsTableReferences
+                        ._conversationIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ChatAttachmentsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ChatAttachmentsTable,
+    ChatAttachment,
+    $$ChatAttachmentsTableFilterComposer,
+    $$ChatAttachmentsTableOrderingComposer,
+    $$ChatAttachmentsTableAnnotationComposer,
+    $$ChatAttachmentsTableCreateCompanionBuilder,
+    $$ChatAttachmentsTableUpdateCompanionBuilder,
+    (ChatAttachment, $$ChatAttachmentsTableReferences),
+    ChatAttachment,
+    PrefetchHooks Function({bool messageId, bool conversationId})>;
+typedef $$ModelAttachmentCapabilitiesTableCreateCompanionBuilder
+    = ModelAttachmentCapabilitiesCompanion Function({
+  required String providerId,
+  required String modelId,
+  required String modality,
+  required String status,
+  required String source,
+  required DateTime updatedAt,
+  Value<int> rowid,
+});
+typedef $$ModelAttachmentCapabilitiesTableUpdateCompanionBuilder
+    = ModelAttachmentCapabilitiesCompanion Function({
+  Value<String> providerId,
+  Value<String> modelId,
+  Value<String> modality,
+  Value<String> status,
+  Value<String> source,
+  Value<DateTime> updatedAt,
+  Value<int> rowid,
+});
+
+final class $$ModelAttachmentCapabilitiesTableReferences extends BaseReferences<
+    _$AppDatabase,
+    $ModelAttachmentCapabilitiesTable,
+    ModelAttachmentCapabilityRow> {
+  $$ModelAttachmentCapabilitiesTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProviderConfigsTable _providerIdTable(_$AppDatabase db) =>
+      db.providerConfigs.createAlias($_aliasNameGenerator(
+          db.modelAttachmentCapabilities.providerId,
+          db.providerConfigs.providerId));
+
+  $$ProviderConfigsTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<String>('provider_id')!;
+
+    final manager =
+        $$ProviderConfigsTableTableManager($_db, $_db.providerConfigs)
+            .filter((f) => f.providerId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$ModelAttachmentCapabilitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $ModelAttachmentCapabilitiesTable> {
+  $$ModelAttachmentCapabilitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get modelId => $composableBuilder(
+      column: $table.modelId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get modality => $composableBuilder(
+      column: $table.modality, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$ProviderConfigsTableFilterComposer get providerId {
+    final $$ProviderConfigsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.providerId,
+        referencedTable: $db.providerConfigs,
+        getReferencedColumn: (t) => t.providerId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ProviderConfigsTableFilterComposer(
+              $db: $db,
+              $table: $db.providerConfigs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ModelAttachmentCapabilitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ModelAttachmentCapabilitiesTable> {
+  $$ModelAttachmentCapabilitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get modelId => $composableBuilder(
+      column: $table.modelId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get modality => $composableBuilder(
+      column: $table.modality, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$ProviderConfigsTableOrderingComposer get providerId {
+    final $$ProviderConfigsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.providerId,
+        referencedTable: $db.providerConfigs,
+        getReferencedColumn: (t) => t.providerId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ProviderConfigsTableOrderingComposer(
+              $db: $db,
+              $table: $db.providerConfigs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ModelAttachmentCapabilitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ModelAttachmentCapabilitiesTable> {
+  $$ModelAttachmentCapabilitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<String> get modality =>
+      $composableBuilder(column: $table.modality, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ProviderConfigsTableAnnotationComposer get providerId {
+    final $$ProviderConfigsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.providerId,
+        referencedTable: $db.providerConfigs,
+        getReferencedColumn: (t) => t.providerId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ProviderConfigsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.providerConfigs,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ModelAttachmentCapabilitiesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ModelAttachmentCapabilitiesTable,
+    ModelAttachmentCapabilityRow,
+    $$ModelAttachmentCapabilitiesTableFilterComposer,
+    $$ModelAttachmentCapabilitiesTableOrderingComposer,
+    $$ModelAttachmentCapabilitiesTableAnnotationComposer,
+    $$ModelAttachmentCapabilitiesTableCreateCompanionBuilder,
+    $$ModelAttachmentCapabilitiesTableUpdateCompanionBuilder,
+    (
+      ModelAttachmentCapabilityRow,
+      $$ModelAttachmentCapabilitiesTableReferences
+    ),
+    ModelAttachmentCapabilityRow,
+    PrefetchHooks Function({bool providerId})> {
+  $$ModelAttachmentCapabilitiesTableTableManager(
+      _$AppDatabase db, $ModelAttachmentCapabilitiesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ModelAttachmentCapabilitiesTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ModelAttachmentCapabilitiesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ModelAttachmentCapabilitiesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> providerId = const Value.absent(),
+            Value<String> modelId = const Value.absent(),
+            Value<String> modality = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> source = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ModelAttachmentCapabilitiesCompanion(
+            providerId: providerId,
+            modelId: modelId,
+            modality: modality,
+            status: status,
+            source: source,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String providerId,
+            required String modelId,
+            required String modality,
+            required String status,
+            required String source,
+            required DateTime updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ModelAttachmentCapabilitiesCompanion.insert(
+            providerId: providerId,
+            modelId: modelId,
+            modality: modality,
+            status: status,
+            source: source,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$ModelAttachmentCapabilitiesTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({providerId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (providerId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.providerId,
+                    referencedTable:
+                        $$ModelAttachmentCapabilitiesTableReferences
+                            ._providerIdTable(db),
+                    referencedColumn:
+                        $$ModelAttachmentCapabilitiesTableReferences
+                            ._providerIdTable(db)
+                            .providerId,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ModelAttachmentCapabilitiesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $ModelAttachmentCapabilitiesTable,
+        ModelAttachmentCapabilityRow,
+        $$ModelAttachmentCapabilitiesTableFilterComposer,
+        $$ModelAttachmentCapabilitiesTableOrderingComposer,
+        $$ModelAttachmentCapabilitiesTableAnnotationComposer,
+        $$ModelAttachmentCapabilitiesTableCreateCompanionBuilder,
+        $$ModelAttachmentCapabilitiesTableUpdateCompanionBuilder,
+        (
+          ModelAttachmentCapabilityRow,
+          $$ModelAttachmentCapabilitiesTableReferences
+        ),
+        ModelAttachmentCapabilityRow,
+        PrefetchHooks Function({bool providerId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2794,4 +4712,10 @@ class $AppDatabaseManager {
       $$ConversationsTableTableManager(_db, _db.conversations);
   $$ChatMessagesTableTableManager get chatMessages =>
       $$ChatMessagesTableTableManager(_db, _db.chatMessages);
+  $$ChatAttachmentsTableTableManager get chatAttachments =>
+      $$ChatAttachmentsTableTableManager(_db, _db.chatAttachments);
+  $$ModelAttachmentCapabilitiesTableTableManager
+      get modelAttachmentCapabilities =>
+          $$ModelAttachmentCapabilitiesTableTableManager(
+              _db, _db.modelAttachmentCapabilities);
 }

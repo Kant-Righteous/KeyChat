@@ -25,7 +25,9 @@ void main() {
       expect(columnNames, contains('enabled'));
       expect(columnNames, contains('updated_at'));
       expect(columnNames, contains('protocol'));
-      expect(columnNames.length, 7);
+      expect(columnNames, contains('supports_image_input'));
+      expect(columnNames, contains('supports_file_input'));
+      expect(columnNames.length, 9);
     });
 
     test('table does not contain API key column', () {
@@ -81,8 +83,8 @@ void main() {
       expect(protocolCol.data['dflt_value'], "'openai_compatible'");
     });
 
-    test('schemaVersion is 5', () {
-      expect(db.schemaVersion, 5);
+    test('schemaVersion is 7', () {
+      expect(db.schemaVersion, 7);
     });
   });
 
@@ -159,6 +161,86 @@ void main() {
       expect(columnNames, isNot(contains('base_url')));
       expect(columnNames, isNot(contains('authorization')));
       expect(columnNames, isNot(contains('authorization_header')));
+    });
+  });
+
+  group('ChatAttachments table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('contains attachment metadata but no content or secrets', () {
+      final names = db.chatAttachments.$columns.map((c) => c.name).toList();
+
+      expect(
+          names,
+          containsAll([
+            'id',
+            'file_name',
+            'mime_type',
+            'file_size',
+            'local_path',
+            'kind',
+            'message_id',
+            'conversation_id',
+          ]));
+      expect(names, isNot(contains('content')));
+      expect(names, isNot(contains('api_key')));
+      expect(names, isNot(contains('base_url')));
+      expect(names, isNot(contains('authorization')));
+      expect(names, isNot(contains('request_body')));
+      expect(names, isNot(contains('response_body')));
+    });
+  });
+
+  group('ModelAttachmentCapabilities table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('contains only model capability metadata', () {
+      final names =
+          db.modelAttachmentCapabilities.$columns.map((c) => c.name).toList();
+
+      expect(
+        names,
+        containsAll([
+          'provider_id',
+          'model_id',
+          'modality',
+          'status',
+          'source',
+          'updated_at',
+        ]),
+      );
+      expect(names, hasLength(6));
+      expect(names, isNot(contains('api_key')));
+      expect(names, isNot(contains('base_url')));
+      expect(names, isNot(contains('authorization')));
+      expect(names, isNot(contains('request_body')));
+      expect(names, isNot(contains('response_body')));
+    });
+
+    test('primary key includes provider model modality and source', () {
+      final primaryKey =
+          db.modelAttachmentCapabilities.primaryKey.map((c) => c.name).toSet();
+
+      expect(
+        primaryKey,
+        {'provider_id', 'model_id', 'modality', 'source'},
+      );
     });
   });
 }

@@ -16,9 +16,30 @@ class ProviderConfigs extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   TextColumn get protocol =>
       text().withDefault(const Constant('openai_compatible'))();
+  BoolColumn get supportsImageInput =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get supportsFileInput =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {providerId};
+}
+
+@DataClassName('ModelAttachmentCapabilityRow')
+class ModelAttachmentCapabilities extends Table {
+  TextColumn get providerId => text().references(
+        ProviderConfigs,
+        #providerId,
+        onDelete: KeyAction.cascade,
+      )();
+  TextColumn get modelId => text()();
+  TextColumn get modality => text()();
+  TextColumn get status => text()();
+  TextColumn get source => text()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {providerId, modelId, modality, source};
 }
 
 class AgentProfiles extends Table {
@@ -63,15 +84,39 @@ class ChatMessages extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+class ChatAttachments extends Table {
+  TextColumn get id => text()();
+  TextColumn get fileName => text()();
+  TextColumn get mimeType => text()();
+  IntColumn get fileSize => integer()();
+  TextColumn get localPath => text()();
+  TextColumn get kind => text()();
+  TextColumn get messageId =>
+      text().references(ChatMessages, #id, onDelete: KeyAction.cascade)();
+  TextColumn get conversationId =>
+      text().references(Conversations, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
-    tables: [ProviderConfigs, AgentProfiles, Conversations, ChatMessages])
+  tables: [
+    ProviderConfigs,
+    AgentProfiles,
+    Conversations,
+    ChatMessages,
+    ChatAttachments,
+    ModelAttachmentCapabilities,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,6 +144,62 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(chatMessages, chatMessages.providerIdSnapshot);
             await m.addColumn(chatMessages, chatMessages.providerNameSnapshot);
             await m.addColumn(chatMessages, chatMessages.modelIdSnapshot);
+          }
+          if (from < 6) {
+            await m.addColumn(
+              providerConfigs,
+              providerConfigs.supportsImageInput,
+            );
+            await m.addColumn(
+              providerConfigs,
+              providerConfigs.supportsFileInput,
+            );
+            await m.createTable(chatAttachments);
+          }
+          if (from < 7) {
+            await m.createTable(modelAttachmentCapabilities);
+            await customStatement('''
+              INSERT INTO model_attachment_capabilities (
+                provider_id,
+                model_id,
+                modality,
+                status,
+                source,
+                updated_at
+              )
+              SELECT
+                provider_id,
+                default_model,
+                'image',
+                'supported',
+                'manual',
+                updated_at
+              FROM provider_configs
+              WHERE default_model IS NOT NULL
+                AND TRIM(default_model) <> ''
+                AND supports_image_input = 1
+            ''');
+            await customStatement('''
+              INSERT INTO model_attachment_capabilities (
+                provider_id,
+                model_id,
+                modality,
+                status,
+                source,
+                updated_at
+              )
+              SELECT
+                provider_id,
+                default_model,
+                'file',
+                'supported',
+                'manual',
+                updated_at
+              FROM provider_configs
+              WHERE default_model IS NOT NULL
+                AND TRIM(default_model) <> ''
+                AND supports_file_input = 1
+            ''');
           }
         },
         beforeOpen: (details) async {

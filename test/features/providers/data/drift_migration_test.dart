@@ -59,8 +59,8 @@ void main() {
 
       // Step 3: Verify migration results
 
-      // schemaVersion should be 5
-      expect(db.schemaVersion, 5);
+      // schemaVersion should be 7
+      expect(db.schemaVersion, 7);
 
       // ProviderConfigs data preserved
       final configs = await db.select(db.providerConfigs).get();
@@ -423,11 +423,124 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
       final message = await db.select(db.chatMessages).getSingle();
 
-      expect(db.schemaVersion, 5);
+      expect(db.schemaVersion, 7);
       expect(message.content, 'Old reply');
       expect(message.providerIdSnapshot, equals(null));
       expect(message.providerNameSnapshot, equals(null));
       expect(message.modelIdSnapshot, equals(null));
+
+      await db.close();
+    });
+
+    test('migrates v5 to v6 with capability columns and attachments table',
+        () async {
+      final dbFile = File('${tempDir.path}/v5_test.sqlite');
+      final rawDb = sqlite3_lib.sqlite3.open(dbFile.path);
+      rawDb.execute('''
+        CREATE TABLE provider_configs (
+          provider_id TEXT NOT NULL PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          base_url TEXT NOT NULL,
+          default_model TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL,
+          protocol TEXT NOT NULL DEFAULT 'openai_compatible'
+        )
+      ''');
+      rawDb.execute('''
+        CREATE TABLE agent_profiles (
+          id TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          system_prompt TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      rawDb.execute('''
+        CREATE TABLE conversations (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          provider_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          agent_id TEXT,
+          agent_name_snapshot TEXT,
+          system_prompt_snapshot TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      rawDb.execute('''
+        CREATE TABLE chat_messages (
+          id TEXT NOT NULL PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          provider_id_snapshot TEXT,
+          provider_name_snapshot TEXT,
+          model_id_snapshot TEXT,
+          created_at INTEGER NOT NULL
+        )
+      ''');
+      rawDb.execute(
+        "INSERT INTO provider_configs (provider_id, display_name, base_url, default_model, updated_at) "
+        "VALUES ('openai', 'OpenAI', 'https://api.openai.com/v1', 'gpt-4o', 1704067200000)",
+      );
+      rawDb.execute('PRAGMA user_version = 5');
+      rawDb.dispose();
+
+      final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
+      final provider = await db.select(db.providerConfigs).getSingle();
+      final attachments = await db.select(db.chatAttachments).get();
+
+      expect(db.schemaVersion, 7);
+      expect(provider.providerId, 'openai');
+      expect(provider.supportsImageInput, false);
+      expect(provider.supportsFileInput, false);
+      expect(attachments, isEmpty);
+
+      await db.close();
+    });
+
+    test('migrates v6 to v7 and seeds only declared supported capability',
+        () async {
+      final dbFile = File('${tempDir.path}/v6_test.sqlite');
+      final rawDb = sqlite3_lib.sqlite3.open(dbFile.path);
+      rawDb.execute('''
+        CREATE TABLE provider_configs (
+          provider_id TEXT NOT NULL PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          base_url TEXT NOT NULL,
+          default_model TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL,
+          protocol TEXT NOT NULL DEFAULT 'openai_compatible',
+          supports_image_input INTEGER NOT NULL DEFAULT 0,
+          supports_file_input INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      rawDb.execute(
+        "INSERT INTO provider_configs "
+        "(provider_id, display_name, base_url, default_model, updated_at, "
+        "supports_image_input, supports_file_input) VALUES "
+        "('custom', 'Custom', 'https://example.com/v1', 'vision-1', "
+        "1704067200000, 1, 0), "
+        "('plain', 'Plain', 'https://plain.example/v1', 'text-1', "
+        "1704067200000, 0, 0)",
+      );
+      rawDb.execute('PRAGMA user_version = 6');
+      rawDb.dispose();
+
+      final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
+      final rows = await db.select(db.modelAttachmentCapabilities).get();
+
+      expect(db.schemaVersion, 7);
+      expect(rows, hasLength(1));
+      expect(rows.single.providerId, 'custom');
+      expect(rows.single.modelId, 'vision-1');
+      expect(rows.single.modality, 'image');
+      expect(rows.single.status, 'supported');
+      expect(rows.single.source, 'manual');
 
       await db.close();
     });
@@ -444,8 +557,8 @@ void main() {
       await db.close();
     });
 
-    test('schemaVersion is 5', () {
-      expect(db.schemaVersion, 5);
+    test('schemaVersion is 7', () {
+      expect(db.schemaVersion, 7);
     });
 
     test('protocol column is TEXT NOT NULL with SQL DEFAULT', () async {
