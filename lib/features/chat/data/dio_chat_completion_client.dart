@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/openai_sse_parser.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 
 class DioChatCompletionClient implements ChatCompletionClient {
@@ -472,6 +473,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
           userMessage: 'Network unavailable',
         );
       case DioExceptionType.badResponse:
+        final rejection = _classifyAttachmentRejection(e.response);
+        if (rejection != null) {
+          return ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: rejection.kinds,
+          );
+        }
         return _mapStatusCode(e.response?.statusCode);
       default:
         return const ChatCompletionResult.failure(
@@ -559,6 +568,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
           userMessage: 'Network unavailable',
         );
       case DioExceptionType.badResponse:
+        final rejection = _classifyAttachmentRejection(e.response);
+        if (rejection != null) {
+          return ChatStreamFailure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: rejection.kinds,
+          );
+        }
         return ChatStreamFailure(
           errorType: _mapStatusCodeToError(e.response?.statusCode),
           userMessage: _mapStatusCodeToMessage(e.response?.statusCode),
@@ -570,4 +587,83 @@ class DioChatCompletionClient implements ChatCompletionClient {
         );
     }
   }
+
+  _AttachmentRejection? _classifyAttachmentRejection(
+    Response<dynamic>? response,
+  ) {
+    final statusCode = response?.statusCode;
+    if (statusCode != 400 && statusCode != 415 && statusCode != 422) {
+      return null;
+    }
+
+    String rawText;
+    try {
+      rawText = jsonEncode(response?.data);
+    } catch (_) {
+      rawText = response?.data.toString() ?? '';
+    }
+    if (rawText.length > 4096) {
+      rawText = rawText.substring(0, 4096);
+    }
+    final text = rawText.toLowerCase();
+    if (text.isEmpty ||
+        _containsAny(text, const [
+          'too large',
+          'payload too large',
+          'maximum',
+          'max size',
+          'size limit',
+          'exceeds the size',
+        ])) {
+      return null;
+    }
+
+    final hasRejection = _containsAny(text, const [
+      'not support',
+      'does not support',
+      'unsupported',
+      'invalid content type',
+      'invalid input type',
+      'only supports text',
+      'text-only',
+      'cannot process',
+      "can't process",
+      'not allowed',
+    ]);
+    if (!hasRejection) return null;
+
+    final hasImage = _containsAny(text, const [
+      'image',
+      'vision',
+      'image_url',
+    ]);
+    final hasFile = _containsAny(text, const [
+      'file',
+      'attachment',
+      'document',
+      'file_data',
+    ]);
+    final hasGenericModality = _containsAny(text, const [
+      'multimodal',
+      'multi-modal',
+      'content part',
+      'content type',
+    ]);
+    if (!hasImage && !hasFile && !hasGenericModality) return null;
+
+    return _AttachmentRejection({
+      if (hasImage) ChatAttachmentKind.image,
+      if (hasFile) ChatAttachmentKind.file,
+    });
+  }
+
+  bool _containsAny(String text, List<String> needles) {
+    return needles.any(text.contains);
+  }
+}
+
+final class _AttachmentRejection {
+  const _AttachmentRejection(this.kinds);
+
+  final Set<ChatAttachmentKind> kinds;
 }

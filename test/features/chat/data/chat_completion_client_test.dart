@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/dio_chat_completion_client.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart';
 
 import '../../providers/data/test_http_adapter.dart';
 
@@ -448,6 +449,117 @@ void main() {
       test('500 returns serverError', () async {
         final result = await testStatusCode(500);
         expect(result.errorType, ChatCompletionErrorType.serverError);
+      });
+    });
+
+    group('attachment rejection mapping', () {
+      Future<ChatCompletionResult> completeWithError(
+        int statusCode,
+        Object data,
+      ) async {
+        final options = RequestOptions(path: '/test');
+        adapter.throwError = DioException(
+          requestOptions: options,
+          response: Response(
+            statusCode: statusCode,
+            data: data,
+            requestOptions: options,
+          ),
+          type: DioExceptionType.badResponse,
+        );
+        return client.complete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'unknown-model',
+          messages: const [
+            ChatRequestMessage(role: 'user', content: 'Describe this'),
+          ],
+        );
+      }
+
+      test('attachment rejection identifies image input', () async {
+        final result = await completeWithError(400, {
+          'error': {'message': 'This model does not support image input'},
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.attachmentRejected);
+        expect(result.rejectedAttachmentKinds, {ChatAttachmentKind.image});
+        expect(result.userMessage, 'Provider rejected attachment input');
+      });
+
+      test('attachment rejection identifies ordinary file input', () async {
+        final result = await completeWithError(422, {
+          'error': {'message': 'File attachments are not supported'},
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.attachmentRejected);
+        expect(result.rejectedAttachmentKinds, {ChatAttachmentKind.file});
+      });
+
+      test('attachment rejection can remain modality-generic', () async {
+        final result = await completeWithError(415, {
+          'error': {'message': 'Multimodal content is not supported'},
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.attachmentRejected);
+        expect(result.rejectedAttachmentKinds, isEmpty);
+      });
+
+      test('attachment rejection ignores file size errors', () async {
+        final result = await completeWithError(400, {
+          'error': {'message': 'Image file is too large; maximum is 10 MB'},
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('attachment rejection ignores unrelated bad requests', () async {
+        final result = await completeWithError(400, {
+          'error': {'message': 'Invalid temperature value'},
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.invalidResponse);
+      });
+
+      test('attachment rejection never exposes raw response text', () async {
+        final result = await completeWithError(400, {
+          'error': {
+            'message':
+                'This model does not support image input; token=raw-secret',
+          },
+        });
+
+        expect(result.errorType, ChatCompletionErrorType.attachmentRejected);
+        expect(result.userMessage, isNot(contains('raw-secret')));
+      });
+
+      test('attachment rejection maps streaming failure', () async {
+        final options = RequestOptions(path: '/test');
+        adapter.throwError = DioException(
+          requestOptions: options,
+          response: Response(
+            statusCode: 400,
+            data: {
+              'error': {'message': 'Image input is not supported'},
+            },
+            requestOptions: options,
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        final events = await client.streamComplete(
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-marker-abc',
+          model: 'unknown-model',
+          messages: const [
+            ChatRequestMessage(role: 'user', content: 'Describe this'),
+          ],
+        ).toList();
+
+        final failure = events.single as ChatStreamFailure;
+        expect(failure.errorType, ChatCompletionErrorType.attachmentRejected);
+        expect(failure.rejectedAttachmentKinds, {ChatAttachmentKind.image});
+        expect(failure.userMessage, 'Provider rejected attachment input');
       });
     });
 
