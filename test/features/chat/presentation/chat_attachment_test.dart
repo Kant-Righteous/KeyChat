@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/attachment_picker.dart';
 import 'package:keychat/features/chat/data/chat_attachment_request_encoder.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
@@ -10,6 +11,7 @@ import 'package:keychat/features/chat/domain/chat_attachment.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/chat_context_builder.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
+import 'package:keychat/features/chat/presentation/widgets/attachment_preview.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/model_attachment_capability_store.dart';
 import 'package:keychat/features/providers/domain/model_attachment_capability.dart';
@@ -68,9 +70,13 @@ class _RecordingChatClient implements ChatCompletionClient {
 
 class _FakeAttachmentPicker implements AttachmentPicker {
   AttachmentDraft? nextDraft;
+  List<AttachmentDraft> nextDrafts = const [];
 
   @override
-  Future<AttachmentDraft?> pick(ChatAttachmentKind kind) async => nextDraft;
+  Future<List<AttachmentDraft>> pick(ChatAttachmentKind kind) async {
+    if (nextDrafts.isNotEmpty) return nextDrafts;
+    return [if (nextDraft != null) nextDraft!];
+  }
 }
 
 class _PassthroughAttachmentFileStore implements AttachmentFileStore {
@@ -164,6 +170,19 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> chooseAttachments(
+      WidgetTester tester,
+      List<AttachmentDraft> drafts,
+      Key choiceKey,
+    ) async {
+      picker.nextDraft = null;
+      picker.nextDrafts = drafts;
+      await tester.tap(find.byKey(const Key('attachment_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(choiceKey));
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('attachment icon is right of model selector and above send',
         (tester) async {
       final semantics = tester.ensureSemantics();
@@ -199,9 +218,85 @@ void main() {
 
       expect(find.byKey(const Key('pending_attachment_image')), findsOneWidget);
       expect(find.text('photo.png'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('remove_pending_attachment')));
+      await tester.tap(find.byKey(const Key('remove_pending_attachment_0')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('pending_attachment_preview')), findsNothing);
+    });
+
+    testWidgets('selects removes and sends multiple images', (tester) async {
+      await pumpChat(tester);
+      await chooseAttachments(
+        tester,
+        const [
+          AttachmentDraft(
+            sourcePath: 'assets/branding/keychat_icon.png',
+            fileName: 'first.png',
+            mimeType: 'image/png',
+            fileSize: 1200,
+            kind: ChatAttachmentKind.image,
+          ),
+          AttachmentDraft(
+            sourcePath: 'pubspec.lock',
+            fileName: 'second.jpg',
+            mimeType: 'image/jpeg',
+            fileSize: 2400,
+            kind: ChatAttachmentKind.image,
+          ),
+        ],
+        const Key('choose_image_attachment'),
+      );
+
+      expect(find.byType(PendingAttachmentPreview), findsNWidgets(2));
+      expect(find.text('first.png'), findsOneWidget);
+      expect(find.text('second.jpg'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('remove_pending_attachment_0')));
+      await tester.pumpAndSettle();
+      expect(find.text('first.png'), findsNothing);
+      expect(find.text('second.jpg'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).last, 'Describe it');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.lastMessages!.last.attachments, hasLength(1));
+      expect(
+        chatClient.lastMessages!.last.attachments.single.fileName,
+        'second.jpg',
+      );
+      final messages = await historyStore.readMessages(
+        historyStore.latestConversationId!,
+      );
+      expect(messages.first.attachments, hasLength(1));
+      expect(messages.first.attachments.single.fileName, 'second.jpg');
+    });
+
+    testWidgets('limits one user message to five attachments', (tester) async {
+      await pumpChat(tester);
+      await chooseAttachments(
+        tester,
+        List.generate(
+          6,
+          (index) => AttachmentDraft(
+            sourcePath: 'image_$index.png',
+            fileName: 'image_$index.png',
+            mimeType: 'image/png',
+            fileSize: 1000,
+            kind: ChatAttachmentKind.image,
+          ),
+        ),
+        const Key('choose_image_attachment'),
+      );
+
+      expect(find.text('image_5.png'), findsNothing);
+      final attachmentButton = tester.widget<IconButton>(find.descendant(
+        of: find.byKey(const Key('attachment_button')).last,
+        matching: find.byType(IconButton),
+      ));
+      expect(attachmentButton.onPressed, isNull);
+      expect(
+        find.text('You can attach up to 5 files per message.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows ordinary file card before sending', (tester) async {
@@ -283,7 +378,7 @@ void main() {
       expect(messages.first.attachments, hasLength(1));
     });
 
-    testWidgets('known unsupported model confirms and sends text only',
+    testWidgets('known unsupported model still tries the current attachment',
         (tester) async {
       await capabilityStore.saveCapability(ModelAttachmentCapability(
         providerId: 'openai',
@@ -309,19 +404,16 @@ void main() {
       await tester.tap(find.byTooltip('Send'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Attachment may not be supported'), findsOneWidget);
-      expect(chatClient.streamCallCount, 0);
-      await tester.tap(find.text('Send text only'));
-      await tester.pumpAndSettle();
-
-      expect(chatClient.lastMessages!.last.attachments, isEmpty);
+      expect(find.text('Attachment may not be supported'), findsNothing);
+      expect(chatClient.streamCallCount, 1);
+      expect(chatClient.lastMessages!.last.attachments, hasLength(1));
       final messages = await historyStore.readMessages(
         historyStore.latestConversationId!,
       );
       expect(messages.first.attachments, hasLength(1));
     });
 
-    testWidgets('attachment rejection retries text only and learns unsupported',
+    testWidgets('attachment rejection records only the rejected attachment',
         (tester) async {
       chatClient.scriptedEventBatches.addAll([
         [
@@ -364,13 +456,21 @@ void main() {
         modality: ModelInputModality.file,
         source: AttachmentCapabilitySource.detected,
       );
-      expect(learned?.status, AttachmentCapabilityStatus.unsupported);
+      expect(learned, isNull);
       final messages = await historyStore.readMessages(
         historyStore.latestConversationId!,
       );
       expect(messages.where((message) => message.role == ChatRole.user),
           hasLength(1));
       expect(messages.first.attachments, hasLength(1));
+      expect(
+        await historyStore.readStatus(
+          attachmentId: messages.first.attachments.single.id,
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        ),
+        AttachmentDeliveryStatus.rejected,
+      );
     });
 
     testWidgets('successful attachment request learns supported',
@@ -467,6 +567,109 @@ void main() {
         ),
         isNull,
       );
+    });
+
+    testWidgets('rejected historical attachment does not block a later one',
+        (tester) async {
+      chatClient.scriptedEventBatches.addAll([
+        [
+          const ChatStreamFailure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: {ChatAttachmentKind.image},
+          ),
+        ],
+        const [ChatStreamDelta('Done'), ChatStreamCompleted()],
+      ]);
+      await pumpChat(tester);
+      await chooseAttachment(
+        tester,
+        const AttachmentDraft(
+          sourcePath: 'assets/branding/keychat_icon.png',
+          fileName: 'rejected.png',
+          mimeType: 'image/png',
+          fileSize: 1200,
+          kind: ChatAttachmentKind.image,
+        ),
+        const Key('choose_image_attachment'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'First');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('cancel_attachment_retry')));
+      await tester.pumpAndSettle();
+
+      picker.nextDrafts = const [];
+      await chooseAttachment(
+        tester,
+        const AttachmentDraft(
+          sourcePath: 'pubspec.lock',
+          fileName: 'legal.jpg',
+          mimeType: 'image/jpeg',
+          fileSize: 2400,
+          kind: ChatAttachmentKind.image,
+        ),
+        const Key('choose_image_attachment'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'Second');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.messageCalls, hasLength(2));
+      final secondAttachments = chatClient.messageCalls.last
+          .expand((message) => message.attachments)
+          .toList();
+      expect(secondAttachments, hasLength(1));
+      expect(secondAttachments.single.fileName, 'legal.jpg');
+      final messages = await historyStore.readMessages(
+        historyStore.latestConversationId!,
+      );
+      expect(messages.where((message) => message.role == ChatRole.user),
+          hasLength(2));
+      expect(messages.first.attachments.single.fileName, 'rejected.png');
+      expect(messages[1].attachments.single.fileName, 'legal.jpg');
+    });
+
+    testWidgets('rejected historical attachment does not block later text',
+        (tester) async {
+      chatClient.scriptedEventBatches.addAll([
+        [
+          const ChatStreamFailure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: {ChatAttachmentKind.image},
+          ),
+        ],
+        const [ChatStreamDelta('Done'), ChatStreamCompleted()],
+      ]);
+      await pumpChat(tester);
+      await chooseAttachment(
+        tester,
+        const AttachmentDraft(
+          sourcePath: 'assets/branding/keychat_icon.png',
+          fileName: 'rejected.png',
+          mimeType: 'image/png',
+          fileSize: 1200,
+          kind: ChatAttachmentKind.image,
+        ),
+        const Key('choose_image_attachment'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'First');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('cancel_attachment_retry')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).last, 'Continue normally');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.messageCalls, hasLength(2));
+      expect(
+        chatClient.messageCalls.last.expand((message) => message.attachments),
+        isEmpty,
+      );
+      expect(find.text('Done'), findsOneWidget);
     });
 
     testWidgets('failed text-only retry does not learn unsupported',
@@ -697,7 +900,7 @@ void main() {
       );
     });
 
-    testWidgets('unsupported retry confirms and keeps attachment local',
+    testWidgets('unsupported retry still tries the original attachment',
         (tester) async {
       await _seedAttachmentConversation(historyStore);
       await capabilityStore.saveCapability(ModelAttachmentCapability(
@@ -712,12 +915,9 @@ void main() {
 
       await tester.tap(find.byTooltip('Retry'));
       await tester.pumpAndSettle();
-      expect(find.text('Attachment may not be supported'), findsOneWidget);
-      expect(chatClient.streamCallCount, 0);
-      await tester.tap(find.text('Send text only'));
-      await tester.pumpAndSettle();
-
-      expect(chatClient.lastMessages!.last.attachments, isEmpty);
+      expect(find.text('Attachment may not be supported'), findsNothing);
+      expect(chatClient.streamCallCount, 1);
+      expect(chatClient.lastMessages!.last.attachments, hasLength(1));
       final messages = await historyStore.readMessages(
         historyStore.latestConversationId!,
       );

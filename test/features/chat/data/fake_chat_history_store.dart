@@ -1,10 +1,14 @@
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 
-class FakeChatHistoryStore implements ChatHistoryStore {
+class FakeChatHistoryStore
+    implements ChatHistoryStore, AttachmentDeliveryStore {
   final Map<String, ChatConversation> _conversations = {};
   final Map<String, List<ChatMessage>> _messages = {};
+  final Map<({String attachmentId, String providerId, String modelId}),
+      AttachmentDeliveryStatus> _attachmentDeliveryStatuses = {};
   String? latestConversationId;
   bool shouldFailOnAppend = false;
   bool shouldFailOnCreate = false;
@@ -21,6 +25,7 @@ class FakeChatHistoryStore implements ChatHistoryStore {
   void reset() {
     _conversations.clear();
     _messages.clear();
+    _attachmentDeliveryStatuses.clear();
     latestConversationId = null;
     shouldFailOnAppend = false;
     shouldFailOnCreate = false;
@@ -216,5 +221,32 @@ class FakeChatHistoryStore implements ChatHistoryStore {
         updatedAt: conversationUpdatedAt,
       );
     }
+  }
+
+  @override
+  Future<AttachmentDeliveryStatus?> readStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+  }) async {
+    return _attachmentDeliveryStatuses[(
+      attachmentId: attachmentId,
+      providerId: providerId,
+      modelId: modelId,
+    )];
+  }
+
+  @override
+  Future<void> saveStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+    required AttachmentDeliveryStatus status,
+  }) async {
+    _attachmentDeliveryStatuses[(
+      attachmentId: attachmentId,
+      providerId: providerId,
+      modelId: modelId,
+    )] = status;
   }
 }

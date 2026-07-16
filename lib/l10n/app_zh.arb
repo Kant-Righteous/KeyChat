@@ -260,6 +260,7 @@
   "attachmentUnavailable": "无法访问所选文件。",
   "attachmentPickFailed": "无法选择附件。",
   "attachmentSaveFailed": "无法将附件保存到本地。",
+  "attachmentLimitReached": "每条消息最多添加 5 个附件。",
   "unsupportedAttachmentTitle": "附件可能不受支持",
   "unsupportedAttachmentMessage": "当前模型可能无法读取此附件，将仅发送文字；附件仍会保留在本地聊天记录中。",
   "sendTextOnly": "仅发送文字",

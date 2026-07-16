@@ -36,12 +36,14 @@ class ChatAttachment {
 
 class ChatRequestAttachment {
   const ChatRequestAttachment({
+    required this.attachmentId,
     required this.kind,
     required this.fileName,
     required this.mimeType,
     required this.base64Data,
   });
 
+  final String attachmentId;
   final ChatAttachmentKind kind;
   final String fileName;
   final String mimeType;

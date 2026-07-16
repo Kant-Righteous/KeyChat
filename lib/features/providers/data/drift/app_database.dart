@@ -100,6 +100,22 @@ class ChatAttachments extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('AttachmentDeliveryStateRow')
+class AttachmentDeliveryStates extends Table {
+  TextColumn get attachmentId => text().references(
+        ChatAttachments,
+        #id,
+        onDelete: KeyAction.cascade,
+      )();
+  TextColumn get providerId => text()();
+  TextColumn get modelId => text()();
+  TextColumn get status => text()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {attachmentId, providerId, modelId};
+}
+
 @DriftDatabase(
   tables: [
     ProviderConfigs,
@@ -107,6 +123,7 @@ class ChatAttachments extends Table {
     Conversations,
     ChatMessages,
     ChatAttachments,
+    AttachmentDeliveryStates,
     ModelAttachmentCapabilities,
   ],
 )
@@ -116,7 +133,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -200,6 +217,9 @@ class AppDatabase extends _$AppDatabase {
                 AND TRIM(default_model) <> ''
                 AND supports_file_input = 1
             ''');
+          }
+          if (from < 8) {
+            await m.createTable(attachmentDeliveryStates);
           }
         },
         beforeOpen: (details) async {

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/application/generation_keep_alive.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/attachment_picker.dart';
 import 'package:keychat/features/chat/data/chat_attachment_request_encoder.dart';
@@ -83,12 +84,6 @@ enum _GenerationPhase {
   responding,
 }
 
-enum _AttachmentPreflightDecision {
-  sendAttachments,
-  textOnly,
-  cancel,
-}
-
 final class _GenerationTarget {
   const _GenerationTarget({
     required this.kind,
@@ -97,7 +92,6 @@ final class _GenerationTarget {
     required this.modelId,
     this.replacedAssistantMessage,
     this.forceTextOnly = false,
-    this.unsupportedKindsToLearnOnSuccess = const {},
   });
 
   final ChatMessage userMessage;
@@ -106,11 +100,9 @@ final class _GenerationTarget {
   final _ReadyProvider provider;
   final String modelId;
   final bool forceTextOnly;
-  final Set<ChatAttachmentKind> unsupportedKindsToLearnOnSuccess;
 
   _GenerationTarget copyWith({
     bool? forceTextOnly,
-    Set<ChatAttachmentKind>? unsupportedKindsToLearnOnSuccess,
   }) {
     return _GenerationTarget(
       kind: kind,
@@ -119,8 +111,6 @@ final class _GenerationTarget {
       modelId: modelId,
       replacedAssistantMessage: replacedAssistantMessage,
       forceTextOnly: forceTextOnly ?? this.forceTextOnly,
-      unsupportedKindsToLearnOnSuccess: unsupportedKindsToLearnOnSuccess ??
-          this.unsupportedKindsToLearnOnSuccess,
     );
   }
 }
@@ -130,6 +120,7 @@ class ChatPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
   final ChatHistoryStore historyStore;
+  final AttachmentDeliveryStore attachmentDeliveryStore;
   final AgentProfileStore agentStore;
   final ConnectionTesterResolver? connectionTesterResolver;
   final ChatContextBuilder contextBuilder;
@@ -152,6 +143,7 @@ class ChatPage extends StatefulWidget {
     AttachmentPicker? attachmentPicker,
     AttachmentFileStore? attachmentFileStore,
     ChatAttachmentRequestEncoder? attachmentRequestEncoder,
+    AttachmentDeliveryStore? attachmentDeliveryStore,
     ModelAttachmentCapabilityStore? modelAttachmentCapabilityStore,
   })  : contextBuilder = contextBuilder ?? ChatContextBuilder(),
         generationKeepAlive =
@@ -161,6 +153,10 @@ class ChatPage extends StatefulWidget {
         attachmentFileStore = attachmentFileStore ?? LocalAttachmentFileStore(),
         attachmentRequestEncoder =
             attachmentRequestEncoder ?? ChatAttachmentRequestEncoder(),
+        attachmentDeliveryStore = attachmentDeliveryStore ??
+            (historyStore is AttachmentDeliveryStore
+                ? historyStore as AttachmentDeliveryStore
+                : InMemoryAttachmentDeliveryStore()),
         modelAttachmentCapabilityStore = modelAttachmentCapabilityStore ??
             InMemoryModelAttachmentCapabilityStore();
 
@@ -209,7 +205,7 @@ class _ChatPageState extends State<ChatPage> {
   Timer? _highlightTimer;
   bool _isMessageListAtBottom = true;
   bool _hasDraftMessage = false;
-  AttachmentDraft? _pendingAttachment;
+  final List<AttachmentDraft> _pendingAttachments = [];
   late final ModelAttachmentCapabilityResolver _capabilityResolver;
 
   @override
@@ -706,7 +702,7 @@ class _ChatPageState extends State<ChatPage> {
       provider = _selectedProvider;
       _selectedAgent = null;
       _messageController.clear();
-      _pendingAttachment = null;
+      _pendingAttachments.clear();
       _isMessageListAtBottom = true;
       _hasDraftMessage = false;
       _clearStoppedState();
@@ -746,7 +742,7 @@ class _ChatPageState extends State<ChatPage> {
         provider = _selectedProvider;
         _selectedAgent = null;
         _messageController.clear();
-        _pendingAttachment = null;
+        _pendingAttachments.clear();
         _isMessageListAtBottom = true;
         _hasDraftMessage = false;
         _clearStoppedState();
@@ -859,7 +855,7 @@ class _ChatPageState extends State<ChatPage> {
           _protocolWarning = protocolWarning;
           _loading = false;
           _messageController.clear();
-          _pendingAttachment = null;
+          _pendingAttachments.clear();
           _clearStoppedState();
         });
         _syncBottomStateAfterLayout();
@@ -928,9 +924,19 @@ class _ChatPageState extends State<ChatPage> {
     if (kind == null || !mounted) return;
 
     try {
-      final draft = await widget.attachmentPicker.pick(kind);
-      if (draft != null && mounted) {
-        setState(() => _pendingAttachment = draft);
+      final drafts = await widget.attachmentPicker.pick(kind);
+      if (drafts.isNotEmpty && mounted) {
+        final availableSlots =
+            maxAttachmentsPerMessage - _pendingAttachments.length;
+        final additions = drafts.take(availableSlots).toList(growable: false);
+        if (additions.isNotEmpty) {
+          setState(() => _pendingAttachments.addAll(additions));
+        }
+        if (drafts.length > availableSlots) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.attachmentLimitReached)),
+          );
+        }
       }
     } on AttachmentSelectionException catch (error) {
       if (!mounted) return;
@@ -949,67 +955,6 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<_AttachmentPreflightDecision> _preflightAttachmentMessage(
-    ChatMessage message,
-    _ModelSelection selection,
-  ) async {
-    for (final attachment in message.attachments) {
-      final capability = await _capabilityResolver.resolve(
-        providerId: selection.provider.providerId,
-        modelId: selection.modelId,
-        modality: _modalityFor(attachment.kind),
-      );
-      if (capability.status == AttachmentCapabilityStatus.unsupported) {
-        return await _showUnsupportedAttachmentDialog()
-            ? _AttachmentPreflightDecision.textOnly
-            : _AttachmentPreflightDecision.cancel;
-      }
-    }
-    return _AttachmentPreflightDecision.sendAttachments;
-  }
-
-  Future<_AttachmentPreflightDecision> _preflightAttachmentDraft(
-    AttachmentDraft? draft,
-    _ModelSelection selection,
-  ) async {
-    if (draft == null) {
-      return _AttachmentPreflightDecision.sendAttachments;
-    }
-    final capability = await _capabilityResolver.resolve(
-      providerId: selection.provider.providerId,
-      modelId: selection.modelId,
-      modality: _modalityFor(draft.kind),
-    );
-    if (capability.status != AttachmentCapabilityStatus.unsupported) {
-      return _AttachmentPreflightDecision.sendAttachments;
-    }
-    return await _showUnsupportedAttachmentDialog()
-        ? _AttachmentPreflightDecision.textOnly
-        : _AttachmentPreflightDecision.cancel;
-  }
-
-  Future<bool> _showUnsupportedAttachmentDialog() async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.unsupportedAttachmentTitle),
-        content: Text(l10n.unsupportedAttachmentMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.sendTextOnly),
-          ),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
-
   Future<void> _send() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -1019,27 +964,23 @@ class _ChatPageState extends State<ChatPage> {
       provider: _selectedProvider!,
       modelId: _selectedModelId!,
     );
-    final pendingAttachment = _pendingAttachment;
-    final preflight = await _preflightAttachmentDraft(
-      pendingAttachment,
-      selection,
-    );
-    if (preflight == _AttachmentPreflightDecision.cancel) {
-      return;
-    }
+    final pendingAttachments =
+        List<AttachmentDraft>.of(_pendingAttachments, growable: false);
 
     final isFirstMessage = _activeConversationId == null;
     final userMessageId = _nextId();
     final conversationId = _activeConversationId ?? 'conversation_${_nextId()}';
     final attachments = <ChatAttachment>[];
-    if (pendingAttachment != null) {
+    if (pendingAttachments.isNotEmpty) {
       try {
-        attachments.add(await widget.attachmentFileStore.persist(
-          draft: pendingAttachment,
-          attachmentId: 'attachment_${_nextId()}',
-          messageId: userMessageId,
-          conversationId: conversationId,
-        ));
+        for (final draft in pendingAttachments) {
+          attachments.add(await widget.attachmentFileStore.persist(
+            draft: draft,
+            attachmentId: 'attachment_${_nextId()}',
+            messageId: userMessageId,
+            conversationId: conversationId,
+          ));
+        }
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1086,7 +1027,7 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _activeConversationId = conversationId;
           _messages.add(userMessage);
-          _pendingAttachment = null;
+          _pendingAttachments.clear();
         });
         _messageController.clear();
       } catch (_) {
@@ -1109,7 +1050,7 @@ class _ChatPageState extends State<ChatPage> {
         );
         setState(() {
           _messages.add(userMessage);
-          _pendingAttachment = null;
+          _pendingAttachments.clear();
         });
         _messageController.clear();
       } catch (_) {
@@ -1127,7 +1068,6 @@ class _ChatPageState extends State<ChatPage> {
       userMessage: userMessage,
       provider: selection.provider,
       modelId: selection.modelId,
-      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -1140,17 +1080,11 @@ class _ChatPageState extends State<ChatPage> {
     if (userMsg == null) return;
     final selection = _selectionForMessage(userMsg);
     if (selection == null) return;
-    final preflight = await _preflightAttachmentMessage(userMsg, selection);
-    if (preflight == _AttachmentPreflightDecision.cancel) {
-      return;
-    }
-
     final target = _GenerationTarget(
       kind: _GenerationKind.retry,
       userMessage: userMsg,
       provider: selection.provider,
       modelId: selection.modelId,
-      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -1164,18 +1098,12 @@ class _ChatPageState extends State<ChatPage> {
     if (userMsg == null || assistantMsg == null) return;
     final selection = _selectionForMessage(assistantMsg);
     if (selection == null) return;
-    final preflight = await _preflightAttachmentMessage(userMsg, selection);
-    if (preflight == _AttachmentPreflightDecision.cancel) {
-      return;
-    }
-
     final target = _GenerationTarget(
       kind: _GenerationKind.regenerate,
       userMessage: userMsg,
       replacedAssistantMessage: assistantMsg,
       provider: selection.provider,
       modelId: selection.modelId,
-      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -1232,6 +1160,7 @@ class _ChatPageState extends State<ChatPage> {
         target.provider,
         target.modelId,
         forceTextOnly: target.forceTextOnly,
+        alwaysTryAttachments: true,
       );
       // Build system message from agent snapshot if available
       ChatRequestMessage? systemMessage;
@@ -1258,10 +1187,9 @@ class _ChatPageState extends State<ChatPage> {
         currentUserMessage: currentUserRequest,
         systemMessage: systemMessage,
       );
-      final sentAttachmentKinds = contextResult.messages
+      final sentAttachments = contextResult.messages
           .expand((message) => message.attachments)
-          .map((attachment) => attachment.kind)
-          .toSet();
+          .toList(growable: false);
 
       if (contextResult.wasTrimmed) {
         setState(() {
@@ -1316,7 +1244,7 @@ class _ChatPageState extends State<ChatPage> {
               hasContent,
               genId,
               target,
-              sentAttachmentKinds,
+              sentAttachments,
             );
           } else if (event is ChatStreamFailure) {
             _handleStreamFailure(
@@ -1325,7 +1253,7 @@ class _ChatPageState extends State<ChatPage> {
               genId,
               target,
               automaticRetryAttempt,
-              sentAttachmentKinds,
+              sentAttachments,
             );
           }
         },
@@ -1359,6 +1287,7 @@ class _ChatPageState extends State<ChatPage> {
     _ReadyProvider provider,
     String modelId, {
     bool forceTextOnly = false,
+    bool alwaysTryAttachments = false,
   }) async {
     if (forceTextOnly) {
       return widget.attachmentRequestEncoder.encode(
@@ -1367,22 +1296,38 @@ class _ChatPageState extends State<ChatPage> {
         supportsFileInput: false,
       );
     }
-    final imageCapability = await _capabilityResolver.resolve(
-      providerId: provider.providerId,
-      modelId: modelId,
-      modality: ModelInputModality.image,
-    );
-    final fileCapability = await _capabilityResolver.resolve(
-      providerId: provider.providerId,
-      modelId: modelId,
-      modality: ModelInputModality.file,
-    );
+    final attachments = <ChatAttachment>[];
+    for (final attachment in message.attachments) {
+      final status = await widget.attachmentDeliveryStore.readStatus(
+        attachmentId: attachment.id,
+        providerId: provider.providerId,
+        modelId: modelId,
+      );
+      if (alwaysTryAttachments || status != AttachmentDeliveryStatus.rejected) {
+        attachments.add(attachment);
+      }
+    }
     return widget.attachmentRequestEncoder.encode(
-      message: message,
-      supportsImageInput:
-          imageCapability.status != AttachmentCapabilityStatus.unsupported,
-      supportsFileInput:
-          fileCapability.status != AttachmentCapabilityStatus.unsupported,
+      message: _copyMessageWithAttachments(message, attachments),
+      supportsImageInput: true,
+      supportsFileInput: true,
+    );
+  }
+
+  ChatMessage _copyMessageWithAttachments(
+    ChatMessage message,
+    List<ChatAttachment> attachments,
+  ) {
+    return ChatMessage(
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      reasoningContent: message.reasoningContent,
+      providerIdSnapshot: message.providerIdSnapshot,
+      providerNameSnapshot: message.providerNameSnapshot,
+      modelIdSnapshot: message.modelIdSnapshot,
+      attachments: attachments,
+      createdAt: message.createdAt,
     );
   }
 
@@ -1390,7 +1335,7 @@ class _ChatPageState extends State<ChatPage> {
     bool hasContent,
     int genId,
     _GenerationTarget target,
-    Set<ChatAttachmentKind> sentAttachmentKinds,
+    List<ChatRequestAttachment> sentAttachments,
   ) async {
     if (!_isGenerationActive(genId)) return;
 
@@ -1411,9 +1356,9 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
-    await _learnCapabilitiesAfterSuccess(
+    await _recordSuccessfulAttachments(
       target: target,
-      sentAttachmentKinds: sentAttachmentKinds,
+      sentAttachments: sentAttachments,
     );
 
     final now = DateTime.now();
@@ -1546,7 +1491,7 @@ class _ChatPageState extends State<ChatPage> {
     int genId,
     _GenerationTarget target,
     int automaticRetryAttempt,
-    Set<ChatAttachmentKind> sentAttachmentKinds,
+    List<ChatRequestAttachment> sentAttachments,
   ) {
     if (!_isGenerationActive(genId)) return;
 
@@ -1561,16 +1506,14 @@ class _ChatPageState extends State<ChatPage> {
 
     if (!hasContent &&
         !target.forceTextOnly &&
-        sentAttachmentKinds.isNotEmpty &&
+        sentAttachments.isNotEmpty &&
         event.errorType == ChatCompletionErrorType.attachmentRejected) {
-      final explicitlyRejected = event.rejectedAttachmentKinds
-          .where(sentAttachmentKinds.contains)
-          .toSet();
-      final learnableKinds = explicitlyRejected.isNotEmpty
-          ? explicitlyRejected
-          : sentAttachmentKinds.length == 1
-              ? Set<ChatAttachmentKind>.of(sentAttachmentKinds)
-              : <ChatAttachmentKind>{};
+      final rejectedAttachments = event.rejectedAttachmentKinds.isEmpty
+          ? sentAttachments
+          : sentAttachments
+              .where((attachment) =>
+                  event.rejectedAttachmentKinds.contains(attachment.kind))
+              .toList(growable: false);
       _finishGeneration(
         generationId: genId,
         reason: _GenerationEndReason.failed,
@@ -1580,9 +1523,22 @@ class _ChatPageState extends State<ChatPage> {
           _streamingReasoningText = '';
           _expandedReasoningKeys.remove(_streamingReasoningKey);
         });
-        unawaited(_offerTextOnlyRetry(target, learnableKinds));
+        unawaited(_recordRejectionAndOfferTextRetry(
+          target,
+          rejectedAttachments,
+        ));
       }
       return;
+    }
+
+    if (hasContent &&
+        sentAttachments.isNotEmpty &&
+        event.errorType == ChatCompletionErrorType.attachmentRejected) {
+      unawaited(_recordAttachmentStatuses(
+        target: target,
+        attachments: sentAttachments,
+        status: AttachmentDeliveryStatus.rejected,
+      ));
     }
 
     _finishGeneration(
@@ -1621,10 +1577,16 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _offerTextOnlyRetry(
+  Future<void> _recordRejectionAndOfferTextRetry(
     _GenerationTarget target,
-    Set<ChatAttachmentKind> learnableKinds,
+    List<ChatRequestAttachment> rejectedAttachments,
   ) async {
+    if (!mounted) return;
+    await _recordAttachmentStatuses(
+      target: target,
+      attachments: rejectedAttachments,
+      status: AttachmentDeliveryStatus.rejected,
+    );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
     final retry = await showDialog<bool>(
@@ -1649,29 +1611,21 @@ class _ChatPageState extends State<ChatPage> {
         ) ??
         false;
     if (!retry || !mounted) return;
-    await _runGeneration(target.copyWith(
-      forceTextOnly: true,
-      unsupportedKindsToLearnOnSuccess: learnableKinds,
-    ));
+    await _runGeneration(target.copyWith(forceTextOnly: true));
   }
 
-  Future<void> _learnCapabilitiesAfterSuccess({
+  Future<void> _recordSuccessfulAttachments({
     required _GenerationTarget target,
-    required Set<ChatAttachmentKind> sentAttachmentKinds,
+    required List<ChatRequestAttachment> sentAttachments,
   }) async {
+    await _recordAttachmentStatuses(
+      target: target,
+      attachments: sentAttachments,
+      status: AttachmentDeliveryStatus.accepted,
+    );
     try {
-      if (target.unsupportedKindsToLearnOnSuccess.isNotEmpty) {
-        for (final kind in target.unsupportedKindsToLearnOnSuccess) {
-          await _capabilityResolver.saveDetected(
-            providerId: target.provider.providerId,
-            modelId: target.modelId,
-            modality: _modalityFor(kind),
-            status: AttachmentCapabilityStatus.unsupported,
-          );
-        }
-        return;
-      }
-      for (final kind in sentAttachmentKinds) {
+      for (final kind
+          in sentAttachments.map((attachment) => attachment.kind).toSet()) {
         await _capabilityResolver.saveDetected(
           providerId: target.provider.providerId,
           modelId: target.modelId,
@@ -1681,6 +1635,25 @@ class _ChatPageState extends State<ChatPage> {
       }
     } catch (_) {
       // Capability learning is best effort and must not fail the chat turn.
+    }
+  }
+
+  Future<void> _recordAttachmentStatuses({
+    required _GenerationTarget target,
+    required List<ChatRequestAttachment> attachments,
+    required AttachmentDeliveryStatus status,
+  }) async {
+    try {
+      for (final attachment in attachments) {
+        await widget.attachmentDeliveryStore.saveStatus(
+          attachmentId: attachment.attachmentId,
+          providerId: target.provider.providerId,
+          modelId: target.modelId,
+          status: status,
+        );
+      }
+    } catch (_) {
+      // Delivery bookkeeping is best effort and must not fail the chat turn.
     }
   }
 
@@ -2467,14 +2440,36 @@ class _ChatPageState extends State<ChatPage> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (_pendingAttachment != null)
+                            if (_pendingAttachments.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: PendingAttachmentPreview(
-                                  draft: _pendingAttachment!,
-                                  removeTooltip: l10n.removeAttachment,
-                                  onRemove: () => setState(
-                                    () => _pendingAttachment = null,
+                                child: SizedBox(
+                                  key: const Key('pending_attachment_list'),
+                                  height: 74,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: _pendingAttachments.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 8),
+                                    itemBuilder: (context, index) => SizedBox(
+                                      width: 280,
+                                      child: PendingAttachmentPreview(
+                                        previewKey: index == 0
+                                            ? const Key(
+                                                'pending_attachment_preview')
+                                            : Key(
+                                                'pending_attachment_preview_$index'),
+                                        removeKey: Key(
+                                          'remove_pending_attachment_$index',
+                                        ),
+                                        draft: _pendingAttachments[index],
+                                        removeTooltip: l10n.removeAttachment,
+                                        onRemove: () => setState(
+                                          () => _pendingAttachments
+                                              .removeAt(index),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2516,11 +2511,17 @@ class _ChatPageState extends State<ChatPage> {
                                                 'attachment_button',
                                               ),
                                               button: true,
-                                              enabled: true,
+                                              enabled: !_sending &&
+                                                  _pendingAttachments.length <
+                                                      maxAttachmentsPerMessage,
                                               label: l10n.addAttachment,
                                               child: IconButton(
-                                                onPressed:
-                                                    _showAttachmentPicker,
+                                                onPressed: _sending ||
+                                                        _pendingAttachments
+                                                                .length >=
+                                                            maxAttachmentsPerMessage
+                                                    ? null
+                                                    : _showAttachmentPicker,
                                                 tooltip: l10n.addAttachment,
                                                 icon: const Icon(
                                                   Icons.attach_file_rounded,

@@ -10,6 +10,7 @@ void main() {
         content: 'Describe this image',
         attachments: [
           ChatRequestAttachment(
+            attachmentId: 'image-1',
             kind: ChatAttachmentKind.image,
             fileName: 'photo.png',
             mimeType: 'image/png',
@@ -33,6 +34,7 @@ void main() {
         content: 'Read this file',
         attachments: [
           ChatRequestAttachment(
+            attachmentId: 'file-1',
             kind: ChatAttachmentKind.file,
             fileName: 'notes.txt',
             mimeType: 'text/plain',

@@ -1,5 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
@@ -156,6 +157,76 @@ void main() {
       expect(attachment.kind, attachment_domain.ChatAttachmentKind.image);
       expect(attachment.messageId, 'msg_attachment');
       expect(attachment.conversationId, 'conv_attachment');
+    });
+
+    test('persists delivery status per attachment provider and model',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_delivery',
+          title: 'Delivery',
+          providerId: 'openai',
+          model: 'gpt-4o',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_delivery',
+          role: domain.ChatRole.user,
+          content: 'Describe it',
+          attachments: const [
+            attachment_domain.ChatAttachment(
+              id: 'attachment_delivery',
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              fileSize: 1234,
+              localPath: '/app/attachments/photo.jpg',
+              kind: attachment_domain.ChatAttachmentKind.image,
+              messageId: 'msg_delivery',
+              conversationId: 'conv_delivery',
+            ),
+          ],
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await store.saveStatus(
+        attachmentId: 'attachment_delivery',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        status: AttachmentDeliveryStatus.rejected,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        ),
+        AttachmentDeliveryStatus.rejected,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4.1',
+        ),
+        isNull,
+      );
+
+      await store.saveStatus(
+        attachmentId: 'attachment_delivery',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        status: AttachmentDeliveryStatus.accepted,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        ),
+        AttachmentDeliveryStatus.accepted,
+      );
     });
 
     test('legacy rows read with null model snapshots', () async {

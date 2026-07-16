@@ -3,6 +3,7 @@ import 'package:keychat/features/chat/domain/chat_attachment.dart';
 import 'package:mime/mime.dart';
 
 const int maxAttachmentBytes = 10 * 1024 * 1024;
+const int maxAttachmentsPerMessage = 5;
 
 class AttachmentDraft {
   const AttachmentDraft({
@@ -21,37 +22,37 @@ class AttachmentDraft {
 }
 
 abstract interface class AttachmentPicker {
-  Future<AttachmentDraft?> pick(ChatAttachmentKind kind);
+  Future<List<AttachmentDraft>> pick(ChatAttachmentKind kind);
 }
 
 class FilePickerAttachmentPicker implements AttachmentPicker {
   const FilePickerAttachmentPicker();
 
   @override
-  Future<AttachmentDraft?> pick(ChatAttachmentKind kind) async {
+  Future<List<AttachmentDraft>> pick(ChatAttachmentKind kind) async {
     final result = await FilePicker.platform.pickFiles(
       type: kind == ChatAttachmentKind.image ? FileType.image : FileType.any,
-      allowMultiple: false,
+      allowMultiple: true,
       withData: false,
     );
-    if (result == null || result.files.isEmpty) return null;
+    if (result == null || result.files.isEmpty) return const [];
 
-    final selected = result.files.single;
-    final sourcePath = selected.path;
-    if (sourcePath == null || sourcePath.isEmpty) {
-      throw const AttachmentSelectionException('unavailable_path');
-    }
-    if (selected.size > maxAttachmentBytes) {
-      throw const AttachmentSelectionException('too_large');
-    }
-
-    return AttachmentDraft(
-      sourcePath: sourcePath,
-      fileName: selected.name,
-      mimeType: lookupMimeType(sourcePath) ?? 'application/octet-stream',
-      fileSize: selected.size,
-      kind: kind,
-    );
+    return result.files.map((selected) {
+      final sourcePath = selected.path;
+      if (sourcePath == null || sourcePath.isEmpty) {
+        throw const AttachmentSelectionException('unavailable_path');
+      }
+      if (selected.size > maxAttachmentBytes) {
+        throw const AttachmentSelectionException('too_large');
+      }
+      return AttachmentDraft(
+        sourcePath: sourcePath,
+        fileName: selected.name,
+        mimeType: lookupMimeType(sourcePath) ?? 'application/octet-stream',
+        fileSize: selected.size,
+        kind: kind,
+      );
+    }).toList(growable: false);
   }
 }
 

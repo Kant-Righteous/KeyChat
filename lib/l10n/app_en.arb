@@ -260,6 +260,7 @@
   "attachmentUnavailable": "The selected file is unavailable.",
   "attachmentPickFailed": "Unable to select the attachment.",
   "attachmentSaveFailed": "Unable to save the attachment locally.",
+  "attachmentLimitReached": "You can attach up to 5 files per message.",
   "unsupportedAttachmentTitle": "Attachment may not be supported",
   "unsupportedAttachmentMessage": "The current model may not be able to read this attachment. Only the text will be sent, while the attachment remains in local chat history.",
   "sendTextOnly": "Send text only",

@@ -2245,6 +2245,332 @@ class ChatAttachmentsCompanion extends UpdateCompanion<ChatAttachment> {
   }
 }
 
+class $AttachmentDeliveryStatesTable extends AttachmentDeliveryStates
+    with TableInfo<$AttachmentDeliveryStatesTable, AttachmentDeliveryStateRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttachmentDeliveryStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _attachmentIdMeta =
+      const VerificationMeta('attachmentId');
+  @override
+  late final GeneratedColumn<String> attachmentId = GeneratedColumn<String>(
+      'attachment_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES chat_attachments (id) ON DELETE CASCADE'));
+  static const VerificationMeta _providerIdMeta =
+      const VerificationMeta('providerId');
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+      'provider_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modelIdMeta =
+      const VerificationMeta('modelId');
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+      'model_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [attachmentId, providerId, modelId, status, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attachment_delivery_states';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<AttachmentDeliveryStateRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('attachment_id')) {
+      context.handle(
+          _attachmentIdMeta,
+          attachmentId.isAcceptableOrUnknown(
+              data['attachment_id']!, _attachmentIdMeta));
+    } else if (isInserting) {
+      context.missing(_attachmentIdMeta);
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+          _providerIdMeta,
+          providerId.isAcceptableOrUnknown(
+              data['provider_id']!, _providerIdMeta));
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(_modelIdMeta,
+          modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta));
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {attachmentId, providerId, modelId};
+  @override
+  AttachmentDeliveryStateRow map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AttachmentDeliveryStateRow(
+      attachmentId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}attachment_id'])!,
+      providerId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}provider_id'])!,
+      modelId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model_id'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $AttachmentDeliveryStatesTable createAlias(String alias) {
+    return $AttachmentDeliveryStatesTable(attachedDatabase, alias);
+  }
+}
+
+class AttachmentDeliveryStateRow extends DataClass
+    implements Insertable<AttachmentDeliveryStateRow> {
+  final String attachmentId;
+  final String providerId;
+  final String modelId;
+  final String status;
+  final DateTime updatedAt;
+  const AttachmentDeliveryStateRow(
+      {required this.attachmentId,
+      required this.providerId,
+      required this.modelId,
+      required this.status,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['attachment_id'] = Variable<String>(attachmentId);
+    map['provider_id'] = Variable<String>(providerId);
+    map['model_id'] = Variable<String>(modelId);
+    map['status'] = Variable<String>(status);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AttachmentDeliveryStatesCompanion toCompanion(bool nullToAbsent) {
+    return AttachmentDeliveryStatesCompanion(
+      attachmentId: Value(attachmentId),
+      providerId: Value(providerId),
+      modelId: Value(modelId),
+      status: Value(status),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AttachmentDeliveryStateRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AttachmentDeliveryStateRow(
+      attachmentId: serializer.fromJson<String>(json['attachmentId']),
+      providerId: serializer.fromJson<String>(json['providerId']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      status: serializer.fromJson<String>(json['status']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'attachmentId': serializer.toJson<String>(attachmentId),
+      'providerId': serializer.toJson<String>(providerId),
+      'modelId': serializer.toJson<String>(modelId),
+      'status': serializer.toJson<String>(status),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AttachmentDeliveryStateRow copyWith(
+          {String? attachmentId,
+          String? providerId,
+          String? modelId,
+          String? status,
+          DateTime? updatedAt}) =>
+      AttachmentDeliveryStateRow(
+        attachmentId: attachmentId ?? this.attachmentId,
+        providerId: providerId ?? this.providerId,
+        modelId: modelId ?? this.modelId,
+        status: status ?? this.status,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  AttachmentDeliveryStateRow copyWithCompanion(
+      AttachmentDeliveryStatesCompanion data) {
+    return AttachmentDeliveryStateRow(
+      attachmentId: data.attachmentId.present
+          ? data.attachmentId.value
+          : this.attachmentId,
+      providerId:
+          data.providerId.present ? data.providerId.value : this.providerId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      status: data.status.present ? data.status.value : this.status,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentDeliveryStateRow(')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('status: $status, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(attachmentId, providerId, modelId, status, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AttachmentDeliveryStateRow &&
+          other.attachmentId == this.attachmentId &&
+          other.providerId == this.providerId &&
+          other.modelId == this.modelId &&
+          other.status == this.status &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AttachmentDeliveryStatesCompanion
+    extends UpdateCompanion<AttachmentDeliveryStateRow> {
+  final Value<String> attachmentId;
+  final Value<String> providerId;
+  final Value<String> modelId;
+  final Value<String> status;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AttachmentDeliveryStatesCompanion({
+    this.attachmentId = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AttachmentDeliveryStatesCompanion.insert({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+    required String status,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  })  : attachmentId = Value(attachmentId),
+        providerId = Value(providerId),
+        modelId = Value(modelId),
+        status = Value(status),
+        updatedAt = Value(updatedAt);
+  static Insertable<AttachmentDeliveryStateRow> custom({
+    Expression<String>? attachmentId,
+    Expression<String>? providerId,
+    Expression<String>? modelId,
+    Expression<String>? status,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (attachmentId != null) 'attachment_id': attachmentId,
+      if (providerId != null) 'provider_id': providerId,
+      if (modelId != null) 'model_id': modelId,
+      if (status != null) 'status': status,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AttachmentDeliveryStatesCompanion copyWith(
+      {Value<String>? attachmentId,
+      Value<String>? providerId,
+      Value<String>? modelId,
+      Value<String>? status,
+      Value<DateTime>? updatedAt,
+      Value<int>? rowid}) {
+    return AttachmentDeliveryStatesCompanion(
+      attachmentId: attachmentId ?? this.attachmentId,
+      providerId: providerId ?? this.providerId,
+      modelId: modelId ?? this.modelId,
+      status: status ?? this.status,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (attachmentId.present) {
+      map['attachment_id'] = Variable<String>(attachmentId.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttachmentDeliveryStatesCompanion(')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('status: $status, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ModelAttachmentCapabilitiesTable extends ModelAttachmentCapabilities
     with
         TableInfo<$ModelAttachmentCapabilitiesTable,
@@ -2616,6 +2942,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChatMessagesTable chatMessages = $ChatMessagesTable(this);
   late final $ChatAttachmentsTable chatAttachments =
       $ChatAttachmentsTable(this);
+  late final $AttachmentDeliveryStatesTable attachmentDeliveryStates =
+      $AttachmentDeliveryStatesTable(this);
   late final $ModelAttachmentCapabilitiesTable modelAttachmentCapabilities =
       $ModelAttachmentCapabilitiesTable(this);
   @override
@@ -2628,6 +2956,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         conversations,
         chatMessages,
         chatAttachments,
+        attachmentDeliveryStates,
         modelAttachmentCapabilities
       ];
   @override
@@ -2652,6 +2981,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
                 limitUpdateKind: UpdateKind.delete),
             result: [
               TableUpdate('chat_attachments', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('chat_attachments',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('attachment_delivery_states',
+                  kind: UpdateKind.delete),
             ],
           ),
           WritePropagation(
@@ -4051,6 +4388,26 @@ final class $$ChatAttachmentsTableReferences extends BaseReferences<
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: [item]));
   }
+
+  static MultiTypedResultKey<$AttachmentDeliveryStatesTable,
+      List<AttachmentDeliveryStateRow>> _attachmentDeliveryStatesRefsTable(
+          _$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.attachmentDeliveryStates,
+          aliasName: $_aliasNameGenerator(
+              db.chatAttachments.id, db.attachmentDeliveryStates.attachmentId));
+
+  $$AttachmentDeliveryStatesTableProcessedTableManager
+      get attachmentDeliveryStatesRefs {
+    final manager = $$AttachmentDeliveryStatesTableTableManager(
+            $_db, $_db.attachmentDeliveryStates)
+        .filter(
+            (f) => f.attachmentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_attachmentDeliveryStatesRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$ChatAttachmentsTableFilterComposer
@@ -4118,6 +4475,29 @@ class $$ChatAttachmentsTableFilterComposer
                   $removeJoinBuilderFromRootComposer,
             ));
     return composer;
+  }
+
+  Expression<bool> attachmentDeliveryStatesRefs(
+      Expression<bool> Function($$AttachmentDeliveryStatesTableFilterComposer f)
+          f) {
+    final $$AttachmentDeliveryStatesTableFilterComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.attachmentDeliveryStates,
+            getReferencedColumn: (t) => t.attachmentId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$AttachmentDeliveryStatesTableFilterComposer(
+                  $db: $db,
+                  $table: $db.attachmentDeliveryStates,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
   }
 }
 
@@ -4255,6 +4635,30 @@ class $$ChatAttachmentsTableAnnotationComposer
             ));
     return composer;
   }
+
+  Expression<T> attachmentDeliveryStatesRefs<T extends Object>(
+      Expression<T> Function(
+              $$AttachmentDeliveryStatesTableAnnotationComposer a)
+          f) {
+    final $$AttachmentDeliveryStatesTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.attachmentDeliveryStates,
+            getReferencedColumn: (t) => t.attachmentId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$AttachmentDeliveryStatesTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.attachmentDeliveryStates,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
 }
 
 class $$ChatAttachmentsTableTableManager extends RootTableManager<
@@ -4268,7 +4672,10 @@ class $$ChatAttachmentsTableTableManager extends RootTableManager<
     $$ChatAttachmentsTableUpdateCompanionBuilder,
     (ChatAttachment, $$ChatAttachmentsTableReferences),
     ChatAttachment,
-    PrefetchHooks Function({bool messageId, bool conversationId})> {
+    PrefetchHooks Function(
+        {bool messageId,
+        bool conversationId,
+        bool attachmentDeliveryStatesRefs})> {
   $$ChatAttachmentsTableTableManager(
       _$AppDatabase db, $ChatAttachmentsTable table)
       : super(TableManagerState(
@@ -4330,10 +4737,15 @@ class $$ChatAttachmentsTableTableManager extends RootTableManager<
                     $$ChatAttachmentsTableReferences(db, table, e)
                   ))
               .toList(),
-          prefetchHooksCallback: ({messageId = false, conversationId = false}) {
+          prefetchHooksCallback: (
+              {messageId = false,
+              conversationId = false,
+              attachmentDeliveryStatesRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [],
+              explicitlyWatchedTables: [
+                if (attachmentDeliveryStatesRefs) db.attachmentDeliveryStates
+              ],
               addJoins: <
                   T extends TableManagerState<
                       dynamic,
@@ -4372,7 +4784,21 @@ class $$ChatAttachmentsTableTableManager extends RootTableManager<
                 return state;
               },
               getPrefetchedDataCallback: (items) async {
-                return [];
+                return [
+                  if (attachmentDeliveryStatesRefs)
+                    await $_getPrefetchedData<ChatAttachment,
+                            $ChatAttachmentsTable, AttachmentDeliveryStateRow>(
+                        currentTable: table,
+                        referencedTable: $$ChatAttachmentsTableReferences
+                            ._attachmentDeliveryStatesRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ChatAttachmentsTableReferences(db, table, p0)
+                                .attachmentDeliveryStatesRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.attachmentId == item.id),
+                        typedResults: items)
+                ];
               },
             );
           },
@@ -4390,7 +4816,293 @@ typedef $$ChatAttachmentsTableProcessedTableManager = ProcessedTableManager<
     $$ChatAttachmentsTableUpdateCompanionBuilder,
     (ChatAttachment, $$ChatAttachmentsTableReferences),
     ChatAttachment,
-    PrefetchHooks Function({bool messageId, bool conversationId})>;
+    PrefetchHooks Function(
+        {bool messageId,
+        bool conversationId,
+        bool attachmentDeliveryStatesRefs})>;
+typedef $$AttachmentDeliveryStatesTableCreateCompanionBuilder
+    = AttachmentDeliveryStatesCompanion Function({
+  required String attachmentId,
+  required String providerId,
+  required String modelId,
+  required String status,
+  required DateTime updatedAt,
+  Value<int> rowid,
+});
+typedef $$AttachmentDeliveryStatesTableUpdateCompanionBuilder
+    = AttachmentDeliveryStatesCompanion Function({
+  Value<String> attachmentId,
+  Value<String> providerId,
+  Value<String> modelId,
+  Value<String> status,
+  Value<DateTime> updatedAt,
+  Value<int> rowid,
+});
+
+final class $$AttachmentDeliveryStatesTableReferences extends BaseReferences<
+    _$AppDatabase, $AttachmentDeliveryStatesTable, AttachmentDeliveryStateRow> {
+  $$AttachmentDeliveryStatesTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $ChatAttachmentsTable _attachmentIdTable(_$AppDatabase db) =>
+      db.chatAttachments.createAlias($_aliasNameGenerator(
+          db.attachmentDeliveryStates.attachmentId, db.chatAttachments.id));
+
+  $$ChatAttachmentsTableProcessedTableManager get attachmentId {
+    final $_column = $_itemColumn<String>('attachment_id')!;
+
+    final manager =
+        $$ChatAttachmentsTableTableManager($_db, $_db.chatAttachments)
+            .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_attachmentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$AttachmentDeliveryStatesTableFilterComposer
+    extends Composer<_$AppDatabase, $AttachmentDeliveryStatesTable> {
+  $$AttachmentDeliveryStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get providerId => $composableBuilder(
+      column: $table.providerId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+      column: $table.modelId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$ChatAttachmentsTableFilterComposer get attachmentId {
+    final $$ChatAttachmentsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.attachmentId,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableFilterComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$AttachmentDeliveryStatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AttachmentDeliveryStatesTable> {
+  $$AttachmentDeliveryStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get providerId => $composableBuilder(
+      column: $table.providerId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+      column: $table.modelId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$ChatAttachmentsTableOrderingComposer get attachmentId {
+    final $$ChatAttachmentsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.attachmentId,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableOrderingComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$AttachmentDeliveryStatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AttachmentDeliveryStatesTable> {
+  $$AttachmentDeliveryStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get providerId => $composableBuilder(
+      column: $table.providerId, builder: (column) => column);
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ChatAttachmentsTableAnnotationComposer get attachmentId {
+    final $$ChatAttachmentsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.attachmentId,
+        referencedTable: $db.chatAttachments,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ChatAttachmentsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.chatAttachments,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$AttachmentDeliveryStatesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AttachmentDeliveryStatesTable,
+    AttachmentDeliveryStateRow,
+    $$AttachmentDeliveryStatesTableFilterComposer,
+    $$AttachmentDeliveryStatesTableOrderingComposer,
+    $$AttachmentDeliveryStatesTableAnnotationComposer,
+    $$AttachmentDeliveryStatesTableCreateCompanionBuilder,
+    $$AttachmentDeliveryStatesTableUpdateCompanionBuilder,
+    (AttachmentDeliveryStateRow, $$AttachmentDeliveryStatesTableReferences),
+    AttachmentDeliveryStateRow,
+    PrefetchHooks Function({bool attachmentId})> {
+  $$AttachmentDeliveryStatesTableTableManager(
+      _$AppDatabase db, $AttachmentDeliveryStatesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttachmentDeliveryStatesTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AttachmentDeliveryStatesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AttachmentDeliveryStatesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> attachmentId = const Value.absent(),
+            Value<String> providerId = const Value.absent(),
+            Value<String> modelId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AttachmentDeliveryStatesCompanion(
+            attachmentId: attachmentId,
+            providerId: providerId,
+            modelId: modelId,
+            status: status,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String attachmentId,
+            required String providerId,
+            required String modelId,
+            required String status,
+            required DateTime updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AttachmentDeliveryStatesCompanion.insert(
+            attachmentId: attachmentId,
+            providerId: providerId,
+            modelId: modelId,
+            status: status,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$AttachmentDeliveryStatesTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({attachmentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (attachmentId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.attachmentId,
+                    referencedTable: $$AttachmentDeliveryStatesTableReferences
+                        ._attachmentIdTable(db),
+                    referencedColumn: $$AttachmentDeliveryStatesTableReferences
+                        ._attachmentIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$AttachmentDeliveryStatesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $AttachmentDeliveryStatesTable,
+        AttachmentDeliveryStateRow,
+        $$AttachmentDeliveryStatesTableFilterComposer,
+        $$AttachmentDeliveryStatesTableOrderingComposer,
+        $$AttachmentDeliveryStatesTableAnnotationComposer,
+        $$AttachmentDeliveryStatesTableCreateCompanionBuilder,
+        $$AttachmentDeliveryStatesTableUpdateCompanionBuilder,
+        (AttachmentDeliveryStateRow, $$AttachmentDeliveryStatesTableReferences),
+        AttachmentDeliveryStateRow,
+        PrefetchHooks Function({bool attachmentId})>;
 typedef $$ModelAttachmentCapabilitiesTableCreateCompanionBuilder
     = ModelAttachmentCapabilitiesCompanion Function({
   required String providerId,
@@ -4714,6 +5426,9 @@ class $AppDatabaseManager {
       $$ChatMessagesTableTableManager(_db, _db.chatMessages);
   $$ChatAttachmentsTableTableManager get chatAttachments =>
       $$ChatAttachmentsTableTableManager(_db, _db.chatAttachments);
+  $$AttachmentDeliveryStatesTableTableManager get attachmentDeliveryStates =>
+      $$AttachmentDeliveryStatesTableTableManager(
+          _db, _db.attachmentDeliveryStates);
   $$ModelAttachmentCapabilitiesTableTableManager
       get modelAttachmentCapabilities =>
           $$ModelAttachmentCapabilitiesTableTableManager(

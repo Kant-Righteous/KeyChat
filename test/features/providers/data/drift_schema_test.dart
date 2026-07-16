@@ -83,8 +83,8 @@ void main() {
       expect(protocolCol.data['dflt_value'], "'openai_compatible'");
     });
 
-    test('schemaVersion is 7', () {
-      expect(db.schemaVersion, 7);
+    test('schemaVersion is 8', () {
+      expect(db.schemaVersion, 8);
     });
   });
 
@@ -241,6 +241,47 @@ void main() {
         primaryKey,
         {'provider_id', 'model_id', 'modality', 'source'},
       );
+    });
+  });
+
+  group('AttachmentDeliveryStates table schema', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('contains only per-attachment delivery metadata', () {
+      final table = db.attachmentDeliveryStates;
+      final names = table.$columns.map((column) => column.name).toList();
+
+      expect(
+        names,
+        containsAll([
+          'attachment_id',
+          'provider_id',
+          'model_id',
+          'status',
+          'updated_at',
+        ]),
+      );
+      expect(names, hasLength(5));
+      expect(names, isNot(contains('api_key')));
+      expect(names, isNot(contains('base_url')));
+      expect(names, isNot(contains('request_body')));
+      expect(names, isNot(contains('response_body')));
+    });
+
+    test('primary key isolates an attachment per provider and model', () {
+      final primaryKey = db.attachmentDeliveryStates.primaryKey
+          .map((column) => column.name)
+          .toSet();
+
+      expect(primaryKey, {'attachment_id', 'provider_id', 'model_id'});
     });
   });
 }

@@ -59,8 +59,8 @@ void main() {
 
       // Step 3: Verify migration results
 
-      // schemaVersion should be 7
-      expect(db.schemaVersion, 7);
+      // schemaVersion should be 8
+      expect(db.schemaVersion, 8);
 
       // ProviderConfigs data preserved
       final configs = await db.select(db.providerConfigs).get();
@@ -423,7 +423,7 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
       final message = await db.select(db.chatMessages).getSingle();
 
-      expect(db.schemaVersion, 7);
+      expect(db.schemaVersion, 8);
       expect(message.content, 'Old reply');
       expect(message.providerIdSnapshot, equals(null));
       expect(message.providerNameSnapshot, equals(null));
@@ -493,7 +493,7 @@ void main() {
       final provider = await db.select(db.providerConfigs).getSingle();
       final attachments = await db.select(db.chatAttachments).get();
 
-      expect(db.schemaVersion, 7);
+      expect(db.schemaVersion, 8);
       expect(provider.providerId, 'openai');
       expect(provider.supportsImageInput, false);
       expect(provider.supportsFileInput, false);
@@ -502,7 +502,7 @@ void main() {
       await db.close();
     });
 
-    test('migrates v6 to v7 and seeds only declared supported capability',
+    test('migrates v6 to current and seeds only declared supported capability',
         () async {
       final dbFile = File('${tempDir.path}/v6_test.sqlite');
       final rawDb = sqlite3_lib.sqlite3.open(dbFile.path);
@@ -534,13 +534,82 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
       final rows = await db.select(db.modelAttachmentCapabilities).get();
 
-      expect(db.schemaVersion, 7);
+      expect(db.schemaVersion, 8);
       expect(rows, hasLength(1));
       expect(rows.single.providerId, 'custom');
       expect(rows.single.modelId, 'vision-1');
       expect(rows.single.modality, 'image');
       expect(rows.single.status, 'supported');
       expect(rows.single.source, 'manual');
+
+      await db.close();
+    });
+
+    test('migrates v7 to v8 without changing existing attachments', () async {
+      final dbFile = File('${tempDir.path}/v7_test.sqlite');
+      final rawDb = sqlite3_lib.sqlite3.open(dbFile.path);
+      rawDb.execute('''
+        CREATE TABLE conversations (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          provider_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          agent_id TEXT,
+          agent_name_snapshot TEXT,
+          system_prompt_snapshot TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      rawDb.execute('''
+        CREATE TABLE chat_messages (
+          id TEXT NOT NULL PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          provider_id_snapshot TEXT,
+          provider_name_snapshot TEXT,
+          model_id_snapshot TEXT,
+          created_at INTEGER NOT NULL
+        )
+      ''');
+      rawDb.execute('''
+        CREATE TABLE chat_attachments (
+          id TEXT NOT NULL PRIMARY KEY,
+          file_name TEXT NOT NULL,
+          mime_type TEXT NOT NULL,
+          file_size INTEGER NOT NULL,
+          local_path TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          message_id TEXT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE
+        )
+      ''');
+      rawDb.execute(
+        "INSERT INTO conversations VALUES "
+        "('conv', 'Legacy', 'openai', 'gpt-4o', NULL, NULL, NULL, "
+        "1704067200000, 1704067200000)",
+      );
+      rawDb.execute(
+        "INSERT INTO chat_messages VALUES "
+        "('message', 'conv', 'user', 'Describe', 'openai', 'OpenAI', "
+        "'gpt-4o', 1704067200000)",
+      );
+      rawDb.execute(
+        "INSERT INTO chat_attachments VALUES "
+        "('attachment', 'photo.jpg', 'image/jpeg', 1234, "
+        "'/attachments/photo.jpg', 'image', 'message', 'conv')",
+      );
+      rawDb.execute('PRAGMA user_version = 7');
+      rawDb.dispose();
+
+      final db = AppDatabase.forTesting(NativeDatabase(File(dbFile.path)));
+      final attachments = await db.select(db.chatAttachments).get();
+      final deliveryStates = await db.select(db.attachmentDeliveryStates).get();
+
+      expect(db.schemaVersion, 8);
+      expect(attachments.single.id, 'attachment');
+      expect(deliveryStates, isEmpty);
 
       await db.close();
     });
@@ -557,8 +626,8 @@ void main() {
       await db.close();
     });
 
-    test('schemaVersion is 7', () {
-      expect(db.schemaVersion, 7);
+    test('schemaVersion is 8', () {
+      expect(db.schemaVersion, 8);
     });
 
     test('protocol column is TEXT NOT NULL with SQL DEFAULT', () async {

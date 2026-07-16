@@ -7,19 +7,23 @@ import 'package:keychat/features/chat/domain/chat_attachment.dart';
 class PendingAttachmentPreview extends StatelessWidget {
   const PendingAttachmentPreview({
     super.key,
+    this.previewKey = const Key('pending_attachment_preview'),
+    this.removeKey = const Key('remove_pending_attachment'),
     required this.draft,
     required this.removeTooltip,
     required this.onRemove,
   });
 
   final AttachmentDraft draft;
+  final Key previewKey;
+  final Key removeKey;
   final String removeTooltip;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     return _AttachmentCard(
-      key: const Key('pending_attachment_preview'),
+      key: previewKey,
       fileName: draft.fileName,
       mimeType: draft.mimeType,
       fileSize: draft.fileSize,
@@ -28,7 +32,7 @@ class PendingAttachmentPreview extends StatelessWidget {
       imageKey: const Key('pending_attachment_image'),
       fileKey: const Key('pending_attachment_file'),
       trailing: IconButton(
-        key: const Key('remove_pending_attachment'),
+        key: removeKey,
         onPressed: onRemove,
         tooltip: removeTooltip,
         icon: const Icon(Icons.close_rounded),

@@ -27,6 +27,7 @@ class ChatAttachmentRequestEncoder {
         try {
           final bytes = await _bytesReader(attachment.localPath);
           requestAttachments.add(ChatRequestAttachment(
+            attachmentId: attachment.id,
             kind: attachment.kind,
             fileName: attachment.fileName,
             mimeType: attachment.mimeType,

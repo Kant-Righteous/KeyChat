@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/chat_history_store.dart';
@@ -6,7 +7,8 @@ import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/chat_attachment.dart' as domain;
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
-class DriftChatHistoryStore implements ChatHistoryStore {
+class DriftChatHistoryStore
+    implements ChatHistoryStore, AttachmentDeliveryStore {
   final AppDatabase _db;
 
   DriftChatHistoryStore(this._db);
@@ -269,6 +271,43 @@ class DriftChatHistoryStore implements ChatHistoryStore {
             ),
           );
     }
+  }
+
+  @override
+  Future<AttachmentDeliveryStatus?> readStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+  }) async {
+    final query = _db.select(_db.attachmentDeliveryStates)
+      ..where((row) => row.attachmentId.equals(attachmentId))
+      ..where((row) => row.providerId.equals(providerId))
+      ..where((row) => row.modelId.equals(modelId))
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    if (row == null) return null;
+    return AttachmentDeliveryStatus.values.firstWhere(
+      (status) => status.name == row.status,
+      orElse: () => AttachmentDeliveryStatus.rejected,
+    );
+  }
+
+  @override
+  Future<void> saveStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+    required AttachmentDeliveryStatus status,
+  }) {
+    return _db.into(_db.attachmentDeliveryStates).insertOnConflictUpdate(
+          AttachmentDeliveryStatesCompanion(
+            attachmentId: Value(attachmentId),
+            providerId: Value(providerId),
+            modelId: Value(modelId),
+            status: Value(status.name),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
   }
 
   domain.ChatAttachment _toAttachment(ChatAttachment row) {
