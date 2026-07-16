@@ -1,4 +1,6 @@
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 
 class ProviderPreset {
   final String id;
@@ -44,6 +46,36 @@ class ProviderTemplatePreset {
     required this.name,
     required this.endpoints,
   });
+}
+
+class ProviderInputCapabilities {
+  const ProviderInputCapabilities({
+    this.supportsImageInput = false,
+    this.supportsFileInput = false,
+  });
+
+  final bool supportsImageInput;
+  final bool supportsFileInput;
+}
+
+ProviderInputCapabilities defaultInputCapabilities(
+  String providerId,
+  String modelId,
+) {
+  return ProviderInputCapabilities(
+    supportsImageInput: presetAttachmentCapabilityStatus(
+          providerId,
+          modelId,
+          ModelInputModality.image,
+        ) ==
+        AttachmentCapabilityStatus.supported,
+    supportsFileInput: presetAttachmentCapabilityStatus(
+          providerId,
+          modelId,
+          ModelInputModality.file,
+        ) ==
+        AttachmentCapabilityStatus.supported,
+  );
 }
 
 const providerPresets = [
