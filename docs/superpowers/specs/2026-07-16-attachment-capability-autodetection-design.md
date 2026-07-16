@@ -19,7 +19,7 @@
 
 `unknown` 和 `supported` 都允许携带附件发送；`unsupported` 在发送前直接提示仅发送文字，避免重复制造已知失败。
 
-Drift schema 升级到 v7，新增 `model_attachment_capabilities` 表，字段为 `providerId`、`modelId`、`kind`、`status`、`source`、`updatedAt`，前三者构成唯一能力键。`source` 区分 `detected` 与 `manual`。Provider 删除时能力记录级联删除。
+Drift schema 升级到 v7，新增 `model_attachment_capabilities` 表，字段为 `providerId`、`modelId`、`kind`、`status`、`source`、`updatedAt`。`providerId + modelId + kind + source` 构成唯一键，使同一模型可以同时保留自动检测和手动覆盖两条记录；解析时手动记录优先。`source` 区分 `detected` 与 `manual`。Provider 删除时能力记录级联删除。
 
 从 v6 迁移时，仅把旧配置中值为 `true` 且存在默认模型的能力迁移为该模型的手动 `supported`；旧值 `false` 视为“未声明”而不是“不支持”，避免阻止首次探测。旧列保留以兼容已有数据库结构，但聊天发送不再依赖它们。
 
