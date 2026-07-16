@@ -119,6 +119,7 @@ class _ChatPageState extends State<ChatPage> {
   static const _streamingReasoningKey = 'streaming-reasoning';
 
   final _messageController = TextEditingController();
+  final _messageFocusNode = FocusNode();
   final _scrollController = ScrollController();
   final _messages = <ChatMessage>[];
   final Map<String, GlobalKey> _messageKeys = {};
@@ -153,10 +154,15 @@ class _ChatPageState extends State<ChatPage> {
   String? _trimWarning;
   String? _highlightedMessageId;
   Timer? _highlightTimer;
+  bool _isMessageListAtBottom = true;
+  bool _hasDraftMessage = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScrollPositionChanged);
+    _messageFocusNode.addListener(_handleMessageFocusChanged);
+    _messageController.addListener(_handleDraftChanged);
     _loadData();
   }
 
@@ -303,6 +309,7 @@ class _ChatPageState extends State<ChatPage> {
         _selectedAgent = selectedAgent;
         _messages.clear();
         _messages.addAll(historyMessages);
+        _isMessageListAtBottom = historyMessages.isEmpty;
         _messageKeys.clear();
         _activeConversationId = conversation?.id;
         _loading = false;
@@ -315,6 +322,7 @@ class _ChatPageState extends State<ChatPage> {
           _persistWarning = 'Provider is no longer available';
         }
       });
+      _syncBottomStateAfterLayout();
 
       if (selectedProvider != null) {
         unawaited(_loadModels(selectedProvider));
@@ -336,6 +344,14 @@ class _ChatPageState extends State<ChatPage> {
     return _sending ||
         _streamingAssistantText.isNotEmpty ||
         _streamingReasoningText.isNotEmpty;
+  }
+
+  bool get _shouldShowModelSelector {
+    if (_sending) return false;
+    return _messages.isEmpty ||
+        _isMessageListAtBottom ||
+        _messageFocusNode.hasFocus ||
+        _hasDraftMessage;
   }
 
   bool get _canRetry {
@@ -433,10 +449,14 @@ class _ChatPageState extends State<ChatPage> {
     if (reason == _GenerationEndReason.disposed) return;
 
     if (mounted) {
+      final keepBottomAnchored = _isMessageListAtBottom;
       setState(() {
         _sending = false;
         _generationPhase = _GenerationPhase.idle;
       });
+      if (keepBottomAnchored) {
+        _scrollToBottom();
+      }
     }
   }
 
@@ -626,6 +646,8 @@ class _ChatPageState extends State<ChatPage> {
       provider = _selectedProvider;
       _selectedAgent = null;
       _messageController.clear();
+      _isMessageListAtBottom = true;
+      _hasDraftMessage = false;
       _clearStoppedState();
     });
     if (provider != null) {
@@ -663,6 +685,8 @@ class _ChatPageState extends State<ChatPage> {
         provider = _selectedProvider;
         _selectedAgent = null;
         _messageController.clear();
+        _isMessageListAtBottom = true;
+        _hasDraftMessage = false;
         _clearStoppedState();
       });
       if (provider != null) {
@@ -752,6 +776,7 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _messages.clear();
           _messages.addAll(messages);
+          _isMessageListAtBottom = messages.isEmpty;
           _messageKeys.clear();
           _highlightedMessageId = null;
           _activeConversationId = conversationId;
@@ -774,6 +799,7 @@ class _ChatPageState extends State<ChatPage> {
           _messageController.clear();
           _clearStoppedState();
         });
+        _syncBottomStateAfterLayout();
       }
     } catch (_) {
       if (mounted) {
@@ -803,6 +829,7 @@ class _ChatPageState extends State<ChatPage> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     if (!_canSend) return;
+    _messageFocusNode.unfocus();
     final selection = _ModelSelection(
       provider: _selectedProvider!,
       modelId: _selectedModelId!,
@@ -1354,6 +1381,39 @@ class _ChatPageState extends State<ChatPage> {
     return position.maxScrollExtent - position.pixels <= threshold;
   }
 
+  void _handleScrollPositionChanged() {
+    if (!_scrollController.hasClients) return;
+    const selectorThreshold = 24.0;
+    final isAtBottom =
+        _scrollController.position.extentAfter <= selectorThreshold;
+    if (isAtBottom == _isMessageListAtBottom || !mounted) return;
+
+    setState(() => _isMessageListAtBottom = isAtBottom);
+    if (isAtBottom) {
+      _scrollToBottom();
+    }
+  }
+
+  void _handleMessageFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _handleDraftChanged() {
+    final hasDraft = _messageController.text.trim().isNotEmpty;
+    if (hasDraft == _hasDraftMessage) return;
+    if (!mounted) {
+      _hasDraftMessage = hasDraft;
+      return;
+    }
+    setState(() => _hasDraftMessage = hasDraft);
+  }
+
+  void _syncBottomStateAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handleScrollPositionChanged();
+    });
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -1671,7 +1731,11 @@ class _ChatPageState extends State<ChatPage> {
         reason: _GenerationEndReason.disposed,
       );
     }
+    _messageController.removeListener(_handleDraftChanged);
+    _messageFocusNode.removeListener(_handleMessageFocusChanged);
+    _scrollController.removeListener(_handleScrollPositionChanged);
     _messageController.dispose();
+    _messageFocusNode.dispose();
     _scrollController.dispose();
     _highlightTimer?.cancel();
     super.dispose();
@@ -1792,6 +1856,8 @@ class _ChatPageState extends State<ChatPage> {
                             )
                           : ListView.builder(
                               controller: _scrollController,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
                               padding: const EdgeInsets.all(16),
                               itemCount: _messages.length +
                                   (_hasTransientAssistant ? 1 : 0),
@@ -2011,55 +2077,36 @@ class _ChatPageState extends State<ChatPage> {
                           children: [
                             if (_selectedProvider != null &&
                                 _selectedModelId != null)
-                              OutlinedButton(
-                                key: const Key('model_selector'),
-                                onPressed: _sending || _loadingModels
-                                    ? null
-                                    : _showModelPicker,
-                                style: OutlinedButton.styleFrom(
-                                  alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (_loadingModels)
-                                      const Padding(
-                                        padding: EdgeInsets.only(right: 8),
-                                        child: SizedBox.square(
-                                          dimension: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                reverseDuration:
+                                    const Duration(milliseconds: 140),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) {
+                                  return SizeTransition(
+                                    sizeFactor: animation,
+                                    axisAlignment: -1,
+                                    child: FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: _shouldShowModelSelector
+                                    ? Padding(
+                                        key: const ValueKey(
+                                          'model_selector_visible',
                                         ),
+                                        padding:
+                                            const EdgeInsets.only(bottom: 8),
+                                        child: _buildModelSelector(l10n),
                                       )
-                                    else
-                                      const Padding(
-                                        padding: EdgeInsets.only(right: 8),
-                                        child: Icon(
-                                          Icons.tune_rounded,
-                                          size: 18,
+                                    : const SizedBox.shrink(
+                                        key: ValueKey(
+                                          'model_selector_hidden',
                                         ),
                                       ),
-                                    Expanded(
-                                      child: Text(
-                                        l10n.providerModel(
-                                          _selectedProvider!
-                                              .providerDisplayName,
-                                          _selectedModelId!,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.expand_more_rounded,
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
                               )
                             else
                               Container(
@@ -2080,7 +2127,6 @@ class _ChatPageState extends State<ChatPage> {
                                       ),
                                 ),
                               ),
-                            const SizedBox(height: 8),
                             Row(
                               children: [
                                 if (_canRetry && !_sending)
@@ -2095,6 +2141,7 @@ class _ChatPageState extends State<ChatPage> {
                                 Expanded(
                                   child: TextField(
                                     controller: _messageController,
+                                    focusNode: _messageFocusNode,
                                     decoration: InputDecoration(
                                       hintText: l10n.typeMessage,
                                       border: const OutlineInputBorder(),
@@ -2146,6 +2193,79 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildModelSelector(AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final label = l10n.providerModel(
+      _selectedProvider!.providerDisplayName,
+      _selectedModelId!,
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Semantics(
+        button: true,
+        enabled: !_loadingModels,
+        label: l10n.selectModel,
+        child: Tooltip(
+          message: l10n.selectModel,
+          child: Material(
+            color: colorScheme.secondaryContainer.withValues(alpha: 0.6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: const Key('model_selector'),
+              onTap: _loadingModels ? null : _showModelPicker,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Row(
+                  children: [
+                    if (_loadingModels)
+                      const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        Icons.memory_rounded,
+                        size: 17,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        label,
+                        softWrap: true,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 18,
+                      color: colorScheme.onSecondaryContainer,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -127,6 +127,18 @@ void main() {
       expect(find.text('deepseek-chat'), findsOneWidget);
     });
 
+    testWidgets('model selector fills the composer width', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 720));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await pumpChat(tester);
+
+      final pageWidth = tester.getSize(find.byType(Scaffold)).width;
+      final selectorWidth =
+          tester.getSize(find.byKey(const Key('model_selector'))).width;
+
+      expect(selectorWidth, closeTo(pageWidth - 16, 0.1));
+    });
+
     testWidgets('one conversation sends different turns with different models',
         (tester) async {
       await pumpChat(tester);
@@ -305,7 +317,7 @@ void main() {
       expect(find.text('unsafe-model'), findsNothing);
     });
 
-    testWidgets('model switching is disabled while generating', (tester) async {
+    testWidgets('model selector is hidden while generating', (tester) async {
       final stream = StreamController<ChatStreamEvent>();
       chatClient.pendingStream = stream;
       addTearDown(stream.close);
@@ -316,12 +328,9 @@ void main() {
         'Wait',
       );
       await tester.tap(find.byIcon(Icons.send));
-      await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-      final button = tester.widget<OutlinedButton>(
-        find.byKey(const Key('model_selector')),
-      );
-      expect(button.onPressed, isNull);
+      expect(find.byKey(const Key('model_selector')), findsNothing);
     });
 
     testWidgets('no available model disables sending and shows empty state',
