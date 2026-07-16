@@ -479,6 +479,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.text('删除 API Key'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('删除 API Key'));
       await tester.pumpAndSettle();
 

@@ -64,11 +64,6 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   late final ModelAttachmentCapabilityResolver _capabilityResolver;
   _CapabilityMode _imageCapabilityMode = _CapabilityMode.automatic;
   _CapabilityMode _fileCapabilityMode = _CapabilityMode.automatic;
-  AttachmentCapabilityStatus _resolvedImageCapability =
-      AttachmentCapabilityStatus.unknown;
-  AttachmentCapabilityStatus _resolvedFileCapability =
-      AttachmentCapabilityStatus.unknown;
-  bool _loadingCapabilities = false;
 
   ProviderTemplatePreset get _selectedTemplate => providerTemplatePresets
       .firstWhere((template) => template.id == _selectedTemplateId);
@@ -132,8 +127,6 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
           _modelController.text = '';
           _imageCapabilityMode = _CapabilityMode.automatic;
           _fileCapabilityMode = _CapabilityMode.automatic;
-          _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
-          _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
           _hasExistingKey = false;
           _loading = false;
           _configLoadError = true;
@@ -149,15 +142,8 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
       setState(() {
         _imageCapabilityMode = _CapabilityMode.automatic;
         _fileCapabilityMode = _CapabilityMode.automatic;
-        _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
-        _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
-        _loadingCapabilities = false;
       });
       return;
-    }
-
-    if (mounted) {
-      setState(() => _loadingCapabilities = true);
     }
 
     try {
@@ -173,33 +159,16 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
         modality: ModelInputModality.file,
         source: AttachmentCapabilitySource.manual,
       );
-      final imageResolved = await _capabilityResolver.resolve(
-        providerId: widget.preset.id,
-        modelId: normalizedModelId,
-        modality: ModelInputModality.image,
-      );
-      final fileResolved = await _capabilityResolver.resolve(
-        providerId: widget.preset.id,
-        modelId: normalizedModelId,
-        modality: ModelInputModality.file,
-      );
-
       if (!mounted || _modelController.text.trim() != normalizedModelId) return;
       setState(() {
         _imageCapabilityMode = _modeForManual(imageManual);
         _fileCapabilityMode = _modeForManual(fileManual);
-        _resolvedImageCapability = imageResolved.status;
-        _resolvedFileCapability = fileResolved.status;
-        _loadingCapabilities = false;
       });
     } catch (_) {
       if (!mounted || _modelController.text.trim() != normalizedModelId) return;
       setState(() {
         _imageCapabilityMode = _CapabilityMode.automatic;
         _fileCapabilityMode = _CapabilityMode.automatic;
-        _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
-        _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
-        _loadingCapabilities = false;
       });
     }
   }
@@ -521,28 +490,6 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     }
   }
 
-  Future<void> _resetDetectedCapabilities() async {
-    final modelId = _modelController.text.trim();
-    if (modelId.isEmpty) return;
-    final l10n = AppLocalizations.of(context)!;
-    try {
-      await _capabilityResolver.resetDetected(
-        providerId: widget.preset.id,
-        modelId: modelId,
-      );
-      await _loadCapabilityModes(modelId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.attachmentCapabilityResetDone)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.attachmentCapabilityResetFailed)),
-      );
-    }
-  }
-
   Future<void> _deleteKey() async {
     final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
@@ -611,7 +558,13 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                   ),
                 )
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  key: const Key('provider_config_scroll'),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    16 + MediaQuery.viewPaddingOf(context).bottom,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -822,120 +775,10 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                           ),
                         ],
                         const SizedBox(height: 8),
-                        _buildCapabilityModeField(
-                          key: const Key('image_capability_mode'),
-                          title: l10n.supportsImageInput,
-                          description: l10n.supportsImageInputDescription,
-                          value: _imageCapabilityMode,
-                          resolvedStatus: _resolvedImageCapability,
-                          onChanged: (value) {
-                            setState(() => _imageCapabilityMode = value);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _buildCapabilityModeField(
-                          key: const Key('file_capability_mode'),
-                          title: l10n.supportsFileInput,
-                          description: l10n.supportsFileInputDescription,
-                          value: _fileCapabilityMode,
-                          resolvedStatus: _resolvedFileCapability,
-                          onChanged: (value) {
-                            setState(() => _fileCapabilityMode = value);
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            key: const Key('reset_detected_capabilities'),
-                            onPressed: _saving ||
-                                    _loadingCapabilities ||
-                                    _modelController.text.trim().isEmpty
-                                ? null
-                                : _resetDetectedCapabilities,
-                            icon: const Icon(Icons.refresh),
-                            label: Text(
-                              l10n.attachmentCapabilityResetDetected,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
     );
-  }
-
-  Widget _buildCapabilityModeField({
-    required Key key,
-    required String title,
-    required String description,
-    required _CapabilityMode value,
-    required AttachmentCapabilityStatus resolvedStatus,
-    required ValueChanged<_CapabilityMode> onChanged,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    final canEdit = !_saving &&
-        !_loadingCapabilities &&
-        _modelController.text.trim().isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text(description, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<_CapabilityMode>(
-          key: key,
-          value: value,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            DropdownMenuItem(
-              value: _CapabilityMode.automatic,
-              child: Text(l10n.attachmentCapabilityAutomatic),
-            ),
-            DropdownMenuItem(
-              value: _CapabilityMode.supported,
-              child: Text(l10n.attachmentCapabilitySupported),
-            ),
-            DropdownMenuItem(
-              value: _CapabilityMode.unsupported,
-              child: Text(l10n.attachmentCapabilityUnsupported),
-            ),
-          ],
-          onChanged: canEdit
-              ? (next) {
-                  if (next != null) onChanged(next);
-                }
-              : null,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${l10n.attachmentCapabilityEffectiveStatus}: '
-          '${_capabilityStatusLabel(l10n, resolvedStatus)}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        if (value == _CapabilityMode.automatic)
-          Text(
-            l10n.attachmentCapabilityAutomaticDescription,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-      ],
-    );
-  }
-
-  String _capabilityStatusLabel(
-    AppLocalizations l10n,
-    AttachmentCapabilityStatus status,
-  ) {
-    return switch (status) {
-      AttachmentCapabilityStatus.unknown => l10n.attachmentCapabilityUnknown,
-      AttachmentCapabilityStatus.supported =>
-        l10n.attachmentCapabilitySupported,
-      AttachmentCapabilityStatus.unsupported =>
-        l10n.attachmentCapabilityUnsupported,
-    };
   }
 }
