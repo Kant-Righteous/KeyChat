@@ -21,6 +21,8 @@ void main() {
         displayName: 'OpenAI',
         baseUrl: 'https://api.openai.com/v1',
         protocol: ProviderProtocol.openAiCompatible,
+        supportsImageInput: true,
+        supportsFileInput: true,
         updatedAt: DateTime(2024),
       );
 
@@ -31,6 +33,8 @@ void main() {
       expect(result!.providerId, 'openai');
       expect(result.displayName, 'OpenAI');
       expect(result.baseUrl, 'https://api.openai.com/v1');
+      expect(result.supportsImageInput, true);
+      expect(result.supportsFileInput, true);
     });
 
     test('update config', () async {

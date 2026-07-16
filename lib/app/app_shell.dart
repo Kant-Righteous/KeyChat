@@ -10,6 +10,7 @@ import 'package:keychat/features/providers/data/connection_tester_resolver.dart'
 import 'package:keychat/features/providers/data/dio_provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 import 'package:keychat/features/providers/data/drift/drift_provider_config_store.dart';
+import 'package:keychat/features/providers/data/drift/drift_model_attachment_capability_store.dart';
 import 'package:keychat/features/providers/data/secure_api_key_store.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
@@ -29,6 +30,7 @@ class _AppShellState extends State<AppShell> {
   late final SecureApiKeyStore _apiKeyStore;
   late final AppDatabase _database;
   late final DriftProviderConfigStore _configStore;
+  late final DriftModelAttachmentCapabilityStore _modelCapabilityStore;
   late final DioProviderConnectionTester _connectionTester;
   late final DioChatCompletionClient _chatClient;
   late final DriftChatHistoryStore _historyStore;
@@ -43,6 +45,7 @@ class _AppShellState extends State<AppShell> {
     _apiKeyStore = SecureApiKeyStore();
     _database = AppDatabase();
     _configStore = DriftProviderConfigStore(_database);
+    _modelCapabilityStore = DriftModelAttachmentCapabilityStore(_database);
     _connectionTester = DioProviderConnectionTester();
     _chatClient = DioChatCompletionClient();
     _historyStore = DriftChatHistoryStore(_database);
@@ -71,6 +74,7 @@ class _AppShellState extends State<AppShell> {
         chatClientResolver: _chatClientResolver,
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
+        modelAttachmentCapabilityStore: _modelCapabilityStore,
         historyStore: _historyStore,
         agentStore: _agentStore,
         connectionTesterResolver: _connectionTesterResolver,
@@ -79,6 +83,7 @@ class _AppShellState extends State<AppShell> {
       ProvidersPage(
         apiKeyStore: _apiKeyStore,
         configStore: _configStore,
+        modelAttachmentCapabilityStore: _modelCapabilityStore,
         connectionTesterResolver: _connectionTesterResolver,
       ),
       AgentsPage(agentStore: _agentStore),

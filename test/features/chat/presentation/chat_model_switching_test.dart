@@ -127,7 +127,8 @@ void main() {
       expect(find.text('deepseek-chat'), findsOneWidget);
     });
 
-    testWidgets('model selector fills the composer width', (tester) async {
+    testWidgets('model selector and attachment button fill the composer row',
+        (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 720));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await pumpChat(tester);
@@ -135,8 +136,10 @@ void main() {
       final pageWidth = tester.getSize(find.byType(Scaffold)).width;
       final selectorWidth =
           tester.getSize(find.byKey(const Key('model_selector'))).width;
+      final attachmentWidth =
+          tester.getSize(find.byKey(const Key('attachment_button'))).width;
 
-      expect(selectorWidth, closeTo(pageWidth - 16, 0.1));
+      expect(selectorWidth + attachmentWidth + 8, closeTo(pageWidth - 16, 0.1));
     });
 
     testWidgets('one conversation sends different turns with different models',

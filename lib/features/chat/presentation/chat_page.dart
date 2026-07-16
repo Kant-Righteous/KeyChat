@@ -6,17 +6,25 @@ import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/application/generation_keep_alive.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
+import 'package:keychat/features/chat/data/attachment_picker.dart';
+import 'package:keychat/features/chat/data/chat_attachment_request_encoder.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
+import 'package:keychat/features/chat/data/local_attachment_file_store.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/domain/chat_context_builder.dart';
 import 'package:keychat/features/chat/domain/conversation_list_result.dart';
 import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
+import 'package:keychat/features/chat/presentation/widgets/attachment_preview.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
+import 'package:keychat/features/providers/data/model_attachment_capability_store.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -29,6 +37,8 @@ class _ReadyProvider {
   final String apiKey;
   final ProviderProtocol protocol;
   final ChatCompletionClient client;
+  final bool supportsImageInput;
+  final bool supportsFileInput;
 
   const _ReadyProvider({
     required this.providerId,
@@ -38,6 +48,8 @@ class _ReadyProvider {
     required this.apiKey,
     required this.protocol,
     required this.client,
+    required this.supportsImageInput,
+    required this.supportsFileInput,
   });
 }
 
@@ -71,6 +83,12 @@ enum _GenerationPhase {
   responding,
 }
 
+enum _AttachmentPreflightDecision {
+  sendAttachments,
+  textOnly,
+  cancel,
+}
+
 final class _GenerationTarget {
   const _GenerationTarget({
     required this.kind,
@@ -78,6 +96,8 @@ final class _GenerationTarget {
     required this.provider,
     required this.modelId,
     this.replacedAssistantMessage,
+    this.forceTextOnly = false,
+    this.unsupportedKindsToLearnOnSuccess = const {},
   });
 
   final ChatMessage userMessage;
@@ -85,6 +105,24 @@ final class _GenerationTarget {
   final _GenerationKind kind;
   final _ReadyProvider provider;
   final String modelId;
+  final bool forceTextOnly;
+  final Set<ChatAttachmentKind> unsupportedKindsToLearnOnSuccess;
+
+  _GenerationTarget copyWith({
+    bool? forceTextOnly,
+    Set<ChatAttachmentKind>? unsupportedKindsToLearnOnSuccess,
+  }) {
+    return _GenerationTarget(
+      kind: kind,
+      userMessage: userMessage,
+      provider: provider,
+      modelId: modelId,
+      replacedAssistantMessage: replacedAssistantMessage,
+      forceTextOnly: forceTextOnly ?? this.forceTextOnly,
+      unsupportedKindsToLearnOnSuccess: unsupportedKindsToLearnOnSuccess ??
+          this.unsupportedKindsToLearnOnSuccess,
+    );
+  }
 }
 
 class ChatPage extends StatefulWidget {
@@ -96,6 +134,10 @@ class ChatPage extends StatefulWidget {
   final ConnectionTesterResolver? connectionTesterResolver;
   final ChatContextBuilder contextBuilder;
   final GenerationKeepAlive generationKeepAlive;
+  final AttachmentPicker attachmentPicker;
+  final AttachmentFileStore attachmentFileStore;
+  final ChatAttachmentRequestEncoder attachmentRequestEncoder;
+  final ModelAttachmentCapabilityStore modelAttachmentCapabilityStore;
 
   ChatPage({
     super.key,
@@ -107,9 +149,20 @@ class ChatPage extends StatefulWidget {
     this.connectionTesterResolver,
     ChatContextBuilder? contextBuilder,
     GenerationKeepAlive? generationKeepAlive,
+    AttachmentPicker? attachmentPicker,
+    AttachmentFileStore? attachmentFileStore,
+    ChatAttachmentRequestEncoder? attachmentRequestEncoder,
+    ModelAttachmentCapabilityStore? modelAttachmentCapabilityStore,
   })  : contextBuilder = contextBuilder ?? ChatContextBuilder(),
         generationKeepAlive =
-            generationKeepAlive ?? const NoopGenerationKeepAlive();
+            generationKeepAlive ?? const NoopGenerationKeepAlive(),
+        attachmentPicker =
+            attachmentPicker ?? const FilePickerAttachmentPicker(),
+        attachmentFileStore = attachmentFileStore ?? LocalAttachmentFileStore(),
+        attachmentRequestEncoder =
+            attachmentRequestEncoder ?? ChatAttachmentRequestEncoder(),
+        modelAttachmentCapabilityStore = modelAttachmentCapabilityStore ??
+            InMemoryModelAttachmentCapabilityStore();
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -156,10 +209,15 @@ class _ChatPageState extends State<ChatPage> {
   Timer? _highlightTimer;
   bool _isMessageListAtBottom = true;
   bool _hasDraftMessage = false;
+  AttachmentDraft? _pendingAttachment;
+  late final ModelAttachmentCapabilityResolver _capabilityResolver;
 
   @override
   void initState() {
     super.initState();
+    _capabilityResolver = ModelAttachmentCapabilityResolver(
+      store: widget.modelAttachmentCapabilityStore,
+    );
     _scrollController.addListener(_handleScrollPositionChanged);
     _messageFocusNode.addListener(_handleMessageFocusChanged);
     _messageController.addListener(_handleDraftChanged);
@@ -205,6 +263,8 @@ class _ChatPageState extends State<ChatPage> {
         apiKey: apiKey,
         protocol: config.protocol,
         client: client,
+        supportsImageInput: config.supportsImageInput,
+        supportsFileInput: config.supportsFileInput,
       ));
     }
 
@@ -646,6 +706,7 @@ class _ChatPageState extends State<ChatPage> {
       provider = _selectedProvider;
       _selectedAgent = null;
       _messageController.clear();
+      _pendingAttachment = null;
       _isMessageListAtBottom = true;
       _hasDraftMessage = false;
       _clearStoppedState();
@@ -685,6 +746,7 @@ class _ChatPageState extends State<ChatPage> {
         provider = _selectedProvider;
         _selectedAgent = null;
         _messageController.clear();
+        _pendingAttachment = null;
         _isMessageListAtBottom = true;
         _hasDraftMessage = false;
         _clearStoppedState();
@@ -797,6 +859,7 @@ class _ChatPageState extends State<ChatPage> {
           _protocolWarning = protocolWarning;
           _loading = false;
           _messageController.clear();
+          _pendingAttachment = null;
           _clearStoppedState();
         });
         _syncBottomStateAfterLayout();
@@ -825,6 +888,128 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  ModelInputModality _modalityFor(ChatAttachmentKind kind) {
+    return kind == ChatAttachmentKind.image
+        ? ModelInputModality.image
+        : ModelInputModality.file;
+  }
+
+  Future<void> _showAttachmentPicker() async {
+    if (_sending) return;
+    final l10n = AppLocalizations.of(context)!;
+    final kind = await showModalBottomSheet<ChatAttachmentKind>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('choose_image_attachment'),
+              leading: const Icon(Icons.image_outlined),
+              title: Text(l10n.chooseImage),
+              onTap: () => Navigator.pop(
+                sheetContext,
+                ChatAttachmentKind.image,
+              ),
+            ),
+            ListTile(
+              key: const Key('choose_file_attachment'),
+              leading: const Icon(Icons.insert_drive_file_outlined),
+              title: Text(l10n.chooseFile),
+              onTap: () => Navigator.pop(
+                sheetContext,
+                ChatAttachmentKind.file,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (kind == null || !mounted) return;
+
+    try {
+      final draft = await widget.attachmentPicker.pick(kind);
+      if (draft != null && mounted) {
+        setState(() => _pendingAttachment = draft);
+      }
+    } on AttachmentSelectionException catch (error) {
+      if (!mounted) return;
+      final message = error.code == 'too_large'
+          ? l10n.attachmentTooLarge
+          : l10n.attachmentUnavailable;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.attachmentPickFailed)),
+        );
+      }
+    }
+  }
+
+  Future<_AttachmentPreflightDecision> _preflightAttachmentMessage(
+    ChatMessage message,
+    _ModelSelection selection,
+  ) async {
+    for (final attachment in message.attachments) {
+      final capability = await _capabilityResolver.resolve(
+        providerId: selection.provider.providerId,
+        modelId: selection.modelId,
+        modality: _modalityFor(attachment.kind),
+      );
+      if (capability.status == AttachmentCapabilityStatus.unsupported) {
+        return await _showUnsupportedAttachmentDialog()
+            ? _AttachmentPreflightDecision.textOnly
+            : _AttachmentPreflightDecision.cancel;
+      }
+    }
+    return _AttachmentPreflightDecision.sendAttachments;
+  }
+
+  Future<_AttachmentPreflightDecision> _preflightAttachmentDraft(
+    AttachmentDraft? draft,
+    _ModelSelection selection,
+  ) async {
+    if (draft == null) {
+      return _AttachmentPreflightDecision.sendAttachments;
+    }
+    final capability = await _capabilityResolver.resolve(
+      providerId: selection.provider.providerId,
+      modelId: selection.modelId,
+      modality: _modalityFor(draft.kind),
+    );
+    if (capability.status != AttachmentCapabilityStatus.unsupported) {
+      return _AttachmentPreflightDecision.sendAttachments;
+    }
+    return await _showUnsupportedAttachmentDialog()
+        ? _AttachmentPreflightDecision.textOnly
+        : _AttachmentPreflightDecision.cancel;
+  }
+
+  Future<bool> _showUnsupportedAttachmentDialog() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.unsupportedAttachmentTitle),
+        content: Text(l10n.unsupportedAttachmentMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.sendTextOnly),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _send() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -834,21 +1019,53 @@ class _ChatPageState extends State<ChatPage> {
       provider: _selectedProvider!,
       modelId: _selectedModelId!,
     );
+    final pendingAttachment = _pendingAttachment;
+    final preflight = await _preflightAttachmentDraft(
+      pendingAttachment,
+      selection,
+    );
+    if (preflight == _AttachmentPreflightDecision.cancel) {
+      return;
+    }
 
     final isFirstMessage = _activeConversationId == null;
+    final userMessageId = _nextId();
+    final conversationId = _activeConversationId ?? 'conversation_${_nextId()}';
+    final attachments = <ChatAttachment>[];
+    if (pendingAttachment != null) {
+      try {
+        attachments.add(await widget.attachmentFileStore.persist(
+          draft: pendingAttachment,
+          attachmentId: 'attachment_${_nextId()}',
+          messageId: userMessageId,
+          conversationId: conversationId,
+        ));
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)!.attachmentSaveFailed,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     final userMessage = ChatMessage(
-      id: _nextId(),
+      id: userMessageId,
       role: ChatRole.user,
       content: text,
       providerIdSnapshot: selection.provider.providerId,
       providerNameSnapshot: selection.provider.providerDisplayName,
       modelIdSnapshot: selection.modelId,
+      attachments: attachments,
       createdAt: DateTime.now(),
     );
 
     if (isFirstMessage) {
-      final conversationId = 'conversation_${_nextId()}';
       final conversation = ChatConversation(
         id: conversationId,
         title: ChatConversation.generateTitle(text),
@@ -869,6 +1086,7 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _activeConversationId = conversationId;
           _messages.add(userMessage);
+          _pendingAttachment = null;
         });
         _messageController.clear();
       } catch (_) {
@@ -891,6 +1109,7 @@ class _ChatPageState extends State<ChatPage> {
         );
         setState(() {
           _messages.add(userMessage);
+          _pendingAttachment = null;
         });
         _messageController.clear();
       } catch (_) {
@@ -908,6 +1127,7 @@ class _ChatPageState extends State<ChatPage> {
       userMessage: userMessage,
       provider: selection.provider,
       modelId: selection.modelId,
+      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -920,12 +1140,17 @@ class _ChatPageState extends State<ChatPage> {
     if (userMsg == null) return;
     final selection = _selectionForMessage(userMsg);
     if (selection == null) return;
+    final preflight = await _preflightAttachmentMessage(userMsg, selection);
+    if (preflight == _AttachmentPreflightDecision.cancel) {
+      return;
+    }
 
     final target = _GenerationTarget(
       kind: _GenerationKind.retry,
       userMessage: userMsg,
       provider: selection.provider,
       modelId: selection.modelId,
+      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -939,6 +1164,10 @@ class _ChatPageState extends State<ChatPage> {
     if (userMsg == null || assistantMsg == null) return;
     final selection = _selectionForMessage(assistantMsg);
     if (selection == null) return;
+    final preflight = await _preflightAttachmentMessage(userMsg, selection);
+    if (preflight == _AttachmentPreflightDecision.cancel) {
+      return;
+    }
 
     final target = _GenerationTarget(
       kind: _GenerationKind.regenerate,
@@ -946,6 +1175,7 @@ class _ChatPageState extends State<ChatPage> {
       replacedAssistantMessage: assistantMsg,
       provider: selection.provider,
       modelId: selection.modelId,
+      forceTextOnly: preflight == _AttachmentPreflightDecision.textOnly,
     );
 
     await _runGeneration(target);
@@ -981,23 +1211,28 @@ class _ChatPageState extends State<ChatPage> {
 
     try {
       // Build context: exclude the target user message from history
-      final historyMessages = _messages
-          .where((m) => m.id != target.userMessage.id)
-          // For regenerate, also exclude the old assistant message
-          .where((m) =>
-              target.kind != _GenerationKind.regenerate ||
-              m.id != target.replacedAssistantMessage?.id)
-          .map((m) => ChatRequestMessage(
-                role: m.role == ChatRole.user ? 'user' : 'assistant',
-                content: m.content,
-              ))
-          .toList();
+      final historyMessages = <ChatRequestMessage>[];
+      for (final message in _messages) {
+        if (message.id == target.userMessage.id) continue;
+        if (target.kind == _GenerationKind.regenerate &&
+            message.id == target.replacedAssistantMessage?.id) {
+          continue;
+        }
+        final requestMessage = await _toRequestMessage(
+          message,
+          target.provider,
+          target.modelId,
+          forceTextOnly: target.forceTextOnly,
+        );
+        historyMessages.add(requestMessage);
+      }
 
-      final currentUserRequest = ChatRequestMessage(
-        role: 'user',
-        content: target.userMessage.content,
+      final currentUserRequest = await _toRequestMessage(
+        target.userMessage,
+        target.provider,
+        target.modelId,
+        forceTextOnly: target.forceTextOnly,
       );
-
       // Build system message from agent snapshot if available
       ChatRequestMessage? systemMessage;
       if (_activeConversationId != null) {
@@ -1023,6 +1258,10 @@ class _ChatPageState extends State<ChatPage> {
         currentUserMessage: currentUserRequest,
         systemMessage: systemMessage,
       );
+      final sentAttachmentKinds = contextResult.messages
+          .expand((message) => message.attachments)
+          .map((attachment) => attachment.kind)
+          .toSet();
 
       if (contextResult.wasTrimmed) {
         setState(() {
@@ -1073,7 +1312,12 @@ class _ChatPageState extends State<ChatPage> {
             });
             _scrollIfNearBottom();
           } else if (event is ChatStreamCompleted) {
-            _handleStreamCompleted(hasContent, genId, target);
+            _handleStreamCompleted(
+              hasContent,
+              genId,
+              target,
+              sentAttachmentKinds,
+            );
           } else if (event is ChatStreamFailure) {
             _handleStreamFailure(
               event,
@@ -1081,6 +1325,7 @@ class _ChatPageState extends State<ChatPage> {
               genId,
               target,
               automaticRetryAttempt,
+              sentAttachmentKinds,
             );
           }
         },
@@ -1109,8 +1354,44 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<ChatRequestMessage> _toRequestMessage(
+    ChatMessage message,
+    _ReadyProvider provider,
+    String modelId, {
+    bool forceTextOnly = false,
+  }) async {
+    if (forceTextOnly) {
+      return widget.attachmentRequestEncoder.encode(
+        message: message,
+        supportsImageInput: false,
+        supportsFileInput: false,
+      );
+    }
+    final imageCapability = await _capabilityResolver.resolve(
+      providerId: provider.providerId,
+      modelId: modelId,
+      modality: ModelInputModality.image,
+    );
+    final fileCapability = await _capabilityResolver.resolve(
+      providerId: provider.providerId,
+      modelId: modelId,
+      modality: ModelInputModality.file,
+    );
+    return widget.attachmentRequestEncoder.encode(
+      message: message,
+      supportsImageInput:
+          imageCapability.status != AttachmentCapabilityStatus.unsupported,
+      supportsFileInput:
+          fileCapability.status != AttachmentCapabilityStatus.unsupported,
+    );
+  }
+
   Future<void> _handleStreamCompleted(
-      bool hasContent, int genId, _GenerationTarget target) async {
+    bool hasContent,
+    int genId,
+    _GenerationTarget target,
+    Set<ChatAttachmentKind> sentAttachmentKinds,
+  ) async {
     if (!_isGenerationActive(genId)) return;
 
     if (!hasContent) {
@@ -1129,6 +1410,11 @@ class _ChatPageState extends State<ChatPage> {
       }
       return;
     }
+
+    await _learnCapabilitiesAfterSuccess(
+      target: target,
+      sentAttachmentKinds: sentAttachmentKinds,
+    );
 
     final now = DateTime.now();
     final reasoningWasExpanded =
@@ -1260,6 +1546,7 @@ class _ChatPageState extends State<ChatPage> {
     int genId,
     _GenerationTarget target,
     int automaticRetryAttempt,
+    Set<ChatAttachmentKind> sentAttachmentKinds,
   ) {
     if (!_isGenerationActive(genId)) return;
 
@@ -1269,6 +1556,32 @@ class _ChatPageState extends State<ChatPage> {
         target,
         automaticRetryAttempt: automaticRetryAttempt + 1,
       ));
+      return;
+    }
+
+    if (!hasContent &&
+        !target.forceTextOnly &&
+        sentAttachmentKinds.isNotEmpty &&
+        event.errorType == ChatCompletionErrorType.attachmentRejected) {
+      final explicitlyRejected = event.rejectedAttachmentKinds
+          .where(sentAttachmentKinds.contains)
+          .toSet();
+      final learnableKinds = explicitlyRejected.isNotEmpty
+          ? explicitlyRejected
+          : sentAttachmentKinds.length == 1
+              ? Set<ChatAttachmentKind>.of(sentAttachmentKinds)
+              : <ChatAttachmentKind>{};
+      _finishGeneration(
+        generationId: genId,
+        reason: _GenerationEndReason.failed,
+      );
+      if (mounted) {
+        setState(() {
+          _streamingReasoningText = '';
+          _expandedReasoningKeys.remove(_streamingReasoningKey);
+        });
+        unawaited(_offerTextOnlyRetry(target, learnableKinds));
+      }
       return;
     }
 
@@ -1305,6 +1618,69 @@ class _ChatPageState extends State<ChatPage> {
           _expandedReasoningKeys.remove(_streamingReasoningKey);
         });
       }
+    }
+  }
+
+  Future<void> _offerTextOnlyRetry(
+    _GenerationTarget target,
+    Set<ChatAttachmentKind> learnableKinds,
+  ) async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    final retry = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            key: const Key('attachment_rejected_dialog'),
+            title: Text(l10n.attachmentRejectedTitle),
+            content: Text(l10n.attachmentRejectedMessage),
+            actions: [
+              TextButton(
+                key: const Key('cancel_attachment_retry'),
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                key: const Key('retry_without_attachments'),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(l10n.retryWithoutAttachments),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!retry || !mounted) return;
+    await _runGeneration(target.copyWith(
+      forceTextOnly: true,
+      unsupportedKindsToLearnOnSuccess: learnableKinds,
+    ));
+  }
+
+  Future<void> _learnCapabilitiesAfterSuccess({
+    required _GenerationTarget target,
+    required Set<ChatAttachmentKind> sentAttachmentKinds,
+  }) async {
+    try {
+      if (target.unsupportedKindsToLearnOnSuccess.isNotEmpty) {
+        for (final kind in target.unsupportedKindsToLearnOnSuccess) {
+          await _capabilityResolver.saveDetected(
+            providerId: target.provider.providerId,
+            modelId: target.modelId,
+            modality: _modalityFor(kind),
+            status: AttachmentCapabilityStatus.unsupported,
+          );
+        }
+        return;
+      }
+      for (final kind in sentAttachmentKinds) {
+        await _capabilityResolver.saveDetected(
+          providerId: target.provider.providerId,
+          modelId: target.modelId,
+          modality: _modalityFor(kind),
+          status: AttachmentCapabilityStatus.supported,
+        );
+      }
+    } catch (_) {
+      // Capability learning is best effort and must not fail the chat turn.
     }
   }
 
@@ -1963,7 +2339,23 @@ class _ChatPageState extends State<ChatPage> {
                                                 : null,
                                           ),
                                           child: isUser
-                                              ? Text(content)
+                                              ? Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    if (_messages[index]
+                                                        .attachments
+                                                        .isNotEmpty)
+                                                      MessageAttachmentsView(
+                                                        attachments:
+                                                            _messages[index]
+                                                                .attachments,
+                                                      ),
+                                                    Text(content),
+                                                  ],
+                                                )
                                               : _buildAssistantContent(
                                                   l10n: l10n,
                                                   content: content,
@@ -2075,6 +2467,17 @@ class _ChatPageState extends State<ChatPage> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            if (_pendingAttachment != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: PendingAttachmentPreview(
+                                  draft: _pendingAttachment!,
+                                  removeTooltip: l10n.removeAttachment,
+                                  onRemove: () => setState(
+                                    () => _pendingAttachment = null,
+                                  ),
+                                ),
+                              ),
                             if (_selectedProvider != null &&
                                 _selectedModelId != null)
                               AnimatedSwitcher(
@@ -2100,7 +2503,32 @@ class _ChatPageState extends State<ChatPage> {
                                         ),
                                         padding:
                                             const EdgeInsets.only(bottom: 8),
-                                        child: _buildModelSelector(l10n),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Expanded(
+                                              child: _buildModelSelector(l10n),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Semantics(
+                                              key: const Key(
+                                                'attachment_button',
+                                              ),
+                                              button: true,
+                                              enabled: true,
+                                              label: l10n.addAttachment,
+                                              child: IconButton(
+                                                onPressed:
+                                                    _showAttachmentPicker,
+                                                tooltip: l10n.addAttachment,
+                                                icon: const Icon(
+                                                  Icons.attach_file_rounded,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       )
                                     : const SizedBox.shrink(
                                         key: ValueKey(
@@ -2125,6 +2553,31 @@ class _ChatPageState extends State<ChatPage> {
                                             .colorScheme
                                             .onSurfaceVariant,
                                       ),
+                                ),
+                              ),
+                            if (_sending)
+                              SizedBox(
+                                height: 0,
+                                child: OverflowBox(
+                                  minHeight: 48,
+                                  maxHeight: 48,
+                                  alignment: Alignment.topRight,
+                                  child: Transform.translate(
+                                    offset: const Offset(0, -56),
+                                    child: Semantics(
+                                      key: const Key('attachment_button'),
+                                      button: true,
+                                      enabled: false,
+                                      label: l10n.addAttachment,
+                                      child: IconButton(
+                                        onPressed: null,
+                                        tooltip: l10n.addAttachment,
+                                        icon: const Icon(
+                                          Icons.attach_file_rounded,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             Row(

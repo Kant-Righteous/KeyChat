@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
+import 'package:keychat/features/providers/data/model_attachment_capability_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -12,10 +17,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 typedef ExternalUrlLauncher = Future<bool> Function(Uri uri);
 
+enum _CapabilityMode {
+  automatic,
+  supported,
+  unsupported,
+}
+
 class ProviderConfigPage extends StatefulWidget {
   final ProviderPreset preset;
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
+  final ModelAttachmentCapabilityStore? modelAttachmentCapabilityStore;
   final ConnectionTesterResolver? connectionTesterResolver;
   final ExternalUrlLauncher? externalUrlLauncher;
 
@@ -24,6 +36,7 @@ class ProviderConfigPage extends StatefulWidget {
     required this.preset,
     required this.apiKeyStore,
     required this.configStore,
+    this.modelAttachmentCapabilityStore,
     this.connectionTesterResolver,
     this.externalUrlLauncher,
   });
@@ -47,6 +60,15 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
   List<String> _discoveredModels = [];
   String _selectedTemplateId = 'custom';
   String? _selectedEndpointId;
+  late final ModelAttachmentCapabilityStore _capabilityStore;
+  late final ModelAttachmentCapabilityResolver _capabilityResolver;
+  _CapabilityMode _imageCapabilityMode = _CapabilityMode.automatic;
+  _CapabilityMode _fileCapabilityMode = _CapabilityMode.automatic;
+  AttachmentCapabilityStatus _resolvedImageCapability =
+      AttachmentCapabilityStatus.unknown;
+  AttachmentCapabilityStatus _resolvedFileCapability =
+      AttachmentCapabilityStatus.unknown;
+  bool _loadingCapabilities = false;
 
   ProviderTemplatePreset get _selectedTemplate => providerTemplatePresets
       .firstWhere((template) => template.id == _selectedTemplateId);
@@ -76,6 +98,11 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     _nameController = TextEditingController();
     _urlController = TextEditingController();
     _modelController = TextEditingController();
+    _capabilityStore = widget.modelAttachmentCapabilityStore ??
+        InMemoryModelAttachmentCapabilityStore();
+    _capabilityResolver = ModelAttachmentCapabilityResolver(
+      store: _capabilityStore,
+    );
     _loadData();
   }
 
@@ -94,6 +121,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
           _hasExistingKey = hasKey;
           _loading = false;
         });
+        unawaited(_loadCapabilityModes(_modelController.text));
       }
     } catch (_) {
       if (mounted) {
@@ -102,12 +130,86 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
           _urlController.text = widget.preset.defaultBaseUrl;
           _selectPresetForBaseUrl(_urlController.text);
           _modelController.text = '';
+          _imageCapabilityMode = _CapabilityMode.automatic;
+          _fileCapabilityMode = _CapabilityMode.automatic;
+          _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
+          _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
           _hasExistingKey = false;
           _loading = false;
           _configLoadError = true;
         });
       }
     }
+  }
+
+  Future<void> _loadCapabilityModes(String modelId) async {
+    final normalizedModelId = modelId.trim();
+    if (normalizedModelId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _imageCapabilityMode = _CapabilityMode.automatic;
+        _fileCapabilityMode = _CapabilityMode.automatic;
+        _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
+        _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
+        _loadingCapabilities = false;
+      });
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _loadingCapabilities = true);
+    }
+
+    try {
+      final imageManual = await _capabilityStore.readCapability(
+        providerId: widget.preset.id,
+        modelId: normalizedModelId,
+        modality: ModelInputModality.image,
+        source: AttachmentCapabilitySource.manual,
+      );
+      final fileManual = await _capabilityStore.readCapability(
+        providerId: widget.preset.id,
+        modelId: normalizedModelId,
+        modality: ModelInputModality.file,
+        source: AttachmentCapabilitySource.manual,
+      );
+      final imageResolved = await _capabilityResolver.resolve(
+        providerId: widget.preset.id,
+        modelId: normalizedModelId,
+        modality: ModelInputModality.image,
+      );
+      final fileResolved = await _capabilityResolver.resolve(
+        providerId: widget.preset.id,
+        modelId: normalizedModelId,
+        modality: ModelInputModality.file,
+      );
+
+      if (!mounted || _modelController.text.trim() != normalizedModelId) return;
+      setState(() {
+        _imageCapabilityMode = _modeForManual(imageManual);
+        _fileCapabilityMode = _modeForManual(fileManual);
+        _resolvedImageCapability = imageResolved.status;
+        _resolvedFileCapability = fileResolved.status;
+        _loadingCapabilities = false;
+      });
+    } catch (_) {
+      if (!mounted || _modelController.text.trim() != normalizedModelId) return;
+      setState(() {
+        _imageCapabilityMode = _CapabilityMode.automatic;
+        _fileCapabilityMode = _CapabilityMode.automatic;
+        _resolvedImageCapability = AttachmentCapabilityStatus.unknown;
+        _resolvedFileCapability = AttachmentCapabilityStatus.unknown;
+        _loadingCapabilities = false;
+      });
+    }
+  }
+
+  _CapabilityMode _modeForManual(ModelAttachmentCapability? capability) {
+    return switch (capability?.status) {
+      AttachmentCapabilityStatus.supported => _CapabilityMode.supported,
+      AttachmentCapabilityStatus.unsupported => _CapabilityMode.unsupported,
+      _ => _CapabilityMode.automatic,
+    };
   }
 
   void _selectPresetForBaseUrl(String baseUrl) {
@@ -346,9 +448,24 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
             ? null
             : _modelController.text.trim(),
         protocol: widget.preset.protocol,
+        supportsImageInput: _imageCapabilityMode == _CapabilityMode.supported,
+        supportsFileInput: _fileCapabilityMode == _CapabilityMode.supported,
         updatedAt: DateTime.now(),
       );
       await widget.configStore.saveConfig(config);
+      final modelId = _modelController.text.trim();
+      if (modelId.isNotEmpty) {
+        await _saveCapabilityMode(
+          modelId: modelId,
+          modality: ModelInputModality.image,
+          mode: _imageCapabilityMode,
+        );
+        await _saveCapabilityMode(
+          modelId: modelId,
+          modality: ModelInputModality.file,
+          mode: _fileCapabilityMode,
+        );
+      }
 
       if (mounted) {
         Navigator.pop(context);
@@ -372,6 +489,57 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
           SnackBar(content: Text(l10n.failedToSaveProvider)),
         );
       }
+    }
+  }
+
+  Future<void> _saveCapabilityMode({
+    required String modelId,
+    required ModelInputModality modality,
+    required _CapabilityMode mode,
+  }) async {
+    switch (mode) {
+      case _CapabilityMode.automatic:
+        await _capabilityResolver.clearManual(
+          providerId: widget.preset.id,
+          modelId: modelId,
+          modality: modality,
+        );
+      case _CapabilityMode.supported:
+        await _capabilityResolver.saveManual(
+          providerId: widget.preset.id,
+          modelId: modelId,
+          modality: modality,
+          status: AttachmentCapabilityStatus.supported,
+        );
+      case _CapabilityMode.unsupported:
+        await _capabilityResolver.saveManual(
+          providerId: widget.preset.id,
+          modelId: modelId,
+          modality: modality,
+          status: AttachmentCapabilityStatus.unsupported,
+        );
+    }
+  }
+
+  Future<void> _resetDetectedCapabilities() async {
+    final modelId = _modelController.text.trim();
+    if (modelId.isEmpty) return;
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      await _capabilityResolver.resetDetected(
+        providerId: widget.preset.id,
+        modelId: modelId,
+      );
+      await _loadCapabilityModes(modelId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.attachmentCapabilityResetDone)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.attachmentCapabilityResetFailed)),
+      );
     }
   }
 
@@ -547,6 +715,9 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                             labelText: l10n.defaultModelLabel,
                             border: const OutlineInputBorder(),
                           ),
+                          onChanged: (modelId) {
+                            unawaited(_loadCapabilityModes(modelId));
+                          },
                         ),
                         if (_discoveredModels.isNotEmpty) ...[
                           const SizedBox(height: 8),
@@ -557,6 +728,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                                 label: Text(model),
                                 onPressed: () {
                                   _modelController.text = model;
+                                  unawaited(_loadCapabilityModes(model));
                                 },
                               );
                             }).toList(),
@@ -649,10 +821,121 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                             child: Text(l10n.removeApiKeyButton),
                           ),
                         ],
+                        const SizedBox(height: 8),
+                        _buildCapabilityModeField(
+                          key: const Key('image_capability_mode'),
+                          title: l10n.supportsImageInput,
+                          description: l10n.supportsImageInputDescription,
+                          value: _imageCapabilityMode,
+                          resolvedStatus: _resolvedImageCapability,
+                          onChanged: (value) {
+                            setState(() => _imageCapabilityMode = value);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildCapabilityModeField(
+                          key: const Key('file_capability_mode'),
+                          title: l10n.supportsFileInput,
+                          description: l10n.supportsFileInputDescription,
+                          value: _fileCapabilityMode,
+                          resolvedStatus: _resolvedFileCapability,
+                          onChanged: (value) {
+                            setState(() => _fileCapabilityMode = value);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            key: const Key('reset_detected_capabilities'),
+                            onPressed: _saving ||
+                                    _loadingCapabilities ||
+                                    _modelController.text.trim().isEmpty
+                                ? null
+                                : _resetDetectedCapabilities,
+                            icon: const Icon(Icons.refresh),
+                            label: Text(
+                              l10n.attachmentCapabilityResetDetected,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
     );
+  }
+
+  Widget _buildCapabilityModeField({
+    required Key key,
+    required String title,
+    required String description,
+    required _CapabilityMode value,
+    required AttachmentCapabilityStatus resolvedStatus,
+    required ValueChanged<_CapabilityMode> onChanged,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final canEdit = !_saving &&
+        !_loadingCapabilities &&
+        _modelController.text.trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(description, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<_CapabilityMode>(
+          key: key,
+          value: value,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            DropdownMenuItem(
+              value: _CapabilityMode.automatic,
+              child: Text(l10n.attachmentCapabilityAutomatic),
+            ),
+            DropdownMenuItem(
+              value: _CapabilityMode.supported,
+              child: Text(l10n.attachmentCapabilitySupported),
+            ),
+            DropdownMenuItem(
+              value: _CapabilityMode.unsupported,
+              child: Text(l10n.attachmentCapabilityUnsupported),
+            ),
+          ],
+          onChanged: canEdit
+              ? (next) {
+                  if (next != null) onChanged(next);
+                }
+              : null,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${l10n.attachmentCapabilityEffectiveStatus}: '
+          '${_capabilityStatusLabel(l10n, resolvedStatus)}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (value == _CapabilityMode.automatic)
+          Text(
+            l10n.attachmentCapabilityAutomaticDescription,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+      ],
+    );
+  }
+
+  String _capabilityStatusLabel(
+    AppLocalizations l10n,
+    AttachmentCapabilityStatus status,
+  ) {
+    return switch (status) {
+      AttachmentCapabilityStatus.unknown => l10n.attachmentCapabilityUnknown,
+      AttachmentCapabilityStatus.supported =>
+        l10n.attachmentCapabilitySupported,
+      AttachmentCapabilityStatus.unsupported =>
+        l10n.attachmentCapabilityUnsupported,
+    };
   }
 }

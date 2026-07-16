@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart';
 import 'package:keychat/features/chat/domain/conversation_markdown_exporter.dart';
 
 void main() {
@@ -23,6 +24,18 @@ void main() {
             id: 'user_1',
             role: ChatRole.user,
             content: 'Summarize this topic.',
+            attachments: const [
+              ChatAttachment(
+                id: 'attachment_1',
+                fileName: 'diagram.png',
+                mimeType: 'image/png',
+                fileSize: 2048,
+                localPath: '/private/attachments/diagram.png',
+                kind: ChatAttachmentKind.image,
+                messageId: 'user_1',
+                conversationId: 'conv_1',
+              ),
+            ],
             createdAt: DateTime.utc(2026, 7, 15),
           ),
           ChatMessage(
@@ -45,6 +58,11 @@ void main() {
       expect(markdown, contains('Messages: 2'));
       expect(markdown, contains('## User'));
       expect(markdown, contains('Summarize this topic.'));
+      expect(markdown, contains('Attachments:'));
+      expect(markdown, contains('diagram.png'));
+      expect(markdown, contains('image/png'));
+      expect(markdown, contains('2.0 KiB'));
+      expect(markdown, isNot(contains('/private/attachments/diagram.png')));
       expect(markdown, contains('## Assistant'));
       expect(markdown, contains('Provider: OpenAI'));
       expect(markdown, contains('Model: gpt-4.1'));

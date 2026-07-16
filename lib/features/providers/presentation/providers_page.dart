@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/api_key_store.dart';
 import 'package:keychat/features/providers/data/connection_tester_resolver.dart';
+import 'package:keychat/features/providers/data/model_attachment_capability_store.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
@@ -11,12 +12,14 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 class ProvidersPage extends StatefulWidget {
   final ApiKeyStore apiKeyStore;
   final ProviderConfigStore configStore;
+  final ModelAttachmentCapabilityStore? modelAttachmentCapabilityStore;
   final ConnectionTesterResolver? connectionTesterResolver;
 
   const ProvidersPage({
     super.key,
     required this.apiKeyStore,
     required this.configStore,
+    this.modelAttachmentCapabilityStore,
     this.connectionTesterResolver,
   });
 
@@ -68,6 +71,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
           preset: preset,
           apiKeyStore: widget.apiKeyStore,
           configStore: widget.configStore,
+          modelAttachmentCapabilityStore: widget.modelAttachmentCapabilityStore,
           connectionTesterResolver: widget.connectionTesterResolver,
         ),
       ),

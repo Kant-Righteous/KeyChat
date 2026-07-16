@@ -45,6 +45,17 @@ class ConversationMarkdownExporter {
       }
 
       buffer.writeln(_redactSensitiveContent(message.content));
+      if (message.attachments.isNotEmpty) {
+        buffer
+          ..writeln()
+          ..writeln('Attachments:');
+        for (final attachment in message.attachments) {
+          buffer.writeln(
+            '- ${_redactSensitiveContent(attachment.fileName)} '
+            '(${attachment.mimeType}, ${_formatBytes(attachment.fileSize)})',
+          );
+        }
+      }
     }
 
     return buffer.toString().trimRight();
@@ -90,5 +101,12 @@ class ConversationMarkdownExporter {
       '[Sensitive data removed]',
     );
     return redacted;
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kib = bytes / 1024;
+    if (kib < 1024) return '${kib.toStringAsFixed(1)} KiB';
+    return '${(kib / 1024).toStringAsFixed(1)} MiB';
   }
 }

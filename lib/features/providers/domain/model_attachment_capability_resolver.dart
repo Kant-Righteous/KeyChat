@@ -141,7 +141,10 @@ AttachmentCapabilityStatus presetAttachmentCapabilityStatus(
   ModelInputModality modality,
 ) {
   final model = modelId.trim().toLowerCase();
-  if (model.isEmpty || providerId == 'custom' || providerId == 'deepseek') {
+  if (model.isEmpty ||
+      providerId == 'custom' ||
+      providerId.startsWith('custom_') ||
+      providerId == 'deepseek') {
     return AttachmentCapabilityStatus.unknown;
   }
 

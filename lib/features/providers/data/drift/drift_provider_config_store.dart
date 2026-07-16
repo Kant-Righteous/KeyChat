@@ -20,6 +20,8 @@ class DriftProviderConfigStore implements ProviderConfigStore {
             enabled: Value(config.enabled),
             updatedAt: Value(config.updatedAt),
             protocol: Value(config.protocol.storageValue),
+            supportsImageInput: Value(config.supportsImageInput),
+            supportsFileInput: Value(config.supportsFileInput),
           ),
         );
   }
@@ -61,6 +63,8 @@ class DriftProviderConfigStore implements ProviderConfigStore {
       enabled: row.enabled,
       updatedAt: row.updatedAt,
       protocol: protocol,
+      supportsImageInput: row.supportsImageInput,
+      supportsFileInput: row.supportsFileInput,
     );
   }
 }

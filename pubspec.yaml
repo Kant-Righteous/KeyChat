@@ -48,6 +48,8 @@ dependencies:
   shared_preferences: ^2.3.4
   share_plus: ^10.1.4
   markdown: ^7.3.0
+  file_picker: ^10.3.10
+  mime: ^2.0.0
   flutter_math_fork:
     git:
       url: https://github.com/simpleclub/flutter_math.git

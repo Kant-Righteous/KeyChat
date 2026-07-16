@@ -117,6 +117,18 @@ void main() {
       expect(result.source, isNull);
     });
 
+    test('dynamic custom provider does not inherit built-in model presets',
+        () async {
+      final result = await resolver.resolve(
+        providerId: 'custom_1721111111111',
+        modelId: 'gpt-4o',
+        modality: ModelInputModality.image,
+      );
+
+      expect(result.status, AttachmentCapabilityStatus.unknown);
+      expect(result.source, isNull);
+    });
+
     test('image and file capabilities remain independent', () async {
       await save(
         status: AttachmentCapabilityStatus.unsupported,

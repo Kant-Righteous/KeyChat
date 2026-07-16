@@ -8,6 +8,8 @@ class ProviderConfigData {
   final bool enabled;
   final DateTime updatedAt;
   final ProviderProtocol protocol;
+  final bool supportsImageInput;
+  final bool supportsFileInput;
 
   const ProviderConfigData({
     required this.providerId,
@@ -16,6 +18,8 @@ class ProviderConfigData {
     required this.protocol,
     this.defaultModel,
     this.enabled = true,
+    this.supportsImageInput = false,
+    this.supportsFileInput = false,
     required this.updatedAt,
   });
 }

@@ -4,6 +4,8 @@ import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart'
+    as attachment_domain;
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 void main() {
@@ -111,6 +113,49 @@ void main() {
       expect(columns, isNot(contains('api_key')));
       expect(columns, isNot(contains('base_url')));
       expect(columns, isNot(contains('authorization')));
+    });
+
+    test('persists and restores attachment metadata with its user message',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_attachment',
+          title: 'Attachment',
+          providerId: 'openai',
+          model: 'gpt-4o',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_attachment',
+          role: domain.ChatRole.user,
+          content: 'Describe it',
+          attachments: const [
+            attachment_domain.ChatAttachment(
+              id: 'attachment_1',
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              fileSize: 1234,
+              localPath: '/app/attachments/photo.jpg',
+              kind: attachment_domain.ChatAttachmentKind.image,
+              messageId: 'msg_attachment',
+              conversationId: 'conv_attachment',
+            ),
+          ],
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final messages = await store.readMessages('conv_attachment');
+      expect(messages.single.attachments, hasLength(1));
+      final attachment = messages.single.attachments.single;
+      expect(attachment.fileName, 'photo.jpg');
+      expect(attachment.mimeType, 'image/jpeg');
+      expect(attachment.fileSize, 1234);
+      expect(attachment.localPath, '/app/attachments/photo.jpg');
+      expect(attachment.kind, attachment_domain.ChatAttachmentKind.image);
+      expect(attachment.messageId, 'msg_attachment');
+      expect(attachment.conversationId, 'conv_attachment');
     });
 
     test('legacy rows read with null model snapshots', () async {

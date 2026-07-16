@@ -3,6 +3,7 @@ import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart' as domain;
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 class DriftChatHistoryStore implements ChatHistoryStore {
@@ -50,7 +51,22 @@ class DriftChatHistoryStore implements ChatHistoryStore {
         (t) => OrderingTerm.asc(t.id),
       ]);
     final rows = await query.get();
-    return rows.map(_toMessage).toList();
+    final attachmentQuery = _db.select(_db.chatAttachments)
+      ..where((t) => t.conversationId.equals(conversationId))
+      ..orderBy([(t) => OrderingTerm.asc(t.id)]);
+    final attachmentRows = await attachmentQuery.get();
+    final attachmentsByMessage = <String, List<domain.ChatAttachment>>{};
+    for (final row in attachmentRows) {
+      attachmentsByMessage
+          .putIfAbsent(row.messageId, () => [])
+          .add(_toAttachment(row));
+    }
+    return rows
+        .map((row) => _toMessage(
+              row,
+              attachmentsByMessage[row.id] ?? const [],
+            ))
+        .toList();
   }
 
   @override
@@ -86,6 +102,7 @@ class DriftChatHistoryStore implements ChatHistoryStore {
               createdAt: Value(firstMessage.createdAt),
             ),
           );
+      await _insertAttachments(firstMessage.attachments);
     });
   }
 
@@ -94,19 +111,22 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required domain.ChatMessage message,
   }) async {
-    await _db.into(_db.chatMessages).insert(
-          ChatMessagesCompanion(
-            id: Value(message.id),
-            conversationId: Value(conversationId),
-            role: Value(
-                message.role == domain.ChatRole.user ? 'user' : 'assistant'),
-            content: Value(message.content),
-            providerIdSnapshot: Value(message.providerIdSnapshot),
-            providerNameSnapshot: Value(message.providerNameSnapshot),
-            modelIdSnapshot: Value(message.modelIdSnapshot),
-            createdAt: Value(message.createdAt),
-          ),
-        );
+    await _db.transaction(() async {
+      await _db.into(_db.chatMessages).insert(
+            ChatMessagesCompanion(
+              id: Value(message.id),
+              conversationId: Value(conversationId),
+              role: Value(
+                  message.role == domain.ChatRole.user ? 'user' : 'assistant'),
+              content: Value(message.content),
+              providerIdSnapshot: Value(message.providerIdSnapshot),
+              providerNameSnapshot: Value(message.providerNameSnapshot),
+              modelIdSnapshot: Value(message.modelIdSnapshot),
+              createdAt: Value(message.createdAt),
+            ),
+          );
+      await _insertAttachments(message.attachments);
+    });
   }
 
   @override
@@ -215,7 +235,10 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     );
   }
 
-  domain.ChatMessage _toMessage(ChatMessage row) {
+  domain.ChatMessage _toMessage(
+    ChatMessage row,
+    List<domain.ChatAttachment> attachments,
+  ) {
     return domain.ChatMessage(
       id: row.id,
       role:
@@ -224,7 +247,40 @@ class DriftChatHistoryStore implements ChatHistoryStore {
       providerIdSnapshot: row.providerIdSnapshot,
       providerNameSnapshot: row.providerNameSnapshot,
       modelIdSnapshot: row.modelIdSnapshot,
+      attachments: attachments,
       createdAt: row.createdAt,
+    );
+  }
+
+  Future<void> _insertAttachments(
+    List<domain.ChatAttachment> attachments,
+  ) async {
+    for (final attachment in attachments) {
+      await _db.into(_db.chatAttachments).insert(
+            ChatAttachmentsCompanion(
+              id: Value(attachment.id),
+              fileName: Value(attachment.fileName),
+              mimeType: Value(attachment.mimeType),
+              fileSize: Value(attachment.fileSize),
+              localPath: Value(attachment.localPath),
+              kind: Value(attachment.kind.storageValue),
+              messageId: Value(attachment.messageId),
+              conversationId: Value(attachment.conversationId),
+            ),
+          );
+    }
+  }
+
+  domain.ChatAttachment _toAttachment(ChatAttachment row) {
+    return domain.ChatAttachment(
+      id: row.id,
+      fileName: row.fileName,
+      mimeType: row.mimeType,
+      fileSize: row.fileSize,
+      localPath: row.localPath,
+      kind: domain.ChatAttachmentKind.fromStorageValue(row.kind),
+      messageId: row.messageId,
+      conversationId: row.conversationId,
     );
   }
 }
