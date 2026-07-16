@@ -53,8 +53,7 @@ class _FakeAgentProfileStore implements AgentProfileStore {
 
 void main() {
   group('AgentsPage', () {
-    testWidgets('tapping Add opens AgentEditPage',
-        (WidgetTester tester) async {
+    testWidgets('tapping Add opens AgentEditPage', (WidgetTester tester) async {
       final store = _FakeAgentProfileStore();
 
       await tester.pumpWidget(buildTestAppZh(
@@ -100,8 +99,7 @@ void main() {
       expect(store.saveCallCount, 1);
     });
 
-    testWidgets('successful save refreshes list',
-        (WidgetTester tester) async {
+    testWidgets('successful save refreshes list', (WidgetTester tester) async {
       final store = _FakeAgentProfileStore();
 
       await tester.pumpWidget(buildTestAppZh(
@@ -162,8 +160,7 @@ void main() {
       expect(find.text('Immediate Agent'), findsOneWidget);
     });
 
-    testWidgets('cancel does not call saveAgent',
-        (WidgetTester tester) async {
+    testWidgets('cancel does not call saveAgent', (WidgetTester tester) async {
       final store = _FakeAgentProfileStore();
 
       await tester.pumpWidget(buildTestAppZh(
@@ -182,8 +179,7 @@ void main() {
       expect(store.saveCallCount, 0);
     });
 
-    testWidgets('save failure shows safe error',
-        (WidgetTester tester) async {
+    testWidgets('save failure shows safe error', (WidgetTester tester) async {
       final store = _FakeAgentProfileStore();
 
       await tester.pumpWidget(buildTestAppZh(

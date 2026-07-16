@@ -13,7 +13,8 @@ void main() {
       });
 
       test('HTTPS with custom port is valid', () {
-        expect(ProviderUrlPolicy.isHttps('https://api.example.com:8443/v1'), isTrue);
+        expect(ProviderUrlPolicy.isHttps('https://api.example.com:8443/v1'),
+            isTrue);
       });
 
       test('HTTPS with IP is valid', () {
@@ -45,25 +46,30 @@ void main() {
       });
 
       test('data is invalid', () {
-        expect(ProviderUrlPolicy.isHttps('data:text/html,<h1>test</h1>'), isFalse);
+        expect(
+            ProviderUrlPolicy.isHttps('data:text/html,<h1>test</h1>'), isFalse);
       });
     });
 
     group('validateUrl', () {
       test('standard HTTPS is valid', () {
-        expect(ProviderUrlPolicy.validateUrl('https://api.example.com/v1'), isNull);
+        expect(ProviderUrlPolicy.validateUrl('https://api.example.com/v1'),
+            isNull);
       });
 
       test('HTTPS with trailing slash is valid', () {
-        expect(ProviderUrlPolicy.validateUrl('https://api.openai.com/v1/'), isNull);
+        expect(ProviderUrlPolicy.validateUrl('https://api.openai.com/v1/'),
+            isNull);
       });
 
       test('HTTPS with custom port is valid', () {
-        expect(ProviderUrlPolicy.validateUrl('https://api.example.com:8443/v1'), isNull);
+        expect(ProviderUrlPolicy.validateUrl('https://api.example.com:8443/v1'),
+            isNull);
       });
 
       test('HTTPS with IP is valid', () {
-        expect(ProviderUrlPolicy.validateUrl('https://192.168.1.1:8080'), isNull);
+        expect(
+            ProviderUrlPolicy.validateUrl('https://192.168.1.1:8080'), isNull);
       });
 
       test('HTTPS localhost is valid', () {
@@ -71,7 +77,8 @@ void main() {
       });
 
       test('HTTP returns httpsOnly error', () {
-        final error = ProviderUrlPolicy.validateUrl('http://api.example.com/v1');
+        final error =
+            ProviderUrlPolicy.validateUrl('http://api.example.com/v1');
         expect(error, equals(UrlValidationError.httpsOnly));
       });
 
@@ -111,12 +118,14 @@ void main() {
       });
 
       test('URL with username returns userInfoNotAllowed error', () {
-        final error = ProviderUrlPolicy.validateUrl('https://user@api.example.com');
+        final error =
+            ProviderUrlPolicy.validateUrl('https://user@api.example.com');
         expect(error, equals(UrlValidationError.userInfoNotAllowed));
       });
 
       test('URL with password returns userInfoNotAllowed error', () {
-        final error = ProviderUrlPolicy.validateUrl('https://user:pass@api.example.com');
+        final error =
+            ProviderUrlPolicy.validateUrl('https://user:pass@api.example.com');
         expect(error, equals(UrlValidationError.userInfoNotAllowed));
       });
 
@@ -126,26 +135,31 @@ void main() {
       });
 
       test('HTTP with sensitive query returns httpsOnly error', () {
-        final error = ProviderUrlPolicy.validateUrl('http://api.example.com?key=secret123');
+        final error = ProviderUrlPolicy.validateUrl(
+            'http://api.example.com?key=secret123');
         expect(error, equals(UrlValidationError.httpsOnly));
       });
     });
 
     group('isAllowedForRequest', () {
       test('HTTPS is allowed', () {
-        expect(ProviderUrlPolicy.isAllowedForRequest('https://api.example.com'), isTrue);
+        expect(ProviderUrlPolicy.isAllowedForRequest('https://api.example.com'),
+            isTrue);
       });
 
       test('HTTP is not allowed', () {
-        expect(ProviderUrlPolicy.isAllowedForRequest('http://api.example.com'), isFalse);
+        expect(ProviderUrlPolicy.isAllowedForRequest('http://api.example.com'),
+            isFalse);
       });
 
       test('ftp is not allowed', () {
-        expect(ProviderUrlPolicy.isAllowedForRequest('ftp://example.com'), isFalse);
+        expect(ProviderUrlPolicy.isAllowedForRequest('ftp://example.com'),
+            isFalse);
       });
 
       test('javascript is not allowed', () {
-        expect(ProviderUrlPolicy.isAllowedForRequest('javascript:alert(1)'), isFalse);
+        expect(ProviderUrlPolicy.isAllowedForRequest('javascript:alert(1)'),
+            isFalse);
       });
 
       test('empty is not allowed', () {

@@ -73,8 +73,8 @@ class UsageGuidePage extends StatelessWidget {
             _buildFieldGuide(l10n.providerNameGuideTitle,
                 l10n.providerNameGuideContent, theme),
             const Divider(height: 24),
-            _buildFieldGuide(l10n.baseUrlGuideTitle,
-                l10n.baseUrlGuideContent, theme),
+            _buildFieldGuide(
+                l10n.baseUrlGuideTitle, l10n.baseUrlGuideContent, theme),
             const Divider(height: 24),
             _buildFieldGuide(
                 l10n.apiKeyGuideTitle, l10n.apiKeyGuideContent, theme),
@@ -149,11 +149,9 @@ class UsageGuidePage extends StatelessWidget {
               child: Text(l10n.mimoRequiresCustomProvider),
             ),
             const SizedBox(height: 16),
-            Text(l10n.mimoPayAsYouGoTitle,
-                style: theme.textTheme.titleMedium),
+            Text(l10n.mimoPayAsYouGoTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            _buildExampleField(
-                l10n.configurationMethod, l10n.customProvider),
+            _buildExampleField(l10n.configurationMethod, l10n.customProvider),
             _buildExampleField(l10n.providerNameLabel, 'Xiaomi MiMo'),
             _buildExampleField(
                 l10n.baseUrlLabel, 'https://api.xiaomimimo.com/v1'),
@@ -167,16 +165,13 @@ class UsageGuidePage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(l10n.mimoPayAsYouGoKeyWarning),
             const Divider(height: 24),
-            Text(l10n.mimoTokenPlanTitle,
-                style: theme.textTheme.titleMedium),
+            Text(l10n.mimoTokenPlanTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            _buildExampleField(
-                l10n.configurationMethod, l10n.customProvider),
+            _buildExampleField(l10n.configurationMethod, l10n.customProvider),
             _buildExampleField(l10n.providerNameLabel, 'MiMo Token Plan'),
-            _buildExampleField(
-                l10n.baseUrlLabel, l10n.mimoTokenPlanUrlHint),
-            _buildExampleField(
-                l10n.baseUrlExampleLabel, 'https://token-plan-cn.xiaomimimo.com/v1'),
+            _buildExampleField(l10n.baseUrlLabel, l10n.mimoTokenPlanUrlHint),
+            _buildExampleField(l10n.baseUrlExampleLabel,
+                'https://token-plan-cn.xiaomimimo.com/v1'),
             _buildExampleField(l10n.apiKeyLabel, 'tp-••••••••'),
             _buildExampleField(l10n.defaultModelLabel, 'mimo-v2.5-pro'),
             const SizedBox(height: 8),
@@ -275,12 +270,11 @@ class UsageGuidePage extends StatelessWidget {
                 l10n.noAvailableModelsAnswer, theme),
             _buildFAQItem(l10n.connectionTestFailedQuestion,
                 l10n.connectionTestFailedAnswer, theme),
-            _buildFAQItem(l10n.invalidApiKeyQuestion,
-                l10n.invalidApiKeyAnswer, theme),
+            _buildFAQItem(
+                l10n.invalidApiKeyQuestion, l10n.invalidApiKeyAnswer, theme),
             _buildFAQItem(l10n.modelAccessDeniedQuestion,
                 l10n.modelAccessDeniedAnswer, theme),
-            _buildFAQItem(l10n.rateLimitQuestion,
-                l10n.rateLimitAnswer, theme),
+            _buildFAQItem(l10n.rateLimitQuestion, l10n.rateLimitAnswer, theme),
             _buildFAQItem(
                 l10n.httpsRequiredQuestion, l10n.httpsRequiredAnswer, theme),
             _buildFAQItem(l10n.mimoConnectionFailedQuestion,

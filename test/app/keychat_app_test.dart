@@ -15,8 +15,7 @@ void main() {
 
     testWidgets('shows Chinese UI after successful load',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-          KeyChatApp(localeService: FakeLocaleService()));
+      await tester.pumpWidget(KeyChatApp(localeService: FakeLocaleService()));
       await tester.pump();
       await tester.pump();
 
@@ -36,8 +35,8 @@ void main() {
 
     testWidgets('falls back to Chinese on load failure',
         (WidgetTester tester) async {
-      await tester.pumpWidget(KeyChatApp(
-          localeService: FakeLocaleService(shouldFail: true)));
+      await tester.pumpWidget(
+          KeyChatApp(localeService: FakeLocaleService(shouldFail: true)));
       await tester.pump();
       await tester.pump();
 
@@ -47,8 +46,8 @@ void main() {
 
     testWidgets('does not stay on splash after failure',
         (WidgetTester tester) async {
-      await tester.pumpWidget(KeyChatApp(
-          localeService: FakeLocaleService(shouldFail: true)));
+      await tester.pumpWidget(
+          KeyChatApp(localeService: FakeLocaleService(shouldFail: true)));
       await tester.pump();
       await tester.pump();
 

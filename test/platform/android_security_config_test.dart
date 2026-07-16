@@ -13,8 +13,8 @@ void main() {
       final manifest =
           File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
       expect(manifest, contains('android.permission.FOREGROUND_SERVICE'));
-      expect(
-          manifest, contains('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
+      expect(manifest,
+          contains('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
     });
 
     test('main Manifest registers dataSync generation service', () {
@@ -34,7 +34,8 @@ void main() {
     test('main Manifest references backup_rules', () {
       final manifest =
           File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-      expect(manifest, contains('android:fullBackupContent="@xml/backup_rules"'));
+      expect(
+          manifest, contains('android:fullBackupContent="@xml/backup_rules"'));
     });
 
     test('main Manifest references data_extraction_rules', () {
@@ -47,8 +48,10 @@ void main() {
     test('main Manifest references network_security_config', () {
       final manifest =
           File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-      expect(manifest,
-          contains('android:networkSecurityConfig="@xml/network_security_config"'));
+      expect(
+          manifest,
+          contains(
+              'android:networkSecurityConfig="@xml/network_security_config"'));
     });
 
     test('main Manifest does not have usesCleartextTraffic=true', () {
@@ -58,15 +61,14 @@ void main() {
     });
 
     test('network_security_config has cleartextTrafficPermitted=false', () {
-      final config = File(
-              'android/app/src/main/res/xml/network_security_config.xml')
-          .readAsStringSync();
+      final config =
+          File('android/app/src/main/res/xml/network_security_config.xml')
+              .readAsStringSync();
       expect(config, contains('cleartextTrafficPermitted="false"'));
     });
 
     test('backup_rules.xml exists', () {
-      final file =
-          File('android/app/src/main/res/xml/backup_rules.xml');
+      final file = File('android/app/src/main/res/xml/backup_rules.xml');
       expect(file.existsSync(), isTrue);
     });
 
@@ -77,9 +79,8 @@ void main() {
     });
 
     test('backup_rules has no include', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
       expect(content, isNot(contains('<include ')));
     });
 
@@ -91,38 +92,42 @@ void main() {
     });
 
     test('backup_rules has exactly 9 exclude elements', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
       final excludeCount = RegExp(r'<exclude\s').allMatches(content).length;
       expect(excludeCount, equals(9));
     });
 
     test('backup_rules all excludes have domain and path', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
-      final excludePattern = RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
+      final excludePattern =
+          RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
       final matches = excludePattern.allMatches(content).length;
       expect(matches, equals(9));
     });
 
     test('backup_rules all excludes have path="./"', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
       final pathPattern = RegExp(r'path="\./"');
       final matches = pathPattern.allMatches(content).length;
       expect(matches, equals(9));
     });
 
     test('backup_rules excludes all standard domains', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
       final requiredDomains = [
-        'root', 'file', 'database', 'sharedpref', 'external',
-        'device_root', 'device_file', 'device_database', 'device_sharedpref'
+        'root',
+        'file',
+        'database',
+        'sharedpref',
+        'external',
+        'device_root',
+        'device_file',
+        'device_database',
+        'device_sharedpref'
       ];
       for (final domain in requiredDomains) {
         expect(content, contains('domain="$domain"'));
@@ -149,10 +154,11 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final cloudBackupSection =
-          content.substring(content.indexOf('<cloud-backup>'),
-              content.indexOf('</cloud-backup>'));
-      final excludeCount = RegExp(r'<exclude\s').allMatches(cloudBackupSection).length;
+      final cloudBackupSection = content.substring(
+          content.indexOf('<cloud-backup>'),
+          content.indexOf('</cloud-backup>'));
+      final excludeCount =
+          RegExp(r'<exclude\s').allMatches(cloudBackupSection).length;
       expect(excludeCount, equals(9));
     });
 
@@ -160,10 +166,11 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final cloudBackupSection =
-          content.substring(content.indexOf('<cloud-backup>'),
-              content.indexOf('</cloud-backup>'));
-      final excludePattern = RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
+      final cloudBackupSection = content.substring(
+          content.indexOf('<cloud-backup>'),
+          content.indexOf('</cloud-backup>'));
+      final excludePattern =
+          RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
       final matches = excludePattern.allMatches(cloudBackupSection).length;
       expect(matches, equals(9));
     });
@@ -172,9 +179,9 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final cloudBackupSection =
-          content.substring(content.indexOf('<cloud-backup>'),
-              content.indexOf('</cloud-backup>'));
+      final cloudBackupSection = content.substring(
+          content.indexOf('<cloud-backup>'),
+          content.indexOf('</cloud-backup>'));
       final pathPattern = RegExp(r'path="\./"');
       final matches = pathPattern.allMatches(cloudBackupSection).length;
       expect(matches, equals(9));
@@ -184,12 +191,19 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final cloudBackupSection =
-          content.substring(content.indexOf('<cloud-backup>'),
-              content.indexOf('</cloud-backup>'));
+      final cloudBackupSection = content.substring(
+          content.indexOf('<cloud-backup>'),
+          content.indexOf('</cloud-backup>'));
       final requiredDomains = [
-        'root', 'file', 'database', 'sharedpref', 'external',
-        'device_root', 'device_file', 'device_database', 'device_sharedpref'
+        'root',
+        'file',
+        'database',
+        'sharedpref',
+        'external',
+        'device_root',
+        'device_file',
+        'device_database',
+        'device_sharedpref'
       ];
       for (final domain in requiredDomains) {
         expect(cloudBackupSection, contains('domain="$domain"'));
@@ -200,10 +214,11 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final deviceTransferSection =
-          content.substring(content.indexOf('<device-transfer>'),
-              content.indexOf('</device-transfer>'));
-      final excludeCount = RegExp(r'<exclude\s').allMatches(deviceTransferSection).length;
+      final deviceTransferSection = content.substring(
+          content.indexOf('<device-transfer>'),
+          content.indexOf('</device-transfer>'));
+      final excludeCount =
+          RegExp(r'<exclude\s').allMatches(deviceTransferSection).length;
       expect(excludeCount, equals(9));
     });
 
@@ -211,10 +226,11 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final deviceTransferSection =
-          content.substring(content.indexOf('<device-transfer>'),
-              content.indexOf('</device-transfer>'));
-      final excludePattern = RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
+      final deviceTransferSection = content.substring(
+          content.indexOf('<device-transfer>'),
+          content.indexOf('</device-transfer>'));
+      final excludePattern =
+          RegExp(r'<exclude\s+domain="[^"]+"\s+path="[^"]+"\s*/>');
       final matches = excludePattern.allMatches(deviceTransferSection).length;
       expect(matches, equals(9));
     });
@@ -223,9 +239,9 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final deviceTransferSection =
-          content.substring(content.indexOf('<device-transfer>'),
-              content.indexOf('</device-transfer>'));
+      final deviceTransferSection = content.substring(
+          content.indexOf('<device-transfer>'),
+          content.indexOf('</device-transfer>'));
       final pathPattern = RegExp(r'path="\./"');
       final matches = pathPattern.allMatches(deviceTransferSection).length;
       expect(matches, equals(9));
@@ -235,12 +251,19 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final deviceTransferSection =
-          content.substring(content.indexOf('<device-transfer>'),
-              content.indexOf('</device-transfer>'));
+      final deviceTransferSection = content.substring(
+          content.indexOf('<device-transfer>'),
+          content.indexOf('</device-transfer>'));
       final requiredDomains = [
-        'root', 'file', 'database', 'sharedpref', 'external',
-        'device_root', 'device_file', 'device_database', 'device_sharedpref'
+        'root',
+        'file',
+        'database',
+        'sharedpref',
+        'external',
+        'device_root',
+        'device_file',
+        'device_database',
+        'device_sharedpref'
       ];
       for (final domain in requiredDomains) {
         expect(deviceTransferSection, contains('domain="$domain"'));
@@ -248,13 +271,11 @@ void main() {
     });
 
     test('no duplicate domains in backup_rules', () {
-      final content =
-          File('android/app/src/main/res/xml/backup_rules.xml')
-              .readAsStringSync();
+      final content = File('android/app/src/main/res/xml/backup_rules.xml')
+          .readAsStringSync();
       final domainPattern = RegExp(r'domain="([^"]+)"');
-      final domains = domainPattern.allMatches(content)
-          .map((m) => m.group(1))
-          .toList();
+      final domains =
+          domainPattern.allMatches(content).map((m) => m.group(1)).toList();
       expect(domains.length, equals(domains.toSet().length));
     });
 
@@ -262,11 +283,12 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final cloudBackupSection =
-          content.substring(content.indexOf('<cloud-backup>'),
-              content.indexOf('</cloud-backup>'));
+      final cloudBackupSection = content.substring(
+          content.indexOf('<cloud-backup>'),
+          content.indexOf('</cloud-backup>'));
       final domainPattern = RegExp(r'domain="([^"]+)"');
-      final domains = domainPattern.allMatches(cloudBackupSection)
+      final domains = domainPattern
+          .allMatches(cloudBackupSection)
           .map((m) => m.group(1))
           .toList();
       expect(domains.length, equals(domains.toSet().length));
@@ -276,11 +298,12 @@ void main() {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
-      final deviceTransferSection =
-          content.substring(content.indexOf('<device-transfer>'),
-              content.indexOf('</device-transfer>'));
+      final deviceTransferSection = content.substring(
+          content.indexOf('<device-transfer>'),
+          content.indexOf('</device-transfer>'));
       final domainPattern = RegExp(r'domain="([^"]+)"');
-      final domains = domainPattern.allMatches(deviceTransferSection)
+      final domains = domainPattern
+          .allMatches(deviceTransferSection)
           .map((m) => m.group(1))
           .toList();
       expect(domains.length, equals(domains.toSet().length));

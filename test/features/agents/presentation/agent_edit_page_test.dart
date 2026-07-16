@@ -146,8 +146,7 @@ void main() {
       expect(returnedAgent, isNull);
     });
 
-    testWidgets('creates unique id for new agent',
-        (WidgetTester tester) async {
+    testWidgets('creates unique id for new agent', (WidgetTester tester) async {
       AgentProfileData? agent1;
       AgentProfileData? agent2;
 

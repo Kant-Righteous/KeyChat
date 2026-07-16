@@ -31,8 +31,12 @@ void main() {
       // Find Debug configuration for Runner target
       final debugSection = pbxproj.substring(
           pbxproj.indexOf('97C147061CF9000F007C117D'),
-          pbxproj.indexOf('name = Debug;', pbxproj.indexOf('97C147061CF9000F007C117D')));
-      expect(debugSection, contains('CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements'));
+          pbxproj.indexOf(
+              'name = Debug;', pbxproj.indexOf('97C147061CF9000F007C117D')));
+      expect(
+          debugSection,
+          contains(
+              'CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements'));
     });
 
     test('Profile config references DebugProfile', () {
@@ -41,8 +45,12 @@ void main() {
       // Find Profile configuration for Runner target
       final profileSection = pbxproj.substring(
           pbxproj.indexOf('249021D4217E4FDB00AE95B9'),
-          pbxproj.indexOf('name = Profile;', pbxproj.indexOf('249021D4217E4FDB00AE95B9')));
-      expect(profileSection, contains('CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements'));
+          pbxproj.indexOf(
+              'name = Profile;', pbxproj.indexOf('249021D4217E4FDB00AE95B9')));
+      expect(
+          profileSection,
+          contains(
+              'CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements'));
     });
 
     test('Release config references Release entitlements', () {
@@ -51,8 +59,10 @@ void main() {
       // Find Release configuration for Runner target
       final releaseSection = pbxproj.substring(
           pbxproj.indexOf('97C147071CF9000F007C117D'),
-          pbxproj.indexOf('name = Release;', pbxproj.indexOf('97C147071CF9000F007C117D')));
-      expect(releaseSection, contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements'));
+          pbxproj.indexOf(
+              'name = Release;', pbxproj.indexOf('97C147071CF9000F007C117D')));
+      expect(releaseSection,
+          contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements'));
     });
 
     test('no hardcoded Team ID', () {
