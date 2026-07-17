@@ -112,9 +112,13 @@ class _ProvidersPageState extends State<ProvidersPage> {
                 }
 
                 final config = _configs[index];
-                final configured = _keyStatus[config.providerId] ?? false;
+                final hasKey = _keyStatus[config.providerId] ?? false;
                 final isHttps = _httpsStatus[config.providerId] ?? true;
-                final needsHttpsUpdate = configured && !isHttps;
+                final hasRequiredConfig = config.enabled &&
+                    config.baseUrl.trim().isNotEmpty &&
+                    config.defaultModel?.trim().isNotEmpty == true;
+                final configured = hasKey && hasRequiredConfig && isHttps;
+                final needsHttpsUpdate = hasKey && !isHttps;
 
                 String statusText;
                 Color statusColor;

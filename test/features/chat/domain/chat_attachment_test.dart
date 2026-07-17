@@ -28,6 +28,29 @@ void main() {
       ]);
     });
 
+    test('encodes an image-only message without an empty text part', () {
+      final json = const ChatRequestMessage(
+        role: 'user',
+        content: '',
+        attachments: [
+          ChatRequestAttachment(
+            attachmentId: 'image-1',
+            kind: ChatAttachmentKind.image,
+            fileName: 'photo.png',
+            mimeType: 'image/png',
+            base64Data: 'aW1hZ2U=',
+          ),
+        ],
+      ).toJson();
+
+      expect(json['content'], [
+        {
+          'type': 'image_url',
+          'image_url': {'url': 'data:image/png;base64,aW1hZ2U='},
+        },
+      ]);
+    });
+
     test('encodes ordinary file as an inline file content part', () {
       final json = const ChatRequestMessage(
         role: 'user',

@@ -521,7 +521,55 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Provider server error'), findsOneWidget);
+      expect(
+        find.byKey(const Key('snack_bar_close_button')),
+        findsOneWidget,
+      );
       expect(find.text('Hello'), findsWidgets);
+    });
+
+    testWidgets('failure message follows Chinese locale and can be closed',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+      chatClient.setResult(
+        const ChatCompletionResult.failure(
+          errorType: ChatCompletionErrorType.serverError,
+          userMessage: 'Provider server error',
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ChatPage(
+            chatClientResolver: chatClientResolver,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            agentStore: agentStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '你好');
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      expect(find.text('提供商服务器错误'), findsOneWidget);
+      expect(find.text('Provider server error'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('snack_bar_close_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('提供商服务器错误'), findsNothing);
     });
 
     testWidgets('failure preserves input text', (WidgetTester tester) async {

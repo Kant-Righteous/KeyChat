@@ -319,6 +319,13 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
     return null;
   }
 
+  String? _validateModel(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return AppLocalizations.of(context)!.modelRequired;
+    }
+    return null;
+  }
+
   Future<void> _testConnection() async {
     final l10n = AppLocalizations.of(context)!;
     final tester = _connectionTester;
@@ -668,6 +675,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                             labelText: l10n.defaultModelLabel,
                             border: const OutlineInputBorder(),
                           ),
+                          validator: _validateModel,
                           onChanged: (modelId) {
                             unawaited(_loadCapabilityModes(modelId));
                           },

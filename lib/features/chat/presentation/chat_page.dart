@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
@@ -204,9 +205,58 @@ class _ChatPageState extends State<ChatPage> {
   String? _highlightedMessageId;
   Timer? _highlightTimer;
   bool _isMessageListAtBottom = true;
-  bool _hasDraftMessage = false;
+  bool _isModelToolbarVisible = true;
   final List<AttachmentDraft> _pendingAttachments = [];
   late final ModelAttachmentCapabilityResolver _capabilityResolver;
+
+  void _showSnackBar(
+    String message, {
+    Duration duration = const Duration(seconds: 4),
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    final closeTooltip = MaterialLocalizations.of(context).closeButtonTooltip;
+    final iconColor = Theme.of(context).snackBarTheme.contentTextStyle?.color ??
+        Theme.of(context).colorScheme.onInverseSurface;
+
+    messenger.showSnackBar(
+      SnackBar(
+        duration: duration,
+        content: Row(
+          children: [
+            Expanded(child: Text(message)),
+            IconButton(
+              key: const Key('snack_bar_close_button'),
+              onPressed: messenger.hideCurrentSnackBar,
+              tooltip: closeTooltip,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.close, color: iconColor, size: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _localizedChatError(ChatCompletionErrorType errorType) {
+    final l10n = AppLocalizations.of(context)!;
+    return switch (errorType) {
+      ChatCompletionErrorType.invalidUrl => l10n.invalidBaseUrl,
+      ChatCompletionErrorType.apiKeyRequired => l10n.apiKeyRequired,
+      ChatCompletionErrorType.modelRequired => l10n.modelRequired,
+      ChatCompletionErrorType.emptyMessage => l10n.unableToGetResponse,
+      ChatCompletionErrorType.unauthorized => l10n.invalidApiKey,
+      ChatCompletionErrorType.forbidden => l10n.accessForbidden,
+      ChatCompletionErrorType.rateLimited => l10n.rateLimitExceeded,
+      ChatCompletionErrorType.timeout => l10n.connectionTimedOut,
+      ChatCompletionErrorType.networkUnavailable => l10n.networkUnavailable,
+      ChatCompletionErrorType.serverError => l10n.providerServerError,
+      ChatCompletionErrorType.invalidResponse => l10n.invalidProviderResponse,
+      ChatCompletionErrorType.attachmentRejected =>
+        l10n.attachmentRejectedTitle,
+      ChatCompletionErrorType.cancelled => l10n.unableToGetResponse,
+      ChatCompletionErrorType.unknown => l10n.unableToGetResponse,
+    };
+  }
 
   @override
   void initState() {
@@ -215,8 +265,6 @@ class _ChatPageState extends State<ChatPage> {
       store: widget.modelAttachmentCapabilityStore,
     );
     _scrollController.addListener(_handleScrollPositionChanged);
-    _messageFocusNode.addListener(_handleMessageFocusChanged);
-    _messageController.addListener(_handleDraftChanged);
     _loadData();
   }
 
@@ -366,6 +414,7 @@ class _ChatPageState extends State<ChatPage> {
         _messages.clear();
         _messages.addAll(historyMessages);
         _isMessageListAtBottom = historyMessages.isEmpty;
+        _isModelToolbarVisible = true;
         _messageKeys.clear();
         _activeConversationId = conversation?.id;
         _loading = false;
@@ -404,10 +453,7 @@ class _ChatPageState extends State<ChatPage> {
 
   bool get _shouldShowModelSelector {
     if (_sending) return false;
-    return _messages.isEmpty ||
-        _isMessageListAtBottom ||
-        _messageFocusNode.hasFocus ||
-        _hasDraftMessage;
+    return _messages.isEmpty || _isModelToolbarVisible;
   }
 
   bool get _canRetry {
@@ -704,7 +750,7 @@ class _ChatPageState extends State<ChatPage> {
       _messageController.clear();
       _pendingAttachments.clear();
       _isMessageListAtBottom = true;
-      _hasDraftMessage = false;
+      _isModelToolbarVisible = true;
       _clearStoppedState();
     });
     if (provider != null) {
@@ -744,7 +790,7 @@ class _ChatPageState extends State<ChatPage> {
         _messageController.clear();
         _pendingAttachments.clear();
         _isMessageListAtBottom = true;
-        _hasDraftMessage = false;
+        _isModelToolbarVisible = true;
         _clearStoppedState();
       });
       if (provider != null) {
@@ -766,8 +812,8 @@ class _ChatPageState extends State<ChatPage> {
       if (conversation == null) {
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load conversation')),
+          _showSnackBar(
+            AppLocalizations.of(context)!.failedToLoadConversation,
           );
         }
         return;
@@ -835,6 +881,7 @@ class _ChatPageState extends State<ChatPage> {
           _messages.clear();
           _messages.addAll(messages);
           _isMessageListAtBottom = messages.isEmpty;
+          _isModelToolbarVisible = true;
           _messageKeys.clear();
           _highlightedMessageId = null;
           _activeConversationId = conversationId;
@@ -863,9 +910,7 @@ class _ChatPageState extends State<ChatPage> {
     } catch (_) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load conversation')),
-        );
+        _showSnackBar(AppLocalizations.of(context)!.failedToLoadConversation);
       }
     }
   }
@@ -933,9 +978,7 @@ class _ChatPageState extends State<ChatPage> {
           setState(() => _pendingAttachments.addAll(additions));
         }
         if (drafts.length > availableSlots) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.attachmentLimitReached)),
-          );
+          _showSnackBar(l10n.attachmentLimitReached);
         }
       }
     } on AttachmentSelectionException catch (error) {
@@ -943,21 +986,17 @@ class _ChatPageState extends State<ChatPage> {
       final message = error.code == 'too_large'
           ? l10n.attachmentTooLarge
           : l10n.attachmentUnavailable;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      _showSnackBar(message);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.attachmentPickFailed)),
-        );
+        _showSnackBar(l10n.attachmentPickFailed);
       }
     }
   }
 
   Future<void> _send() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && _pendingAttachments.isEmpty) return;
     if (!_canSend) return;
     _messageFocusNode.unfocus();
     final selection = _ModelSelection(
@@ -983,12 +1022,8 @@ class _ChatPageState extends State<ChatPage> {
         }
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                AppLocalizations.of(context)!.attachmentSaveFailed,
-              ),
-            ),
+          _showSnackBar(
+            AppLocalizations.of(context)!.attachmentSaveFailed,
           );
         }
         return;
@@ -1007,9 +1042,10 @@ class _ChatPageState extends State<ChatPage> {
     );
 
     if (isFirstMessage) {
+      final titleSource = text.isNotEmpty ? text : attachments.first.fileName;
       final conversation = ChatConversation(
         id: conversationId,
-        title: ChatConversation.generateTitle(text),
+        title: ChatConversation.generateTitle(titleSource),
         providerId: selection.provider.providerId,
         model: selection.modelId,
         agentId: _selectedAgent?.id,
@@ -1032,9 +1068,7 @@ class _ChatPageState extends State<ChatPage> {
         _messageController.clear();
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save message')),
-          );
+          _showSnackBar(AppLocalizations.of(context)!.failedToSaveMessage);
         }
         return;
       }
@@ -1055,9 +1089,7 @@ class _ChatPageState extends State<ChatPage> {
         _messageController.clear();
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save message')),
-          );
+          _showSnackBar(AppLocalizations.of(context)!.failedToSaveMessage);
         }
         return;
       }
@@ -1138,7 +1170,8 @@ class _ChatPageState extends State<ChatPage> {
     final localToken = _cancellationToken;
 
     try {
-      // Build context: exclude the target user message from history
+      // Build context: exclude the target user message from history. Historical
+      // attachments stay in local history but are not resent on later turns.
       final historyMessages = <ChatRequestMessage>[];
       for (final message in _messages) {
         if (message.id == target.userMessage.id) continue;
@@ -1150,7 +1183,7 @@ class _ChatPageState extends State<ChatPage> {
           message,
           target.provider,
           target.modelId,
-          forceTextOnly: target.forceTextOnly,
+          forceTextOnly: true,
         );
         historyMessages.add(requestMessage);
       }
@@ -1275,9 +1308,7 @@ class _ChatPageState extends State<ChatPage> {
           generationId: genId,
           reason: _GenerationEndReason.failed,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to get response')),
-        );
+        _showSnackBar(AppLocalizations.of(context)!.unableToGetResponse);
       }
     }
   }
@@ -1349,9 +1380,7 @@ class _ChatPageState extends State<ChatPage> {
           _streamingReasoningText = '';
           _expandedReasoningKeys.remove(_streamingReasoningKey);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid provider response')),
-        );
+        _showSnackBar(AppLocalizations.of(context)!.invalidProviderResponse);
       }
       return;
     }
@@ -1420,10 +1449,8 @@ class _ChatPageState extends State<ChatPage> {
           reason: _GenerationEndReason.failed,
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Response received but could not be saved'),
-            ),
+          _showSnackBar(
+            AppLocalizations.of(context)!.responseSavedButNotSaved,
           );
           setState(() {
             _streamingAssistantText = '';
@@ -1462,10 +1489,8 @@ class _ChatPageState extends State<ChatPage> {
         );
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Response received but could not be saved'),
-            ),
+          _showSnackBar(
+            AppLocalizations.of(context)!.responseSavedButNotSaved,
           );
         }
       }
@@ -1548,10 +1573,8 @@ class _ChatPageState extends State<ChatPage> {
 
     if (hasContent) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Response interrupted and was not saved'),
-          ),
+        _showSnackBar(
+          AppLocalizations.of(context)!.responseNotSaved,
         );
         setState(() {
           _streamingAssistantText = '';
@@ -1564,9 +1587,7 @@ class _ChatPageState extends State<ChatPage> {
         _messageController.text = target.userMessage.content;
       }
       if (mounted && event.errorType != ChatCompletionErrorType.cancelled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(event.userMessage)),
-        );
+        _showSnackBar(_localizedChatError(event.errorType));
       }
       if (mounted) {
         setState(() {
@@ -1699,10 +1720,8 @@ class _ChatPageState extends State<ChatPage> {
 
     if (hasContent) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Response interrupted and was not saved'),
-          ),
+        _showSnackBar(
+          AppLocalizations.of(context)!.responseNotSaved,
         );
         setState(() {
           _streamingAssistantText = '';
@@ -1716,9 +1735,7 @@ class _ChatPageState extends State<ChatPage> {
           _streamingReasoningText = '';
           _expandedReasoningKeys.remove(_streamingReasoningKey);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to get response')),
-        );
+        _showSnackBar(AppLocalizations.of(context)!.unableToGetResponse);
       }
     }
   }
@@ -1732,29 +1749,25 @@ class _ChatPageState extends State<ChatPage> {
 
   void _handleScrollPositionChanged() {
     if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final shouldShowToolbar = switch (position.userScrollDirection) {
+      ScrollDirection.reverse => true,
+      ScrollDirection.forward => false,
+      ScrollDirection.idle => _isModelToolbarVisible,
+    };
     const selectorThreshold = 24.0;
-    final isAtBottom =
-        _scrollController.position.extentAfter <= selectorThreshold;
-    if (isAtBottom == _isMessageListAtBottom || !mounted) return;
+    final isAtBottom = position.extentAfter <= selectorThreshold;
+    final toolbarChanged = shouldShowToolbar != _isModelToolbarVisible;
+    final bottomChanged = isAtBottom != _isMessageListAtBottom;
+    if ((!toolbarChanged && !bottomChanged) || !mounted) return;
 
-    setState(() => _isMessageListAtBottom = isAtBottom);
-    if (isAtBottom) {
+    setState(() {
+      _isModelToolbarVisible = shouldShowToolbar;
+      _isMessageListAtBottom = isAtBottom;
+    });
+    if (bottomChanged && isAtBottom) {
       _scrollToBottom();
     }
-  }
-
-  void _handleMessageFocusChanged() {
-    if (mounted) setState(() {});
-  }
-
-  void _handleDraftChanged() {
-    final hasDraft = _messageController.text.trim().isNotEmpty;
-    if (hasDraft == _hasDraftMessage) return;
-    if (!mounted) {
-      _hasDraftMessage = hasDraft;
-      return;
-    }
-    setState(() => _hasDraftMessage = hasDraft);
   }
 
   void _syncBottomStateAfterLayout() {
@@ -2080,8 +2093,6 @@ class _ChatPageState extends State<ChatPage> {
         reason: _GenerationEndReason.disposed,
       );
     }
-    _messageController.removeListener(_handleDraftChanged);
-    _messageFocusNode.removeListener(_handleMessageFocusChanged);
     _scrollController.removeListener(_handleScrollPositionChanged);
     _messageController.dispose();
     _messageFocusNode.dispose();
@@ -2364,21 +2375,16 @@ class _ChatPageState extends State<ChatPage> {
                                                       size: 16),
                                                   tooltip: l10n.copyResponse,
                                                   onPressed: () async {
-                                                    final messenger =
-                                                        ScaffoldMessenger.of(
-                                                            context);
                                                     await Clipboard.setData(
                                                       ClipboardData(
                                                           text: content),
                                                     );
                                                     if (mounted) {
-                                                      messenger.showSnackBar(
-                                                        SnackBar(
-                                                          content:
-                                                              Text(l10n.copied),
-                                                          duration:
-                                                              const Duration(
-                                                                  seconds: 1),
+                                                      _showSnackBar(
+                                                        l10n.copied,
+                                                        duration:
+                                                            const Duration(
+                                                          seconds: 1,
                                                         ),
                                                       );
                                                     }
@@ -2452,7 +2458,10 @@ class _ChatPageState extends State<ChatPage> {
                                     separatorBuilder: (_, __) =>
                                         const SizedBox(width: 8),
                                     itemBuilder: (context, index) => SizedBox(
-                                      width: 280,
+                                      width: _pendingAttachments[index].kind ==
+                                              ChatAttachmentKind.image
+                                          ? 144
+                                          : 280,
                                       child: PendingAttachmentPreview(
                                         previewKey: index == 0
                                             ? const Key(
@@ -2554,31 +2563,6 @@ class _ChatPageState extends State<ChatPage> {
                                             .colorScheme
                                             .onSurfaceVariant,
                                       ),
-                                ),
-                              ),
-                            if (_sending)
-                              SizedBox(
-                                height: 0,
-                                child: OverflowBox(
-                                  minHeight: 48,
-                                  maxHeight: 48,
-                                  alignment: Alignment.topRight,
-                                  child: Transform.translate(
-                                    offset: const Offset(0, -56),
-                                    child: Semantics(
-                                      key: const Key('attachment_button'),
-                                      button: true,
-                                      enabled: false,
-                                      label: l10n.addAttachment,
-                                      child: IconButton(
-                                        onPressed: null,
-                                        tooltip: l10n.addAttachment,
-                                        icon: const Icon(
-                                          Icons.attach_file_rounded,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               ),
                             Row(

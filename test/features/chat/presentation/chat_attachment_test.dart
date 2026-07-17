@@ -217,7 +217,22 @@ void main() {
       );
 
       expect(find.byKey(const Key('pending_attachment_image')), findsOneWidget);
-      expect(find.text('photo.png'), findsOneWidget);
+      expect(find.text('photo.png'), findsNothing);
+      expect(find.textContaining('image/png'), findsNothing);
+      expect(find.textContaining('2.0 KiB'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('pending_attachment_image')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('image_preview_dialog')), findsOneWidget);
+      expect(
+        find.byKey(const Key('image_preview_interactive_viewer')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('close_image_preview')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('image_preview_dialog')), findsNothing);
+
       await tester.tap(find.byKey(const Key('remove_pending_attachment_0')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('pending_attachment_preview')), findsNothing);
@@ -247,12 +262,11 @@ void main() {
       );
 
       expect(find.byType(PendingAttachmentPreview), findsNWidgets(2));
-      expect(find.text('first.png'), findsOneWidget);
-      expect(find.text('second.jpg'), findsOneWidget);
+      expect(find.text('first.png'), findsNothing);
+      expect(find.text('second.jpg'), findsNothing);
       await tester.tap(find.byKey(const Key('remove_pending_attachment_0')));
       await tester.pumpAndSettle();
-      expect(find.text('first.png'), findsNothing);
-      expect(find.text('second.jpg'), findsOneWidget);
+      expect(find.byType(PendingAttachmentPreview), findsOneWidget);
 
       await tester.enterText(find.byType(TextField).last, 'Describe it');
       await tester.tap(find.byTooltip('Send'));
@@ -317,6 +331,10 @@ void main() {
       expect(find.text('notes.txt'), findsOneWidget);
       expect(find.textContaining('text/plain'), findsOneWidget);
       expect(find.textContaining('1.5 KiB'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pending_attachment_file')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('image_preview_dialog')), findsNothing);
     });
 
     testWidgets('multimodal send keeps attachment in bubble and request',
@@ -339,6 +357,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('message_attachment_image')), findsOneWidget);
+      expect(find.text('photo.png'), findsNothing);
+      expect(find.textContaining('image/png'), findsNothing);
+      expect(find.textContaining('2.0 KiB'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('message_attachment_image')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('image_preview_dialog')), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('image_preview_dialog')), findsNothing);
+
       expect(chatClient.streamCallCount, 1);
       expect(chatClient.lastMessages!.last.attachments, hasLength(1));
       expect(
@@ -348,6 +379,33 @@ void main() {
       final messages = await historyStore.readMessages(
         historyStore.latestConversationId!,
       );
+      expect(messages.first.attachments, hasLength(1));
+    });
+
+    testWidgets('sends an image without text', (tester) async {
+      await pumpChat(tester);
+      await chooseAttachment(
+        tester,
+        const AttachmentDraft(
+          sourcePath: 'assets/branding/keychat_icon.png',
+          fileName: 'photo.png',
+          mimeType: 'image/png',
+          fileSize: 2048,
+          kind: ChatAttachmentKind.image,
+        ),
+        const Key('choose_image_attachment'),
+      );
+
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.streamCallCount, 1);
+      expect(chatClient.lastMessages!.last.content, isEmpty);
+      expect(chatClient.lastMessages!.last.attachments, hasLength(1));
+      final conversation = await historyStore.readLatestConversation();
+      expect(conversation?.title, 'photo.png');
+      final messages = await historyStore.readMessages(conversation!.id);
+      expect(messages.first.content, isEmpty);
       expect(messages.first.attachments, hasLength(1));
     });
 
@@ -672,6 +730,48 @@ void main() {
       expect(find.text('Done'), findsOneWidget);
     });
 
+    testWidgets('failed historical attachment is not resent with later text',
+        (tester) async {
+      chatClient.scriptedEventBatches.addAll([
+        [
+          const ChatStreamFailure(
+            errorType: ChatCompletionErrorType.invalidResponse,
+            userMessage: 'Invalid provider response',
+          ),
+        ],
+        const [ChatStreamDelta('Done'), ChatStreamCompleted()],
+      ]);
+      await pumpChat(tester);
+      await chooseAttachment(
+        tester,
+        const AttachmentDraft(
+          sourcePath: 'assets/branding/keychat_icon.png',
+          fileName: 'failed.png',
+          mimeType: 'image/png',
+          fileSize: 1200,
+          kind: ChatAttachmentKind.image,
+        ),
+        const Key('choose_image_attachment'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'First');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).last, 'Continue normally');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(chatClient.messageCalls, hasLength(2));
+      expect(chatClient.messageCalls.first.last.attachments, hasLength(1));
+      expect(
+        chatClient.messageCalls.last.expand((message) => message.attachments),
+        isEmpty,
+      );
+      expect(find.text('Done'), findsOneWidget);
+    });
+
     testWidgets('failed text-only retry does not learn unsupported',
         (tester) async {
       chatClient.scriptedEventBatches.addAll([
@@ -924,20 +1024,22 @@ void main() {
       expect(messages.first.attachments, hasLength(1));
     });
 
-    testWidgets('attachment button is disabled while generating',
+    testWidgets('attachment button is hidden while generating and restored',
         (tester) async {
       chatClient.streamController = StreamController<ChatStreamEvent>();
       await pumpChat(tester);
       await tester.enterText(find.byType(TextField).last, 'Wait');
       await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      final button = tester.widget<IconButton>(find.descendant(
-        of: find.byKey(const Key('attachment_button')).last,
-        matching: find.byType(IconButton),
-      ));
-      expect(button.onPressed, isNull);
-      unawaited(chatClient.streamController!.close());
+      expect(find.byKey(const Key('attachment_button')), findsNothing);
+      expect(find.byTooltip('Add attachment'), findsNothing);
+
+      await chatClient.streamController!.close();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('attachment_button')), findsOneWidget);
+      expect(find.byTooltip('Add attachment'), findsOneWidget);
     });
 
     testWidgets(

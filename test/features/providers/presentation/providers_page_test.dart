@@ -66,7 +66,35 @@ void main() {
       expect(find.text('Custom Provider'), findsOneWidget);
     });
 
-    testWidgets('shows Configured when key exists',
+    testWidgets('shows Configured when key and default model exist',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          defaultModel: 'test-model',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+      await apiKeyStore.saveKey('custom_1', 'sk-test');
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Configured'), findsOneWidget);
+      expect(find.text('Custom Provider'), findsOneWidget);
+    });
+
+    testWidgets('shows Not configured when default model is missing',
         (WidgetTester tester) async {
       await configStore.saveConfig(
         ProviderConfigData(
@@ -89,8 +117,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Configured'), findsOneWidget);
-      expect(find.text('Custom Provider'), findsOneWidget);
+      expect(find.text('Not configured'), findsOneWidget);
+      expect(find.text('Configured'), findsNothing);
     });
 
     testWidgets('tapping a saved provider opens config page',
@@ -176,6 +204,10 @@ void main() {
       await tester.enterText(
         find.widgetWithText(TextFormField, 'API Key'),
         'test-key-123',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Default Model'),
+        'test-model',
       );
 
       await tester.tap(find.text('Save'));

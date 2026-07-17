@@ -153,7 +153,7 @@ void main() {
     });
 
     testWidgets(
-        'model selector follows bottom, input focus, and new-chat visibility',
+        'input focus and draft do not override toolbar hidden by scroll',
         (WidgetTester tester) async {
       await setupConfig(tester);
 
@@ -174,30 +174,7 @@ void main() {
 
       final messageList = find.byType(ListView);
       expect(messageList, findsOneWidget);
-      expect(find.byKey(const Key('model_selector')), findsNothing);
-
-      final copyButton = find.byTooltip('Copy response');
-      await Scrollable.ensureVisible(
-        tester.element(copyButton),
-        alignment: 1,
-      );
-      await tester.drag(messageList, const Offset(0, -300));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('model_selector')), findsOneWidget);
-
-      await tester.drag(messageList, const Offset(0, 400));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('model_selector')), findsNothing);
-
-      await Scrollable.ensureVisible(
-        tester.element(copyButton),
-        alignment: 1,
-      );
-      await tester.drag(messageList, const Offset(0, -300));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('model_selector')), findsOneWidget);
-
-      await tester.drag(messageList, const Offset(0, 400));
+      await tester.drag(messageList, const Offset(0, 600));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('model_selector')), findsNothing);
 
@@ -205,15 +182,50 @@ void main() {
         find.widgetWithText(TextField, 'Type a message...'),
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('model_selector')), findsOneWidget);
-
-      tester.binding.focusManager.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
       expect(find.byKey(const Key('model_selector')), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.add_comment));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Draft',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+    });
+
+    testWidgets('model and attachment toolbar follows user scroll direction',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final longReply = List.generate(
+        60,
+        (index) => 'Long response paragraph $index with enough text to scroll.',
+      ).join('\n\n');
+      chatClient.setResult(
+        ChatCompletionResult.success(assistantContent: longReply),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Show long response',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final messageList = find.byType(ListView);
+      await tester.drag(messageList, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+      expect(find.byKey(const Key('attachment_button')), findsNothing);
+
+      await tester.drag(messageList, const Offset(0, -100));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('model_selector')), findsOneWidget);
+      expect(find.byKey(const Key('attachment_button')), findsOneWidget);
+
+      await tester.drag(messageList, const Offset(0, 80));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+      expect(find.byKey(const Key('attachment_button')), findsNothing);
     });
 
     testWidgets('user scrolled up delta does not steal position',

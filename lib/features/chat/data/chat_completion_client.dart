@@ -47,7 +47,7 @@ class ChatRequestMessage {
     return {
       'role': role,
       'content': [
-        {'type': 'text', 'text': content},
+        if (content.isNotEmpty) {'type': 'text', 'text': content},
         ...attachments.map((attachment) => attachment.toJson()),
       ],
     };

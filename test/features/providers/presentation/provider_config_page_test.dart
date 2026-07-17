@@ -339,6 +339,28 @@ void main() {
       expect(find.text('无效的基础地址'), findsOneWidget);
     });
 
+    testWidgets('Empty default model shows validation error',
+        (WidgetTester tester) async {
+      final preset = providerPresets[1]; // DeepSeek
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('请先选择模型'), findsOneWidget);
+      expect(await configStore.readConfig('deepseek'), isNull);
+    });
+
     testWidgets('API Key is obscured by default', (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
@@ -527,6 +549,10 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'sk-new-key',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
@@ -559,6 +585,10 @@ void main() {
       await tester.enterText(
         find.widgetWithText(TextFormField, 'API Key'),
         'sk-test',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
       );
 
       await tester.tap(find.text('保存'));
@@ -659,6 +689,10 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'test-marker-123',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       final completer = slowStore.startSave();
 
@@ -694,6 +728,10 @@ void main() {
         find.widgetWithText(TextFormField, '新 API Key（留空保留原有）'),
         findsOneWidget,
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
@@ -721,6 +759,10 @@ void main() {
       await tester.enterText(
         find.widgetWithText(TextFormField, 'API Key'),
         'test-marker-xyz',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
       );
 
       await tester.tap(find.text('保存'));
@@ -755,6 +797,10 @@ void main() {
         find.widgetWithText(TextFormField, '新 API Key（留空保留原有）'),
         'new-key-value',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
@@ -785,6 +831,10 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'new-key-value',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
@@ -811,6 +861,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -837,6 +891,10 @@ void main() {
       await tester.enterText(
         find.widgetWithText(TextFormField, 'API Key'),
         'new-key-value',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
       );
 
       await tester.tap(find.text('保存'));

@@ -23,6 +23,18 @@ void main() {
       expect(find.text('聊天'), findsOneWidget);
     });
 
+    testWidgets('bottom navigation does not expose tooltips',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(KeyChatApp(localeService: FakeLocaleService()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byTooltip('聊天'), findsNothing);
+      expect(find.byTooltip('提供商'), findsNothing);
+      expect(find.byTooltip('智能体'), findsNothing);
+      expect(find.byTooltip('设置'), findsNothing);
+    });
+
     testWidgets('shows English UI when saved locale is English',
         (WidgetTester tester) async {
       await tester.pumpWidget(KeyChatApp(
