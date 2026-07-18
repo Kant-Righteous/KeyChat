@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/openai_sse_parser.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart';
+import 'package:keychat/features/providers/domain/provider_url_policy.dart';
 
 class DioChatCompletionClient implements ChatCompletionClient {
   final Dio _dio;
@@ -57,6 +59,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
       return const ChatCompletionResult.failure(
         errorType: ChatCompletionErrorType.invalidUrl,
         userMessage: 'Invalid Base URL',
+      );
+    }
+
+    // Security: Only allow HTTPS
+    if (!ProviderUrlPolicy.isAllowedForRequest(trimmedUrl)) {
+      return const ChatCompletionResult.failure(
+        errorType: ChatCompletionErrorType.invalidUrl,
+        userMessage: 'Only HTTPS URLs are supported',
       );
     }
 
@@ -184,6 +194,16 @@ class DioChatCompletionClient implements ChatCompletionClient {
       return;
     }
 
+    // Security: Only allow HTTPS
+    if (!ProviderUrlPolicy.isAllowedForRequest(trimmedUrl)) {
+      controller.add(const ChatStreamFailure(
+        errorType: ChatCompletionErrorType.invalidUrl,
+        userMessage: 'Only HTTPS URLs are supported',
+      ));
+      controller.close();
+      return;
+    }
+
     final trimmedKey = apiKey.trim();
     if (trimmedKey.isEmpty) {
       controller.add(const ChatStreamFailure(
@@ -259,62 +279,73 @@ class DioChatCompletionClient implements ChatCompletionClient {
 
       final parser = OpenAiSseParser();
       bool hasContent = false;
-      bool gotDone = false;
+      bool hasReasoning = false;
+      bool gotFinishReason = false;
+
+      void closeWith(ChatStreamEvent event) {
+        if (terminated) return;
+        terminated = true;
+        controller.add(event);
+        unawaited(controller.close());
+        removeListener?.call();
+      }
 
       parser.stream.listen(
         (sseEvent) {
           if (terminated) return;
 
           if (sseEvent.data == '[DONE]') {
-            gotDone = true;
-            controller.add(const ChatStreamCompleted());
-            terminated = true;
+            closeWith(const ChatStreamCompleted());
             return;
           }
 
           if (sseEvent.data == null) return;
 
           try {
-            final parsed = _parseDelta(sseEvent.data!);
-            if (parsed != null && parsed.isNotEmpty) {
+            if (_hasFinishReason(sseEvent.data!)) {
+              gotFinishReason = true;
+            }
+
+            final reasoning = _parseReasoningDelta(sseEvent.data!);
+            if (reasoning != null && reasoning.isNotEmpty) {
+              hasReasoning = true;
+              controller.add(ChatStreamReasoningDelta(reasoning));
+            }
+
+            final content = _parseDelta(sseEvent.data!);
+            if (content != null && content.isNotEmpty) {
               hasContent = true;
-              controller.add(ChatStreamDelta(parsed));
+              controller.add(ChatStreamDelta(content));
             }
           } on FormatException {
-            if (!terminated) {
-              terminated = true;
-              controller.add(const ChatStreamFailure(
-                errorType: ChatCompletionErrorType.invalidResponse,
-                userMessage: 'Invalid provider response',
-              ));
-            }
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.invalidResponse,
+              userMessage: 'Invalid provider response',
+            ));
           }
         },
         onDone: () {
           if (terminated) return;
 
-          if (!gotDone) {
-            if (hasContent) {
-              controller.add(const ChatStreamCompleted());
-            } else {
-              controller.add(const ChatStreamFailure(
-                errorType: ChatCompletionErrorType.invalidResponse,
-                userMessage: 'Invalid provider response',
-              ));
-            }
+          if (gotFinishReason && hasContent) {
+            closeWith(const ChatStreamCompleted());
+          } else if (hasContent || hasReasoning) {
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.networkUnavailable,
+              userMessage: 'Connection ended before the response completed',
+            ));
+          } else {
+            closeWith(const ChatStreamFailure(
+              errorType: ChatCompletionErrorType.invalidResponse,
+              userMessage: 'Invalid provider response',
+            ));
           }
-          controller.close();
-          removeListener?.call();
         },
         onError: (error) {
-          if (terminated) return;
-          controller.add(const ChatStreamFailure(
+          closeWith(const ChatStreamFailure(
             errorType: ChatCompletionErrorType.unknown,
             userMessage: 'Unable to get response',
           ));
-          terminated = true;
-          controller.close();
-          removeListener?.call();
         },
       );
 
@@ -392,6 +423,41 @@ class DioChatCompletionClient implements ChatCompletionClient {
     return null;
   }
 
+  static bool _hasFinishReason(String data) {
+    final json = jsonDecode(data);
+    if (json is! Map<String, dynamic>) return false;
+
+    final choices = json['choices'];
+    if (choices is! List || choices.isEmpty) return false;
+
+    final first = choices.first;
+    if (first is! Map<String, dynamic>) return false;
+
+    final finishReason = first['finish_reason'];
+    return finishReason is String && finishReason.trim().isNotEmpty;
+  }
+
+  static String? _parseReasoningDelta(String data) {
+    final json = jsonDecode(data);
+    if (json is! Map<String, dynamic>) return null;
+
+    final choices = json['choices'];
+    if (choices is! List || choices.isEmpty) return null;
+
+    final first = choices.first;
+    if (first is! Map<String, dynamic>) return null;
+
+    final delta = first['delta'];
+    if (delta is! Map<String, dynamic>) return null;
+
+    final reasoning = delta['reasoning_content'];
+    if (reasoning is String && reasoning.isNotEmpty) {
+      return reasoning;
+    }
+
+    return null;
+  }
+
   ChatCompletionResult _mapDioError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -407,6 +473,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
           userMessage: 'Network unavailable',
         );
       case DioExceptionType.badResponse:
+        final rejection = _classifyAttachmentRejection(e.response);
+        if (rejection != null) {
+          return ChatCompletionResult.failure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: rejection.kinds,
+          );
+        }
         return _mapStatusCode(e.response?.statusCode);
       default:
         return const ChatCompletionResult.failure(
@@ -494,6 +568,14 @@ class DioChatCompletionClient implements ChatCompletionClient {
           userMessage: 'Network unavailable',
         );
       case DioExceptionType.badResponse:
+        final rejection = _classifyAttachmentRejection(e.response);
+        if (rejection != null) {
+          return ChatStreamFailure(
+            errorType: ChatCompletionErrorType.attachmentRejected,
+            userMessage: 'Provider rejected attachment input',
+            rejectedAttachmentKinds: rejection.kinds,
+          );
+        }
         return ChatStreamFailure(
           errorType: _mapStatusCodeToError(e.response?.statusCode),
           userMessage: _mapStatusCodeToMessage(e.response?.statusCode),
@@ -505,4 +587,83 @@ class DioChatCompletionClient implements ChatCompletionClient {
         );
     }
   }
+
+  _AttachmentRejection? _classifyAttachmentRejection(
+    Response<dynamic>? response,
+  ) {
+    final statusCode = response?.statusCode;
+    if (statusCode != 400 && statusCode != 415 && statusCode != 422) {
+      return null;
+    }
+
+    String rawText;
+    try {
+      rawText = jsonEncode(response?.data);
+    } catch (_) {
+      rawText = response?.data.toString() ?? '';
+    }
+    if (rawText.length > 4096) {
+      rawText = rawText.substring(0, 4096);
+    }
+    final text = rawText.toLowerCase();
+    if (text.isEmpty ||
+        _containsAny(text, const [
+          'too large',
+          'payload too large',
+          'maximum',
+          'max size',
+          'size limit',
+          'exceeds the size',
+        ])) {
+      return null;
+    }
+
+    final hasRejection = _containsAny(text, const [
+      'not support',
+      'does not support',
+      'unsupported',
+      'invalid content type',
+      'invalid input type',
+      'only supports text',
+      'text-only',
+      'cannot process',
+      "can't process",
+      'not allowed',
+    ]);
+    if (!hasRejection) return null;
+
+    final hasImage = _containsAny(text, const [
+      'image',
+      'vision',
+      'image_url',
+    ]);
+    final hasFile = _containsAny(text, const [
+      'file',
+      'attachment',
+      'document',
+      'file_data',
+    ]);
+    final hasGenericModality = _containsAny(text, const [
+      'multimodal',
+      'multi-modal',
+      'content part',
+      'content type',
+    ]);
+    if (!hasImage && !hasFile && !hasGenericModality) return null;
+
+    return _AttachmentRejection({
+      if (hasImage) ChatAttachmentKind.image,
+      if (hasFile) ChatAttachmentKind.file,
+    });
+  }
+
+  bool _containsAny(String text, List<String> needles) {
+    return needles.any(text.contains);
+  }
+}
+
+final class _AttachmentRejection {
+  const _AttachmentRejection(this.kinds);
+
+  final Set<ChatAttachmentKind> kinds;
 }

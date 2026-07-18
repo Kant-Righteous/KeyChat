@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keychat/features/chat/presentation/widgets/assistant_message_content.dart';
 
@@ -352,6 +353,120 @@ void main() {
       expect(find.text('Title'), findsOneWidget);
       expect(find.text('List item 1'), findsOneWidget);
     });
+
+    testWidgets('renders dollar-delimited inline formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'Einstein wrote $E = mc^2$.',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(find.text(r'E = mc^2'), findsNothing);
+    });
+
+    testWidgets('renders parenthesis-delimited inline formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'转移矩阵 \(\mathbf{A}\) 的大小为 \(N \times N\)。',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders dollar-delimited display formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'''概率公式：
+
+$$
+P(O \mid \lambda) = \sum_i \alpha_T(i)
+$$''',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders bracket-delimited matrix formula',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: r'''矩阵：
+
+\[
+\mathbf{A} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+\]''',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('formula inside inline code remains code',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(source: r'`$E = mc^2$`'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsNothing);
+      expect(find.text(r'$E = mc^2$'), findsOneWidget);
+    });
+
+    testWidgets('long display formula scrolls without narrow-screen overflow',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SizedBox(
+            width: 320,
+            child: Scaffold(
+              body: AssistantMessageContent(
+                source: r'''$$
+\mathbf{B}_{i,j}=P(o_j \mid s_i)=\frac{\alpha_i\beta_j}{\sum_{k=1}^{N}\alpha_k\beta_k}
+$$''',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Math), findsOneWidget);
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('Link opener injection', () {
@@ -680,6 +795,131 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AssistantMessageContent), findsOneWidget);
+    });
+  });
+
+  group('Mermaid diagrams', () {
+    testWidgets('renders a Mermaid flowchart instead of raw source',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+graph LR
+A[今天晴天]
+B[明天晴天]
+C[明天雨天]
+A -- 0.9 --> B
+A -->|0.1| C
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('今天晴天'), findsWidgets);
+      expect(find.text('明天晴天'), findsOneWidget);
+      expect(find.text('明天雨天'), findsOneWidget);
+      expect(find.text('0.9'), findsOneWidget);
+      expect(find.text('0.1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders repeated state-transition edges from model output',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+graph LR
+A[今天晴天] -->|0.9| A[明天晴天]
+A -->|0.1| B[明天雨天]
+B -->|0.5| A[明天晴天]
+B -->|0.5| B[明天雨天]
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 380,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('今天晴天'), findsOneWidget);
+      expect(find.text('明天晴天'), findsWidgets);
+      expect(find.text('明天雨天'), findsWidgets);
+      expect(find.text('0.5'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('keeps unsupported Mermaid source as a code block',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '```mermaid\\nsequenceDiagram\\nA->>B: Hello\\n```',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsNothing);
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('does not change ordinary fenced code blocks',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AssistantMessageContent(
+              source: '```dart\\nvoid main() {}\\n```',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsNothing);
+      expect(find.byType(AssistantMessageContent), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('long node labels wrap without overflow on narrow screens',
+        (WidgetTester tester) async {
+      const source = '''```mermaid
+flowchart LR
+A[这是一个需要完整显示的很长节点名称] -->|转移概率 0.95| B[另一个同样需要完整显示的节点名称]
+```''';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 280,
+              child: AssistantMessageContent(source: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mermaid-diagram')), findsOneWidget);
+      expect(find.text('这是一个需要完整显示的很长节点名称'), findsOneWidget);
+      expect(find.text('另一个同样需要完整显示的节点名称'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

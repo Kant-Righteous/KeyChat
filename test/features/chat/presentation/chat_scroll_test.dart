@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
+import '../../agents/data/fake_agent_profile_store.dart';
 import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_client_resolver.dart';
@@ -20,6 +22,7 @@ void main() {
     late FakeChatHistoryStore historyStore;
     late FakeChatClientResolver chatClientResolver;
     late FakeChatCompletionClient chatClient;
+    late FakeAgentProfileStore agentStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
@@ -29,6 +32,7 @@ void main() {
       chatClientResolver = FakeChatClientResolver(
         openAiCompatibleClient: chatClient,
       );
+      agentStore = FakeAgentProfileStore();
     });
 
     Future<void> setupConfig(WidgetTester tester) async {
@@ -43,12 +47,13 @@ void main() {
       await apiKeyStore.saveKey('openai', 'test-key');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -118,6 +123,109 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Final reply'), findsOneWidget);
+    });
+
+    testWidgets('model selector stays hidden while response is streaming',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final streamController = chatClient.startStream();
+      expect(find.byKey(const Key('model_selector')), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+
+      streamController.add(const ChatStreamDelta('Streaming response'));
+      await tester.pump();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+
+      streamController.add(const ChatStreamCompleted());
+      await streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('model_selector')), findsOneWidget);
+    });
+
+    testWidgets(
+        'input focus and draft do not override toolbar hidden by scroll',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final longReply = List.generate(
+        60,
+        (index) => 'Long response paragraph $index with enough text to scroll.',
+      ).join('\n\n');
+      chatClient.setResult(
+        ChatCompletionResult.success(assistantContent: longReply),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Show long response',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final messageList = find.byType(ListView);
+      expect(messageList, findsOneWidget);
+      await tester.drag(messageList, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+
+      await tester.tap(
+        find.widgetWithText(TextField, 'Type a message...'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Draft',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+    });
+
+    testWidgets('model and attachment toolbar follows user scroll direction',
+        (WidgetTester tester) async {
+      await setupConfig(tester);
+
+      final longReply = List.generate(
+        60,
+        (index) => 'Long response paragraph $index with enough text to scroll.',
+      ).join('\n\n');
+      chatClient.setResult(
+        ChatCompletionResult.success(assistantContent: longReply),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Show long response',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      final messageList = find.byType(ListView);
+      await tester.drag(messageList, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+      expect(find.byKey(const Key('attachment_button')), findsNothing);
+
+      await tester.drag(messageList, const Offset(0, -100));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsOneWidget);
+      expect(find.byKey(const Key('attachment_button')), findsOneWidget);
+
+      await tester.drag(messageList, const Offset(0, 80));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('model_selector')), findsNothing);
+      expect(find.byKey(const Key('attachment_button')), findsNothing);
     });
 
     testWidgets('user scrolled up delta does not steal position',
@@ -226,12 +334,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -286,12 +395,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );
@@ -334,12 +444,13 @@ void main() {
 
       // Just verify the page builds without error
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ChatPage(
             chatClientResolver: chatClientResolver,
             apiKeyStore: apiKeyStore,
             configStore: configStore,
             historyStore: historyStore,
+            agentStore: agentStore,
           ),
         ),
       );

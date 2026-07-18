@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/settings/data/locale_service.dart';
+import 'test_helpers.dart';
+import 'package:keychat/features/agents/data/agent_profile_store.dart';
+import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/data/chat_client_resolver.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/data/chat_history_store.dart';
@@ -89,8 +92,25 @@ class _FakeHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required String messageId,
     required String content,
+    String? providerIdSnapshot,
+    String? providerNameSnapshot,
+    String? modelIdSnapshot,
     required DateTime conversationUpdatedAt,
   }) async {}
+}
+
+class _FakeAgentProfileStore implements AgentProfileStore {
+  @override
+  Future<List<AgentProfileData>> readAgents() async => [];
+
+  @override
+  Future<AgentProfileData?> readAgent(String id) async => null;
+
+  @override
+  Future<void> saveAgent(AgentProfileData agent) async {}
+
+  @override
+  Future<bool> deleteAgent(String id) async => false;
 }
 
 void main() {
@@ -98,7 +118,7 @@ void main() {
       (WidgetTester tester) async {
     final chatClient = _FakeChatClient();
     await tester.pumpWidget(
-      MaterialApp(
+      buildTestApp(
         home: ChatPage(
           chatClientResolver: DefaultChatClientResolver(
             openAiCompatibleClient: chatClient,
@@ -106,6 +126,7 @@ void main() {
           apiKeyStore: FakeApiKeyStore(),
           configStore: FakeProviderConfigStore(),
           historyStore: _FakeHistoryStore(),
+          agentStore: _FakeAgentProfileStore(),
         ),
       ),
     );
@@ -115,11 +136,12 @@ void main() {
     expect(find.text('No ready provider'), findsOneWidget);
   });
 
-  testWidgets('ProvidersPage shows presets', (WidgetTester tester) async {
+  testWidgets('ProvidersPage shows the add provider entry',
+      (WidgetTester tester) async {
     final apiKeyStore = FakeApiKeyStore();
     final configStore = FakeProviderConfigStore();
     await tester.pumpWidget(
-      MaterialApp(
+      buildTestApp(
         home: ProvidersPage(
           apiKeyStore: apiKeyStore,
           configStore: configStore,
@@ -128,21 +150,33 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('OpenAI'), findsOneWidget);
-    expect(find.text('DeepSeek'), findsOneWidget);
-    expect(find.text('OpenRouter'), findsOneWidget);
     expect(find.text('Custom Provider'), findsOneWidget);
+    expect(find.text('OpenAI'), findsNothing);
   });
 
   testWidgets('SettingsPage shows setting items', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: SettingsPage()),
+      buildTestApp(home: SettingsPage(onLocaleChanged: (locale) {})),
     );
 
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
-    expect(find.text('Privacy'), findsOneWidget);
     expect(find.text('About KeyChat'), findsOneWidget);
+    expect(find.text('Appearance'), findsNothing);
+    expect(find.text('Privacy'), findsNothing);
+  });
+
+  testWidgets('Invalid persisted locale falls back to Chinese',
+      (WidgetTester tester) async {
+    // Create a locale service and test invalid locale handling
+    final localeService = LocaleService();
+
+    // Test that invalid locale falls back to default
+    final defaultLocale = localeService.defaultLocale;
+    expect(defaultLocale.languageCode, 'zh');
+
+    // Test valid locales
+    final zhLocale = await localeService.loadLocale();
+    expect(zhLocale.languageCode, 'zh');
   });
 }

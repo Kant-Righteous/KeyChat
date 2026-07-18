@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_generation_channel_name">后台回答</string>
+    <string name="background_generation_channel_description">离开 KeyChat 后继续完成当前回答</string>
+    <string name="background_generation_notification">正在后台生成回答</string>
+</resources>

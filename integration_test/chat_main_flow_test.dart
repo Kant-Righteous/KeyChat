@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
+import '../test/features/agents/data/fake_agent_profile_store.dart';
 import '../test/features/chat/data/fake_chat_client_resolver.dart';
 import '../test/features/chat/data/fake_chat_history_store.dart';
 import '../test/features/providers/data/fake_api_key_store.dart';
@@ -15,6 +18,33 @@ import '../test/features/providers/data/fake_connection_tester_resolver.dart';
 import '../test/features/providers/data/fake_provider_config_store.dart';
 import '../test/features/providers/data/fake_provider_connection_tester.dart';
 import 'support/test_app.dart';
+
+class _LocaleTestApp extends StatefulWidget {
+  final Widget Function(Locale?, void Function(Locale)) buildShell;
+
+  const _LocaleTestApp({required this.buildShell});
+
+  @override
+  State<_LocaleTestApp> createState() => _LocaleTestAppState();
+}
+
+class _LocaleTestAppState extends State<_LocaleTestApp> {
+  Locale? _locale = const Locale('zh');
+
+  void _onLocaleChanged(Locale locale) {
+    setState(() => _locale = locale);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      locale: _locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: widget.buildShell(_locale, _onLocaleChanged),
+    );
+  }
+}
 
 class _FakeChatCompletionClient implements ChatCompletionClient {
   StreamController<ChatStreamEvent>? _streamController;
@@ -100,6 +130,7 @@ void main() {
     late _FakeChatCompletionClient chatClient;
     late FakeChatClientResolver chatClientResolver;
     late FakeConnectionTesterResolver connectionTesterResolver;
+    late FakeAgentProfileStore agentStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
@@ -112,16 +143,26 @@ void main() {
       connectionTesterResolver = FakeConnectionTesterResolver(
         openAiCompatibleTester: FakeProviderConnectionTester(),
       );
+      agentStore = FakeAgentProfileStore();
     });
+
+    Locale? currentLocale;
 
     Widget buildApp() {
       return MaterialApp(
+        locale: currentLocale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: TestAppShell(
           apiKeyStore: apiKeyStore,
           configStore: configStore,
           historyStore: historyStore,
           chatClientResolver: chatClientResolver,
           connectionTesterResolver: connectionTesterResolver,
+          agentStore: agentStore,
+          onLocaleChanged: (locale) {
+            currentLocale = locale;
+          },
         ),
       );
     }
@@ -486,6 +527,183 @@ void main() {
       // Old conversation still exists
       final oldConv = await historyStore.readConversation('conv_old');
       expect(oldConv, isNotNull);
+    });
+
+    testWidgets('Flow G: Agent system prompt', (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      // Create an agent
+      await agentStore.saveAgent(AgentProfileData(
+        id: 'agent_1',
+        name: 'Test Agent',
+        description: 'A test agent',
+        systemPrompt: 'You are a helpful assistant.',
+        createdAt: DateTime(2024),
+        updatedAt: DateTime(2024),
+      ));
+
+      final streamController = chatClient.startStream();
+
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      // Select the agent
+      await tester.tap(find.byType(DropdownButton<AgentProfileData?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Test Agent').last);
+      await tester.pumpAndSettle();
+
+      // Send message
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Type a message...'),
+        'Hello',
+      );
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+
+      // Verify system message is first
+      expect(chatClient.lastMessages, isNotNull);
+      expect(chatClient.lastMessages!.first.role, 'system');
+      expect(chatClient.lastMessages!.first.content,
+          'You are a helpful assistant.');
+
+      // Stream response
+      streamController.add(const ChatStreamDelta('Hi there!'));
+      streamController.add(const ChatStreamCompleted());
+      streamController.close();
+      await tester.pumpAndSettle();
+
+      // Verify conversation saved with agent snapshot
+      final conv = await historyStore.readLatestConversation();
+      expect(conv, isNotNull);
+      expect(conv!.agentId, 'agent_1');
+      expect(conv.agentNameSnapshot, 'Test Agent');
+      expect(conv.systemPromptSnapshot, 'You are a helpful assistant.');
+
+      // Edit agent - should not affect old conversation
+      await agentStore.saveAgent(AgentProfileData(
+        id: 'agent_1',
+        name: 'Updated Agent',
+        description: 'Updated',
+        systemPrompt: 'New prompt',
+        createdAt: DateTime(2024),
+        updatedAt: DateTime(2025),
+      ));
+
+      // Old conversation still has old snapshot
+      final oldConv = await historyStore.readConversation(conv.id);
+      expect(oldConv!.systemPromptSnapshot, 'You are a helpful assistant.');
+    });
+
+    testWidgets('Flow H: Language switch', (WidgetTester tester) async {
+      await configStore.saveConfig(ProviderConfigData(
+        providerId: 'openai',
+        displayName: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4',
+        protocol: ProviderProtocol.openAiCompatible,
+        updatedAt: DateTime(2024),
+      ));
+      await apiKeyStore.saveKey('openai', 'test-key');
+
+      await tester.pumpWidget(
+        _LocaleTestApp(
+          buildShell: (locale, onLocaleChanged) => TestAppShell(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            historyStore: historyStore,
+            chatClientResolver: chatClientResolver,
+            connectionTesterResolver: connectionTesterResolver,
+            agentStore: agentStore,
+            onLocaleChanged: onLocaleChanged,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Default is Chinese
+      expect(find.text('聊天'), findsOneWidget);
+      expect(find.text('提供商'), findsOneWidget);
+      expect(find.text('智能体'), findsOneWidget);
+      expect(find.text('设置'), findsOneWidget);
+
+      // No Appearance or Privacy
+      expect(find.text('Appearance'), findsNothing);
+      expect(find.text('Privacy'), findsNothing);
+
+      // Go to settings
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+
+      // Tap language
+      await tester.tap(find.text('语言'));
+      await tester.pumpAndSettle();
+
+      // Chinese should be selected by default
+      final chineseRadio = find.byType(RadioListTile<String>);
+      expect(chineseRadio, findsWidgets);
+
+      // Select English
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      // Go back from Language page
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      // Go back to chat from Settings
+      await tester.tap(find.byIcon(Icons.chat_outlined));
+      await tester.pumpAndSettle();
+
+      // Should be in English
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Providers'), findsOneWidget);
+      expect(find.text('Agents'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+
+      // Verify provider data not lost
+      final configs = await configStore.readAllConfigs();
+      expect(configs.length, 1);
+      expect(configs.first.providerId, 'openai');
+
+      // Verify agent data not lost
+      final agents = await agentStore.readAgents();
+      expect(agents.length, 0);
+
+      // Go to About and check English text
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('About KeyChat'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('local-first BYOK'), findsOneWidget);
+
+      // Go back and switch to Chinese
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Language'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('中文'));
+      await tester.pumpAndSettle();
+
+      // Go back from Language page
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      // Go back to chat from Settings
+      await tester.tap(find.byIcon(Icons.chat_outlined));
+      await tester.pumpAndSettle();
+
+      // Should be back in Chinese
+      expect(find.text('聊天'), findsOneWidget);
+      expect(find.text('设置'), findsOneWidget);
     });
   });
 }

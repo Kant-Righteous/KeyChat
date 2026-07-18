@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 0.1.0+1
 
 environment:
   sdk: ^3.6.1
@@ -29,6 +29,8 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
@@ -43,6 +45,15 @@ dependencies:
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
   flutter_markdown_plus: ^1.0.3
+  shared_preferences: ^2.3.4
+  share_plus: ^10.1.4
+  markdown: ^7.3.0
+  file_picker: ^10.3.10
+  mime: ^2.0.0
+  flutter_math_fork:
+    git:
+      url: https://github.com/simpleclub/flutter_math.git
+      ref: 6e84b607c5c0e00dd1f3d4bd30ef3f1628053328
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +76,7 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

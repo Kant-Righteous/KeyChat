@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
@@ -19,9 +20,10 @@ void main() {
       configStore = FakeProviderConfigStore();
     });
 
-    testWidgets('shows 4 provider presets', (WidgetTester tester) async {
+    testWidgets('shows only add entry when no provider is saved',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -31,16 +33,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Providers'), findsOneWidget);
-      expect(find.text('OpenAI'), findsOneWidget);
-      expect(find.text('DeepSeek'), findsOneWidget);
-      expect(find.text('OpenRouter'), findsOneWidget);
       expect(find.text('Custom Provider'), findsOneWidget);
+      expect(find.text('OpenAI'), findsNothing);
+      expect(find.text('DeepSeek'), findsNothing);
+      expect(find.text('OpenRouter'), findsNothing);
     });
 
-    testWidgets('shows Not configured when no key exists',
+    testWidgets('shows Not configured for a saved provider without a key',
         (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -49,15 +61,27 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Not configured'), findsNWidgets(4));
+      expect(find.text('My Provider'), findsOneWidget);
+      expect(find.text('Not configured'), findsOneWidget);
+      expect(find.text('Custom Provider'), findsOneWidget);
     });
 
-    testWidgets('shows Configured when key exists',
+    testWidgets('shows Configured when key and default model exist',
         (WidgetTester tester) async {
-      await apiKeyStore.saveKey('openai', 'sk-test');
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          defaultModel: 'test-model',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+      await apiKeyStore.saveKey('custom_1', 'sk-test');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -67,13 +91,50 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Configured'), findsOneWidget);
-      expect(find.text('Not configured'), findsNWidgets(3));
+      expect(find.text('Custom Provider'), findsOneWidget);
     });
 
-    testWidgets('tapping OpenAI opens config page',
+    testWidgets('shows Not configured when default model is missing',
         (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'custom_1',
+          displayName: 'My Provider',
+          baseUrl: 'https://example.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+      await apiKeyStore.saveKey('custom_1', 'sk-test');
+
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
+          home: ProvidersPage(
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Not configured'), findsOneWidget);
+      expect(find.text('Configured'), findsNothing);
+    });
+
+    testWidgets('tapping a saved provider opens config page',
+        (WidgetTester tester) async {
+      await configStore.saveConfig(
+        ProviderConfigData(
+          providerId: 'openai',
+          displayName: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          protocol: ProviderProtocol.openAiCompatible,
+          updatedAt: DateTime(2024),
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -101,7 +162,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -116,7 +177,7 @@ void main() {
     testWidgets('ProvidersPage refreshes after returning from config page',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -126,7 +187,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Custom Provider'), findsOneWidget);
-      expect(find.text('Not configured'), findsNWidgets(4));
 
       await tester.tap(find.text('Custom Provider'));
       await tester.pumpAndSettle();
@@ -145,12 +205,17 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'test-key-123',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Default Model'),
+        'test-model',
+      );
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProvidersPage), findsOneWidget);
       expect(find.text('My Custom AI'), findsOneWidget);
+      expect(find.text('Custom Provider'), findsOneWidget);
       expect(find.text('Configured'), findsOneWidget);
     });
 
@@ -162,7 +227,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestApp(
           home: ProvidersPage(
             apiKeyStore: apiKeyStore,
             configStore: configStore,
@@ -172,7 +237,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('OpenAI'));
+      await tester.tap(find.text('Custom Provider'));
       await tester.pumpAndSettle();
 
       final configPage = tester.widget<ProviderConfigPage>(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/data/provider_connection_tester.dart';
@@ -53,12 +54,28 @@ void main() {
       configStore = FakeProviderConfigStore();
     });
 
+    test('Every provider endpoint has an HTTPS API key page', () {
+      final endpoints = providerTemplatePresets
+          .expand((template) => template.endpoints)
+          .toList();
+
+      expect(endpoints, isNotEmpty);
+      for (final endpoint in endpoints) {
+        final apiKeyUrl = endpoint.apiKeyUrl;
+        expect(apiKeyUrl, isNotEmpty, reason: endpoint.id);
+
+        final uri = Uri.parse(apiKeyUrl);
+        expect(uri.scheme, 'https', reason: endpoint.id);
+        expect(uri.host, isNotEmpty, reason: endpoint.id);
+      }
+    });
+
     testWidgets('OpenAI preset auto-fills Base URL',
         (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -76,7 +93,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -86,11 +103,194 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final nameField = find.widgetWithText(TextFormField, 'Custom Provider');
+      final nameField = find.widgetWithText(TextFormField, '自定义提供商');
       expect(nameField, findsOneWidget);
 
-      final urlField = find.widgetWithText(TextFormField, 'Base URL');
+      final urlField = find.widgetWithText(TextFormField, '基础地址');
       expect(urlField, findsOneWidget);
+    });
+
+    testWidgets('Dynamic custom Provider does not expose its internal ID',
+        (WidgetTester tester) async {
+      const preset = ProviderPreset(
+        id: 'custom_123456',
+        name: '自定义提供商',
+        description: '配置任意兼容 OpenAI 协议的服务',
+        defaultBaseUrl: '',
+        isCustom: true,
+        protocol: ProviderProtocol.openAiCompatible,
+      );
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(TextFormField, '自定义提供商'),
+        findsOneWidget,
+      );
+      expect(find.text('custom_123456'), findsNothing);
+    });
+
+    testWidgets('Custom Provider shows provider preset selector',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('提供商预设'), findsOneWidget);
+      expect(find.text('其他（手动填写）'), findsOneWidget);
+    });
+
+    testWidgets('Kimi Code preset fills editable name and Base URL',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('接入方案 / 地域'), findsOneWidget);
+      expect(find.text('中国普通 API'), findsOneWidget);
+
+      await tester.tap(find.text('中国普通 API'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi Code').last);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextFormField, 'Kimi Code'), findsOneWidget);
+      expect(
+        find.widgetWithText(
+          TextFormField,
+          'https://api.kimi.com/coding/v1',
+        ),
+        findsOneWidget,
+      );
+
+      final nameField = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'Kimi Code'),
+      );
+      final urlField = tester.widget<TextFormField>(
+        find.widgetWithText(
+          TextFormField,
+          'https://api.kimi.com/coding/v1',
+        ),
+      );
+      expect(nameField.enabled, isTrue);
+      expect(urlField.enabled, isTrue);
+      expect(find.textContaining('套餐地址必须与套餐专用 API Key'), findsOneWidget);
+    });
+
+    testWidgets('Visit official website opens selected endpoint API key page',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+      Uri? launchedUri;
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+            externalUrlLauncher: (uri) async {
+              launchedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('前往官网'), findsNothing);
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('中国普通 API'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kimi Code').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('前往官网'));
+      await tester.pumpAndSettle();
+
+      expect(launchedUri, Uri.parse('https://www.kimi.com/code/console'));
+    });
+
+    testWidgets('MiMo Token Plan regions and Qwen plans are selectable',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MiMo').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('普通按量 API'));
+      await tester.pumpAndSettle();
+      expect(find.text('Token Plan · 中国'), findsOneWidget);
+      expect(find.text('Token Plan · 新加坡'), findsOneWidget);
+      expect(find.text('Token Plan · 欧洲'), findsOneWidget);
+
+      await tester.tap(find.text('Token Plan · 新加坡'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(
+          TextFormField,
+          'https://token-plan-sgp.xiaomimimo.com/v1',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('MiMo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Qwen').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('按量付费 · 北京'));
+      await tester.pumpAndSettle();
+      expect(find.text('Token Plan · 北京'), findsOneWidget);
+      expect(find.text('Coding Plan · 北京'), findsOneWidget);
     });
 
     testWidgets('Empty name shows validation error',
@@ -98,7 +298,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -108,12 +308,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final nameField = find.widgetWithText(TextFormField, 'Custom Provider');
+      final nameField = find.widgetWithText(TextFormField, '自定义提供商');
       await tester.enterText(nameField, '');
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Name is required'), findsOneWidget);
+      expect(find.text('名称不能为空'), findsOneWidget);
     });
 
     testWidgets('Invalid Base URL shows validation error',
@@ -121,7 +321,7 @@ void main() {
       final preset = providerPresets[3]; // Custom
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -131,19 +331,41 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final urlField = find.widgetWithText(TextFormField, 'Base URL');
+      final urlField = find.widgetWithText(TextFormField, '基础地址');
       await tester.enterText(urlField, 'not-a-url');
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter a valid HTTP or HTTPS URL'), findsOneWidget);
+      expect(find.text('无效的基础地址'), findsOneWidget);
+    });
+
+    testWidgets('Empty default model shows validation error',
+        (WidgetTester tester) async {
+      final preset = providerPresets[1]; // DeepSeek
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('请先选择模型'), findsOneWidget);
+      expect(await configStore.readConfig('deepseek'), isNull);
     });
 
     testWidgets('API Key is obscured by default', (WidgetTester tester) async {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -164,7 +386,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -194,7 +416,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -204,7 +426,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('API key is already configured'), findsOneWidget);
+      expect(find.text('已配置 API Key'), findsOneWidget);
     });
 
     testWidgets('does not fill existing key into field',
@@ -213,7 +435,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -224,7 +446,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final apiKeyField = tester.widget<TextField>(
-        find.widgetWithText(TextField, 'New API Key (leave blank to keep)'),
+        find.widgetWithText(TextField, '新 API Key（留空保留原有）'),
       );
       expect(apiKeyField.controller?.text, isEmpty);
     });
@@ -235,7 +457,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -245,7 +467,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Remove API Key'), findsOneWidget);
+      expect(find.text('删除 API Key'), findsOneWidget);
     });
 
     testWidgets('delete confirms and removes key', (WidgetTester tester) async {
@@ -253,7 +475,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'sk-existing');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -279,14 +501,16 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Remove API Key'));
+      await tester.ensureVisible(find.text('删除 API Key'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('删除 API Key'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Remove'));
+      await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsNothing);
-      expect(find.text('API key removed'), findsOneWidget);
+      expect(find.text('API Key 已删除'), findsOneWidget);
       expect(await apiKeyStore.hasKey('openai'), false);
     });
 
@@ -295,7 +519,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -325,12 +549,16 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'sk-new-key',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsNothing);
-      expect(find.text('Provider configured'), findsOneWidget);
+      expect(find.text('提供商已配置'), findsOneWidget);
       expect(await apiKeyStore.readKey('openai'), 'sk-new-key');
 
       final config = await configStore.readConfig('openai');
@@ -344,7 +572,7 @@ void main() {
       final failingStore = _FailingApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: failingStore,
@@ -358,12 +586,16 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'sk-test',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsOneWidget);
-      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(find.text('配置保存失败'), findsOneWidget);
     });
 
     testWidgets('save button is enabled before save',
@@ -371,7 +603,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -387,7 +619,7 @@ void main() {
       );
 
       final saveButton = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Save'),
+        find.widgetWithText(ElevatedButton, '保存'),
       );
       expect(saveButton.onPressed, isNotNull);
     });
@@ -406,7 +638,7 @@ void main() {
       ));
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -427,7 +659,7 @@ void main() {
       final slowStore = _SlowApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -457,10 +689,14 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'test-marker-123',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
       final completer = slowStore.startSave();
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -477,7 +713,7 @@ void main() {
       await apiKeyStore.saveKey('openai', 'old-key-value');
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -487,13 +723,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('API key is already configured'), findsOneWidget);
+      expect(find.text('已配置 API Key'), findsOneWidget);
       expect(
-        find.widgetWithText(TextFormField, 'New API Key (leave blank to keep)'),
+        find.widgetWithText(TextFormField, '新 API Key（留空保留原有）'),
         findsOneWidget,
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsNothing);
@@ -506,7 +746,7 @@ void main() {
       final failingStore = _FailingApiKeyStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: failingStore,
@@ -520,13 +760,17 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'test-marker-xyz',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(find.text('配置保存失败'), findsOneWidget);
       final snackBarText = tester.widget<Text>(
-        find.text('Failed to save configuration'),
+        find.text('配置保存失败'),
       );
       expect(snackBarText.data, isNot(contains('test-marker-xyz')));
     });
@@ -539,7 +783,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -550,15 +794,19 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'New API Key (leave blank to keep)'),
+        find.widgetWithText(TextFormField, '新 API Key（留空保留原有）'),
         'new-key-value',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsOneWidget);
-      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(find.text('配置保存失败'), findsOneWidget);
       expect(await apiKeyStore.readKey('openai'), 'old-key-value');
     });
 
@@ -569,7 +817,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -583,12 +831,16 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'new-key-value',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsOneWidget);
-      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(find.text('配置保存失败'), findsOneWidget);
       expect(await apiKeyStore.hasKey('openai'), false);
     });
 
@@ -599,7 +851,7 @@ void main() {
       final failingConfig = _FailingConfigStore();
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -609,11 +861,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Save'));
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsOneWidget);
-      expect(find.text('Failed to save configuration'), findsOneWidget);
+      expect(find.text('配置保存失败'), findsOneWidget);
       expect(await apiKeyStore.readKey('openai'), 'old-key-value');
     });
 
@@ -622,7 +878,7 @@ void main() {
       final preset = providerPresets[0]; // OpenAI
 
       await tester.pumpWidget(
-        MaterialApp(
+        buildTestAppZh(
           home: ProviderConfigPage(
             preset: preset,
             apiKeyStore: apiKeyStore,
@@ -636,8 +892,12 @@ void main() {
         find.widgetWithText(TextFormField, 'API Key'),
         'new-key-value',
       );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '默认模型'),
+        'gpt-4',
+      );
 
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProviderConfigPage), findsNothing);
@@ -654,7 +914,7 @@ void main() {
         final connTester = FakeProviderConnectionTester();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -666,10 +926,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
-        expect(find.text('API key required'), findsOneWidget);
+        expect(find.text('请先配置 API Key'), findsOneWidget);
         expect(connTester.lastBaseUrl, isNull);
       });
 
@@ -682,7 +942,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -699,7 +959,7 @@ void main() {
           'new-test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         expect(connTester.lastApiKey, 'new-test-key');
@@ -715,7 +975,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -727,7 +987,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         expect(connTester.lastApiKey, 'old-key-value');
@@ -739,7 +999,7 @@ void main() {
         final completer = connTester.startSlowResponse();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -756,7 +1016,7 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pump();
 
         expect(find.byType(CircularProgressIndicator), findsWidgets);
@@ -778,7 +1038,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -795,10 +1055,10 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connected: 2 models found'), findsOneWidget);
+        expect(find.text('找到 2 个模型'), findsOneWidget);
       });
 
       testWidgets('shows failure message on error',
@@ -808,12 +1068,12 @@ void main() {
         connTester.setResult(
           const ConnectionTestResult.failure(
             errorType: ConnectionErrorType.unauthorized,
-            userMessage: 'Invalid API key',
+            userMessage: 'API Key 无效',
           ),
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -830,10 +1090,10 @@ void main() {
           'bad-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Invalid API key'), findsOneWidget);
+        expect(find.text('API Key 无效'), findsOneWidget);
       });
 
       testWidgets('shows model selection when models found',
@@ -846,7 +1106,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -863,7 +1123,7 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         expect(find.text('gpt-4'), findsWidgets);
@@ -880,7 +1140,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -897,14 +1157,14 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('gpt-4').last);
         await tester.pumpAndSettle();
 
         final modelField = tester.widget<TextFormField>(
-          find.widgetWithText(TextFormField, 'Default Model'),
+          find.widgetWithText(TextFormField, '默认模型'),
         );
         expect(modelField.controller?.text, 'gpt-4');
       });
@@ -918,7 +1178,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -935,7 +1195,7 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         expect(await apiKeyStore.hasKey('openai'), false);
@@ -949,12 +1209,12 @@ void main() {
         connTester.setResult(
           const ConnectionTestResult.failure(
             errorType: ConnectionErrorType.unauthorized,
-            userMessage: 'Invalid API key',
+            userMessage: 'API Key 无效',
           ),
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -967,7 +1227,7 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.enterText(
-          find.widgetWithText(TextFormField, 'Default Model'),
+          find.widgetWithText(TextFormField, '默认模型'),
           'my-model',
         );
 
@@ -976,11 +1236,11 @@ void main() {
           'test-key',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         final modelField = tester.widget<TextFormField>(
-          find.widgetWithText(TextFormField, 'Default Model'),
+          find.widgetWithText(TextFormField, '默认模型'),
         );
         expect(modelField.controller?.text, 'my-model');
       });
@@ -991,7 +1251,7 @@ void main() {
         final connTester = FakeProviderConnectionTester();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1018,7 +1278,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1035,11 +1295,11 @@ void main() {
           'test-marker-abc',
         );
 
-        await tester.tap(find.text('Test Connection'));
+        await tester.tap(find.text('测试连接'));
         await tester.pumpAndSettle();
 
         final snackBarText = tester.widget<Text>(
-          find.text('Provider server error'),
+          find.text('提供商服务器错误'),
         );
         expect(snackBarText.data, isNot(contains('test-marker-abc')));
       });
@@ -1050,7 +1310,7 @@ void main() {
         final throwingStore = _ThrowingConfigStore();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1060,8 +1320,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Provider configuration is invalid'), findsOneWidget);
-        expect(find.text('Go Back'), findsOneWidget);
+        expect(find.text('提供商配置无效'), findsOneWidget);
+        expect(find.text('返回'), findsOneWidget);
       });
 
       testWidgets('unknown protocol does not show form fields',
@@ -1070,7 +1330,7 @@ void main() {
         final throwingStore = _ThrowingConfigStore();
 
         await tester.pumpWidget(
-          MaterialApp(
+          buildTestAppZh(
             home: ProviderConfigPage(
               preset: preset,
               apiKeyStore: apiKeyStore,
@@ -1080,8 +1340,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Provider Name'), findsNothing);
-        expect(find.text('Base URL'), findsNothing);
+        expect(find.text('提供商名称'), findsNothing);
+        expect(find.text('基础地址'), findsNothing);
         expect(find.text('API Key'), findsNothing);
       });
     });

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../../test_helpers.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/chat/presentation/chat_page.dart';
@@ -9,6 +10,7 @@ import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
+import '../../agents/data/fake_agent_profile_store.dart';
 import '../../providers/data/fake_api_key_store.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_client_resolver.dart';
@@ -21,6 +23,7 @@ void main() {
     late FakeChatHistoryStore historyStore;
     late FakeChatClientResolver chatClientResolver;
     late _StreamChatClient chatClient;
+    late FakeAgentProfileStore agentStore;
 
     setUp(() {
       apiKeyStore = FakeApiKeyStore();
@@ -30,6 +33,7 @@ void main() {
       chatClientResolver = FakeChatClientResolver(
         openAiCompatibleClient: chatClient,
       );
+      agentStore = FakeAgentProfileStore();
     });
 
     Future<void> setupConfig() async {
@@ -45,12 +49,13 @@ void main() {
     }
 
     Widget buildChatPage() {
-      return MaterialApp(
+      return buildTestApp(
         home: ChatPage(
           chatClientResolver: chatClientResolver,
           apiKeyStore: apiKeyStore,
           configStore: configStore,
           historyStore: historyStore,
+          agentStore: agentStore,
         ),
       );
     }

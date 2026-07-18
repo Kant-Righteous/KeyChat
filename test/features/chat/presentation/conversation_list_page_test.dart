@@ -7,8 +7,14 @@ import 'package:keychat/features/chat/presentation/conversation_list_page.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 
+import '../../../test_helpers.dart';
 import '../../providers/data/fake_provider_config_store.dart';
 import '../data/fake_chat_history_store.dart';
+
+class _EmptyMessagesHistoryStore extends FakeChatHistoryStore {
+  @override
+  Future<List<ChatMessage>> readMessages(String conversationId) async => [];
+}
 
 void main() {
   group('ConversationListPage', () {
@@ -315,6 +321,304 @@ void main() {
 
       // ApiKeyStore is not passed to ConversationListPage
       expect(find.byType(ConversationListPage), findsOneWidget);
+    });
+
+    testWidgets('export opens second-level copy and share actions',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Export target',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Target prompt',
+          createdAt: DateTime(2026),
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+      expect(find.text('Export conversation'), findsOneWidget);
+
+      await tester.tap(find.text('Export conversation'));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy as Markdown'), findsOneWidget);
+      expect(find.text('Share Markdown'), findsOneWidget);
+    });
+
+    testWidgets('share exports the selected historical conversation',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_active',
+          title: 'Active chat',
+          providerId: 'openai',
+          model: 'gpt-active',
+          createdAt: DateTime(2026, 2),
+          updatedAt: DateTime(2026, 2),
+        ),
+        firstMessage: ChatMessage(
+          id: 'active_user',
+          role: ChatRole.user,
+          content: 'Active prompt',
+          createdAt: DateTime(2026, 2),
+        ),
+      );
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_target',
+          title: 'Historical target',
+          providerId: 'deepseek',
+          model: 'deepseek-chat',
+          agentNameSnapshot: 'Archive Agent',
+          systemPromptSnapshot: 'DO NOT EXPORT SYSTEM',
+          createdAt: DateTime(2026, 1),
+          updatedAt: DateTime(2026, 1),
+        ),
+        firstMessage: ChatMessage(
+          id: 'target_user',
+          role: ChatRole.user,
+          content: 'Historical prompt',
+          createdAt: DateTime(2026, 1),
+        ),
+      );
+      await historyStore.appendMessage(
+        conversationId: 'conv_target',
+        message: ChatMessage(
+          id: 'target_assistant',
+          role: ChatRole.assistant,
+          content: 'Historical answer',
+          providerNameSnapshot: 'DeepSeek',
+          modelIdSnapshot: 'deepseek-reasoner',
+          createdAt: DateTime(2026, 1, 1, 0, 1),
+        ),
+      );
+      String? sharedMarkdown;
+      var shareCalls = 0;
+
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+            currentConversationId: 'conv_active',
+            now: () => DateTime.utc(2026, 7, 15, 9),
+            shareMarkdown: (markdown, title, origin) async {
+              shareCalls++;
+              sharedMarkdown = markdown;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final targetTile = find.widgetWithText(ListTile, 'Historical target');
+      await tester.tap(
+        find.descendant(of: targetTile, matching: find.byIcon(Icons.more_vert)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share Markdown'));
+      await tester.pumpAndSettle();
+
+      expect(shareCalls, 1);
+      expect(sharedMarkdown, contains('# Historical target'));
+      expect(sharedMarkdown, contains('Agent: Archive Agent'));
+      expect(sharedMarkdown, contains('Messages: 2'));
+      expect(sharedMarkdown, contains('Historical prompt'));
+      expect(sharedMarkdown, contains('Historical answer'));
+      expect(sharedMarkdown, contains('Provider: DeepSeek'));
+      expect(sharedMarkdown, contains('Model: deepseek-reasoner'));
+      expect(sharedMarkdown, isNot(contains('Active prompt')));
+      expect(sharedMarkdown, isNot(contains('DO NOT EXPORT SYSTEM')));
+    });
+
+    testWidgets('copy shows localized success message',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Copy target',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Copy this',
+          createdAt: DateTime(2026),
+        ),
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(
+          locale: const Locale('zh'),
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+            copyMarkdown: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('导出对话'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('复制为 Markdown'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('已复制为 Markdown'), findsOneWidget);
+    });
+
+    testWidgets('empty and failed exports show safe localized messages',
+        (WidgetTester tester) async {
+      final emptyStore = _EmptyMessagesHistoryStore();
+      await emptyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_empty',
+          title: 'Empty target',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        firstMessage: ChatMessage(
+          id: 'ignored',
+          role: ChatRole.user,
+          content: 'Ignored by empty test store',
+          createdAt: DateTime(2026),
+        ),
+      );
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ConversationListPage(
+            historyStore: emptyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy as Markdown'));
+      await tester.pumpAndSettle();
+      expect(find.text('Conversation is empty'), findsOneWidget);
+
+      historyStore = FakeChatHistoryStore();
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_failed',
+          title: 'Failure target',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Failure prompt',
+          createdAt: DateTime(2026),
+        ),
+      );
+      await tester.pumpWidget(
+        buildTestApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      historyStore.shouldFailOnRead = true;
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share Markdown'));
+      await tester.pumpAndSettle();
+      expect(find.text('Export failed'), findsOneWidget);
+    });
+
+    testWidgets('export menu switches Chinese English and back',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_1',
+          title: 'Locale target',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_1',
+          role: ChatRole.user,
+          content: 'Locale prompt',
+          createdAt: DateTime(2026),
+        ),
+      );
+      final page = ConversationListPage(
+        key: const ValueKey('conversation-list'),
+        historyStore: historyStore,
+        configStore: configStore,
+      );
+
+      await tester.pumpWidget(
+        buildTestApp(home: page, locale: const Locale('zh')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(find.text('重命名'), findsOneWidget);
+      expect(find.text('删除'), findsOneWidget);
+      expect(find.text('导出对话'), findsOneWidget);
+      await tester.tap(find.text('导出对话'));
+      await tester.pumpAndSettle();
+      expect(find.text('复制为 Markdown'), findsOneWidget);
+      expect(find.text('分享 Markdown'), findsOneWidget);
+      Navigator.of(tester.element(find.text('分享 Markdown'))).pop();
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(buildTestApp(home: page));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(find.text('Export conversation'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Export conversation'))).pop();
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        buildTestApp(home: page, locale: const Locale('zh')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(find.text('导出对话'), findsOneWidget);
     });
 
     testWidgets('load failure shows safe error', (WidgetTester tester) async {

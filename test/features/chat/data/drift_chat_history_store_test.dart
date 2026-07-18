@@ -1,9 +1,12 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/drift_chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart'
+    as attachment_domain;
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
 void main() {
@@ -62,6 +65,203 @@ void main() {
       final msgs = await store.readMessages('conv_1');
       final asst = msgs.firstWhere((m) => m.id == 'msg_asst');
       expect(asst.content, 'New reply');
+    });
+
+    test('persists provider and model snapshots without endpoint secrets',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_snapshot',
+          title: 'Snapshot',
+          providerId: 'openai',
+          model: 'gpt-4.1',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_snapshot_user',
+          role: domain.ChatRole.user,
+          content: 'Hello',
+          providerIdSnapshot: 'openai',
+          providerNameSnapshot: 'OpenAI at send time',
+          modelIdSnapshot: 'gpt-4.1',
+          createdAt: DateTime(2024),
+        ),
+      );
+      await store.appendMessage(
+        conversationId: 'conv_snapshot',
+        message: domain.ChatMessage(
+          id: 'msg_snapshot_assistant',
+          role: domain.ChatRole.assistant,
+          content: 'Hi',
+          providerIdSnapshot: 'openai',
+          providerNameSnapshot: 'OpenAI at send time',
+          modelIdSnapshot: 'gpt-4.1',
+          createdAt: DateTime(2024, 1, 1, 0, 0, 1),
+        ),
+      );
+
+      final messages = await store.readMessages('conv_snapshot');
+      expect(messages, hasLength(2));
+      expect(messages.first.providerIdSnapshot, 'openai');
+      expect(messages.first.providerNameSnapshot, 'OpenAI at send time');
+      expect(messages.first.modelIdSnapshot, 'gpt-4.1');
+      expect(messages.last.providerIdSnapshot, 'openai');
+      expect(messages.last.providerNameSnapshot, 'OpenAI at send time');
+      expect(messages.last.modelIdSnapshot, 'gpt-4.1');
+
+      final columns = db.chatMessages.$columns.map((column) => column.name);
+      expect(columns, isNot(contains('api_key')));
+      expect(columns, isNot(contains('base_url')));
+      expect(columns, isNot(contains('authorization')));
+    });
+
+    test('persists and restores attachment metadata with its user message',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_attachment',
+          title: 'Attachment',
+          providerId: 'openai',
+          model: 'gpt-4o',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_attachment',
+          role: domain.ChatRole.user,
+          content: 'Describe it',
+          attachments: const [
+            attachment_domain.ChatAttachment(
+              id: 'attachment_1',
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              fileSize: 1234,
+              localPath: '/app/attachments/photo.jpg',
+              kind: attachment_domain.ChatAttachmentKind.image,
+              messageId: 'msg_attachment',
+              conversationId: 'conv_attachment',
+            ),
+          ],
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      final messages = await store.readMessages('conv_attachment');
+      expect(messages.single.attachments, hasLength(1));
+      final attachment = messages.single.attachments.single;
+      expect(attachment.fileName, 'photo.jpg');
+      expect(attachment.mimeType, 'image/jpeg');
+      expect(attachment.fileSize, 1234);
+      expect(attachment.localPath, '/app/attachments/photo.jpg');
+      expect(attachment.kind, attachment_domain.ChatAttachmentKind.image);
+      expect(attachment.messageId, 'msg_attachment');
+      expect(attachment.conversationId, 'conv_attachment');
+    });
+
+    test('persists delivery status per attachment provider and model',
+        () async {
+      await store.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_delivery',
+          title: 'Delivery',
+          providerId: 'openai',
+          model: 'gpt-4o',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        ),
+        firstMessage: domain.ChatMessage(
+          id: 'msg_delivery',
+          role: domain.ChatRole.user,
+          content: 'Describe it',
+          attachments: const [
+            attachment_domain.ChatAttachment(
+              id: 'attachment_delivery',
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              fileSize: 1234,
+              localPath: '/app/attachments/photo.jpg',
+              kind: attachment_domain.ChatAttachmentKind.image,
+              messageId: 'msg_delivery',
+              conversationId: 'conv_delivery',
+            ),
+          ],
+          createdAt: DateTime(2024),
+        ),
+      );
+
+      await store.saveStatus(
+        attachmentId: 'attachment_delivery',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        status: AttachmentDeliveryStatus.rejected,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        ),
+        AttachmentDeliveryStatus.rejected,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4.1',
+        ),
+        isNull,
+      );
+
+      await store.saveStatus(
+        attachmentId: 'attachment_delivery',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        status: AttachmentDeliveryStatus.accepted,
+      );
+      expect(
+        await store.readStatus(
+          attachmentId: 'attachment_delivery',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        ),
+        AttachmentDeliveryStatus.accepted,
+      );
+    });
+
+    test('legacy rows read with null model snapshots', () async {
+      await seedBasicData();
+
+      final messages = await store.readMessages('conv_1');
+      final assistant = messages.firstWhere(
+        (message) => message.role == domain.ChatRole.assistant,
+      );
+
+      expect(assistant.providerIdSnapshot, isNull);
+      expect(assistant.providerNameSnapshot, isNull);
+      expect(assistant.modelIdSnapshot, isNull);
+    });
+
+    test('regenerate replacement stores the model snapshot it used', () async {
+      await seedBasicData();
+
+      await store.replaceAssistantMessage(
+        conversationId: 'conv_1',
+        messageId: 'msg_asst',
+        content: 'Regenerated reply',
+        providerIdSnapshot: 'deepseek',
+        providerNameSnapshot: 'DeepSeek',
+        modelIdSnapshot: 'deepseek-chat',
+        conversationUpdatedAt: DateTime(2024, 2),
+      );
+
+      final messages = await store.readMessages('conv_1');
+      final assistant = messages.firstWhere((message) =>
+          message.id == 'msg_asst' &&
+          message.role == domain.ChatRole.assistant);
+      expect(assistant.providerIdSnapshot, 'deepseek');
+      expect(assistant.providerNameSnapshot, 'DeepSeek');
+      expect(assistant.modelIdSnapshot, 'deepseek-chat');
     });
 
     test('preserves message id', () async {

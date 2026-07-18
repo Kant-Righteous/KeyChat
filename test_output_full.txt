@@ -1,0 +1,37 @@
+﻿00:00 +0: loading F:/keychat/test/features/providers/presentation/provider_config_page_test.dart
+00:00 +0: ProviderConfigPage OpenAI preset auto-fills Base URL
+00:01 +1: ProviderConfigPage Custom Provider allows editing name and Base URL
+00:01 +2: ProviderConfigPage Empty name shows validation error
+00:01 +3: ProviderConfigPage Invalid Base URL shows validation error
+00:01 +4: ProviderConfigPage API Key is obscured by default
+00:01 +5: ProviderConfigPage Toggle button switches API Key visibility
+00:01 +6: ProviderConfigPage shows configured status when key exists
+00:02 +7: ProviderConfigPage does not fill existing key into field
+00:02 +8: ProviderConfigPage shows Remove button when configured
+00:02 +9: ProviderConfigPage delete confirms and removes key
+00:02 +10: ProviderConfigPage valid submission saves config and key
+00:03 +11: ProviderConfigPage save failure shows generic error and stays on page
+00:03 +12: ProviderConfigPage save button is enabled before save
+00:03 +13: ProviderConfigPage loads saved config for custom provider
+00:03 +14: ProviderConfigPage save button is disabled while saving
+00:04 +15: ProviderConfigPage existing API key is preserved when key field is left empty
+00:04 +16: ProviderConfigPage save failure does not leak API key in error message
+00:04 +17: ProviderConfigPage rollback restores old key when config save fails after new key saved
+00:04 +18: ProviderConfigPage rollback deletes new key when config save fails and no old key existed
+00:04 +19: ProviderConfigPage old key preserved when config save fails with empty key field
+00:04 +20: ProviderConfigPage both config and key saved on successful submission
+00:05 +21: ProviderConfigPage Test Connection does not call tester when no API key available
+00:05 +22: ProviderConfigPage Test Connection uses new key from input when available
+00:05 +23: ProviderConfigPage Test Connection reads old key when input is empty
+00:05 +24: ProviderConfigPage Test Connection shows loading during test
+00:05 +25: ProviderConfigPage Test Connection shows success message with model count
+00:06 +26: ProviderConfigPage Test Connection shows failure message on error
+00:06 +27: ProviderConfigPage Test Connection shows model selection when models found
+00:06 +28: ProviderConfigPage Test Connection selecting model updates default model field
+00:06 +29: ProviderConfigPage Test Connection does not auto-save config or key on test
+00:06 +30: ProviderConfigPage Test Connection failure does not clear default model
+00:07 +31: ProviderConfigPage Test Connection tester call count is zero on page open
+00:07 +32: ProviderConfigPage Test Connection does not leak server response in userMessage
+00:07 +33: ProviderConfigPage Test Connection unknown protocol shows invalid config error
+00:07 +34: ProviderConfigPage Test Connection unknown protocol does not show form fields
+00:07 +35: All tests passed!

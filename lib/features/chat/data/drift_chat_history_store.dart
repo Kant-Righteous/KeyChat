@@ -1,11 +1,14 @@
 import 'package:drift/drift.dart';
+import 'package:keychat/features/chat/data/attachment_delivery_store.dart';
 import 'package:keychat/features/chat/data/chat_completion_client.dart'
     as domain;
 import 'package:keychat/features/chat/data/chat_history_store.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
+import 'package:keychat/features/chat/domain/chat_attachment.dart' as domain;
 import 'package:keychat/features/providers/data/drift/app_database.dart';
 
-class DriftChatHistoryStore implements ChatHistoryStore {
+class DriftChatHistoryStore
+    implements ChatHistoryStore, AttachmentDeliveryStore {
   final AppDatabase _db;
 
   DriftChatHistoryStore(this._db);
@@ -50,7 +53,22 @@ class DriftChatHistoryStore implements ChatHistoryStore {
         (t) => OrderingTerm.asc(t.id),
       ]);
     final rows = await query.get();
-    return rows.map(_toMessage).toList();
+    final attachmentQuery = _db.select(_db.chatAttachments)
+      ..where((t) => t.conversationId.equals(conversationId))
+      ..orderBy([(t) => OrderingTerm.asc(t.id)]);
+    final attachmentRows = await attachmentQuery.get();
+    final attachmentsByMessage = <String, List<domain.ChatAttachment>>{};
+    for (final row in attachmentRows) {
+      attachmentsByMessage
+          .putIfAbsent(row.messageId, () => [])
+          .add(_toAttachment(row));
+    }
+    return rows
+        .map((row) => _toMessage(
+              row,
+              attachmentsByMessage[row.id] ?? const [],
+            ))
+        .toList();
   }
 
   @override
@@ -65,6 +83,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
               title: Value(conversation.title),
               providerId: Value(conversation.providerId),
               model: Value(conversation.model),
+              agentId: Value(conversation.agentId),
+              agentNameSnapshot: Value(conversation.agentNameSnapshot),
+              systemPromptSnapshot: Value(conversation.systemPromptSnapshot),
               createdAt: Value(conversation.createdAt),
               updatedAt: Value(conversation.updatedAt),
             ),
@@ -77,9 +98,13 @@ class DriftChatHistoryStore implements ChatHistoryStore {
                   ? 'user'
                   : 'assistant'),
               content: Value(firstMessage.content),
+              providerIdSnapshot: Value(firstMessage.providerIdSnapshot),
+              providerNameSnapshot: Value(firstMessage.providerNameSnapshot),
+              modelIdSnapshot: Value(firstMessage.modelIdSnapshot),
               createdAt: Value(firstMessage.createdAt),
             ),
           );
+      await _insertAttachments(firstMessage.attachments);
     });
   }
 
@@ -88,16 +113,22 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required domain.ChatMessage message,
   }) async {
-    await _db.into(_db.chatMessages).insert(
-          ChatMessagesCompanion(
-            id: Value(message.id),
-            conversationId: Value(conversationId),
-            role: Value(
-                message.role == domain.ChatRole.user ? 'user' : 'assistant'),
-            content: Value(message.content),
-            createdAt: Value(message.createdAt),
-          ),
-        );
+    await _db.transaction(() async {
+      await _db.into(_db.chatMessages).insert(
+            ChatMessagesCompanion(
+              id: Value(message.id),
+              conversationId: Value(conversationId),
+              role: Value(
+                  message.role == domain.ChatRole.user ? 'user' : 'assistant'),
+              content: Value(message.content),
+              providerIdSnapshot: Value(message.providerIdSnapshot),
+              providerNameSnapshot: Value(message.providerNameSnapshot),
+              modelIdSnapshot: Value(message.modelIdSnapshot),
+              createdAt: Value(message.createdAt),
+            ),
+          );
+      await _insertAttachments(message.attachments);
+    });
   }
 
   @override
@@ -148,6 +179,9 @@ class DriftChatHistoryStore implements ChatHistoryStore {
     required String conversationId,
     required String messageId,
     required String content,
+    String? providerIdSnapshot,
+    String? providerNameSnapshot,
+    String? modelIdSnapshot,
     required DateTime conversationUpdatedAt,
   }) async {
     await _db.transaction(() async {
@@ -169,6 +203,15 @@ class DriftChatHistoryStore implements ChatHistoryStore {
       await (_db.update(_db.chatMessages)..where((t) => t.id.equals(messageId)))
           .write(ChatMessagesCompanion(
         content: Value(content),
+        providerIdSnapshot: providerIdSnapshot == null
+            ? const Value.absent()
+            : Value(providerIdSnapshot),
+        providerNameSnapshot: providerNameSnapshot == null
+            ? const Value.absent()
+            : Value(providerNameSnapshot),
+        modelIdSnapshot: modelIdSnapshot == null
+            ? const Value.absent()
+            : Value(modelIdSnapshot),
       ));
 
       // Update conversation timestamp
@@ -186,18 +229,97 @@ class DriftChatHistoryStore implements ChatHistoryStore {
       title: row.title,
       providerId: row.providerId,
       model: row.model,
+      agentId: row.agentId,
+      agentNameSnapshot: row.agentNameSnapshot,
+      systemPromptSnapshot: row.systemPromptSnapshot,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );
   }
 
-  domain.ChatMessage _toMessage(ChatMessage row) {
+  domain.ChatMessage _toMessage(
+    ChatMessage row,
+    List<domain.ChatAttachment> attachments,
+  ) {
     return domain.ChatMessage(
       id: row.id,
       role:
           row.role == 'user' ? domain.ChatRole.user : domain.ChatRole.assistant,
       content: row.content,
+      providerIdSnapshot: row.providerIdSnapshot,
+      providerNameSnapshot: row.providerNameSnapshot,
+      modelIdSnapshot: row.modelIdSnapshot,
+      attachments: attachments,
       createdAt: row.createdAt,
+    );
+  }
+
+  Future<void> _insertAttachments(
+    List<domain.ChatAttachment> attachments,
+  ) async {
+    for (final attachment in attachments) {
+      await _db.into(_db.chatAttachments).insert(
+            ChatAttachmentsCompanion(
+              id: Value(attachment.id),
+              fileName: Value(attachment.fileName),
+              mimeType: Value(attachment.mimeType),
+              fileSize: Value(attachment.fileSize),
+              localPath: Value(attachment.localPath),
+              kind: Value(attachment.kind.storageValue),
+              messageId: Value(attachment.messageId),
+              conversationId: Value(attachment.conversationId),
+            ),
+          );
+    }
+  }
+
+  @override
+  Future<AttachmentDeliveryStatus?> readStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+  }) async {
+    final query = _db.select(_db.attachmentDeliveryStates)
+      ..where((row) => row.attachmentId.equals(attachmentId))
+      ..where((row) => row.providerId.equals(providerId))
+      ..where((row) => row.modelId.equals(modelId))
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    if (row == null) return null;
+    return AttachmentDeliveryStatus.values.firstWhere(
+      (status) => status.name == row.status,
+      orElse: () => AttachmentDeliveryStatus.rejected,
+    );
+  }
+
+  @override
+  Future<void> saveStatus({
+    required String attachmentId,
+    required String providerId,
+    required String modelId,
+    required AttachmentDeliveryStatus status,
+  }) {
+    return _db.into(_db.attachmentDeliveryStates).insertOnConflictUpdate(
+          AttachmentDeliveryStatesCompanion(
+            attachmentId: Value(attachmentId),
+            providerId: Value(providerId),
+            modelId: Value(modelId),
+            status: Value(status.name),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+  }
+
+  domain.ChatAttachment _toAttachment(ChatAttachment row) {
+    return domain.ChatAttachment(
+      id: row.id,
+      fileName: row.fileName,
+      mimeType: row.mimeType,
+      fileSize: row.fileSize,
+      localPath: row.localPath,
+      kind: domain.ChatAttachmentKind.fromStorageValue(row.kind),
+      messageId: row.messageId,
+      conversationId: row.conversationId,
     );
   }
 }

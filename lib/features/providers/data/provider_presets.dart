@@ -1,4 +1,6 @@
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability.dart';
+import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 
 class ProviderPreset {
   final String id;
@@ -16,6 +18,64 @@ class ProviderPreset {
     required this.protocol,
     this.isCustom = false,
   });
+}
+
+class ProviderEndpointPreset {
+  final String id;
+  final String defaultBaseUrl;
+  final String apiKeyUrl;
+  final String? apiKeyPrefix;
+  final bool isPlan;
+
+  const ProviderEndpointPreset({
+    required this.id,
+    required this.defaultBaseUrl,
+    required this.apiKeyUrl,
+    this.apiKeyPrefix,
+    this.isPlan = false,
+  });
+}
+
+class ProviderTemplatePreset {
+  final String id;
+  final String name;
+  final List<ProviderEndpointPreset> endpoints;
+
+  const ProviderTemplatePreset({
+    required this.id,
+    required this.name,
+    required this.endpoints,
+  });
+}
+
+class ProviderInputCapabilities {
+  const ProviderInputCapabilities({
+    this.supportsImageInput = false,
+    this.supportsFileInput = false,
+  });
+
+  final bool supportsImageInput;
+  final bool supportsFileInput;
+}
+
+ProviderInputCapabilities defaultInputCapabilities(
+  String providerId,
+  String modelId,
+) {
+  return ProviderInputCapabilities(
+    supportsImageInput: presetAttachmentCapabilityStatus(
+          providerId,
+          modelId,
+          ModelInputModality.image,
+        ) ==
+        AttachmentCapabilityStatus.supported,
+    supportsFileInput: presetAttachmentCapabilityStatus(
+          providerId,
+          modelId,
+          ModelInputModality.file,
+        ) ==
+        AttachmentCapabilityStatus.supported,
+  );
 }
 
 const providerPresets = [
@@ -47,5 +107,183 @@ const providerPresets = [
     defaultBaseUrl: '',
     isCustom: true,
     protocol: ProviderProtocol.openAiCompatible,
+  ),
+];
+
+const providerTemplatePresets = [
+  ProviderTemplatePreset(
+    id: 'custom',
+    name: 'Custom Provider',
+    endpoints: [],
+  ),
+  ProviderTemplatePreset(
+    id: 'openai',
+    name: 'OpenAI',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'openai_default',
+        defaultBaseUrl: 'https://api.openai.com/v1',
+        apiKeyUrl: 'https://platform.openai.com/api-keys',
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'deepseek',
+    name: 'DeepSeek',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'deepseek_default',
+        defaultBaseUrl: 'https://api.deepseek.com/v1',
+        apiKeyUrl: 'https://platform.deepseek.com/api_keys',
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'openrouter',
+    name: 'OpenRouter',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'openrouter_default',
+        defaultBaseUrl: 'https://openrouter.ai/api/v1',
+        apiKeyUrl: 'https://openrouter.ai/settings/keys',
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'kimi',
+    name: 'Kimi',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'kimi_china',
+        defaultBaseUrl: 'https://api.moonshot.cn/v1',
+        apiKeyUrl: 'https://platform.kimi.com/console/api-keys',
+      ),
+      ProviderEndpointPreset(
+        id: 'kimi_global',
+        defaultBaseUrl: 'https://api.moonshot.ai/v1',
+        apiKeyUrl: 'https://platform.kimi.ai/console/api-keys',
+      ),
+      ProviderEndpointPreset(
+        id: 'kimi_code',
+        defaultBaseUrl: 'https://api.kimi.com/coding/v1',
+        apiKeyUrl: 'https://www.kimi.com/code/console',
+        isPlan: true,
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'mimo',
+    name: 'MiMo',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'mimo_pay_as_you_go',
+        defaultBaseUrl: 'https://api.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/console/api-keys',
+        apiKeyPrefix: 'sk-',
+      ),
+      ProviderEndpointPreset(
+        id: 'mimo_token_china',
+        defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
+        apiKeyPrefix: 'tp-',
+        isPlan: true,
+      ),
+      ProviderEndpointPreset(
+        id: 'mimo_token_singapore',
+        defaultBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
+        apiKeyPrefix: 'tp-',
+        isPlan: true,
+      ),
+      ProviderEndpointPreset(
+        id: 'mimo_token_europe',
+        defaultBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+        apiKeyUrl: 'https://platform.xiaomimimo.com/token-plan',
+        apiKeyPrefix: 'tp-',
+        isPlan: true,
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'glm',
+    name: 'GLM',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'glm_china_general',
+        defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        apiKeyUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
+      ),
+      ProviderEndpointPreset(
+        id: 'glm_global_general',
+        defaultBaseUrl: 'https://api.z.ai/api/paas/v4',
+        apiKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
+      ),
+      ProviderEndpointPreset(
+        id: 'glm_china_coding',
+        defaultBaseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        apiKeyUrl: 'https://bigmodel.cn/coding-plan/personal/overview',
+        isPlan: true,
+      ),
+      ProviderEndpointPreset(
+        id: 'glm_global_coding',
+        defaultBaseUrl: 'https://api.z.ai/api/coding/paas/v4',
+        apiKeyUrl: 'https://z.ai/manage-apikey/apikey-list',
+        isPlan: true,
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'gemini',
+    name: 'Gemini',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'gemini_default',
+        defaultBaseUrl:
+            'https://generativelanguage.googleapis.com/v1beta/openai',
+        apiKeyUrl: 'https://aistudio.google.com/app/apikey',
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
+    id: 'qwen',
+    name: 'Qwen',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'qwen_pay_as_you_go_beijing',
+        defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://bailian.console.aliyun.com/cn-beijing?tab=model',
+        apiKeyPrefix: 'sk-',
+      ),
+      ProviderEndpointPreset(
+        id: 'qwen_pay_as_you_go_singapore',
+        defaultBaseUrl:
+            'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl:
+            'https://bailian.console.alibabacloud.com/ap-southeast-1?tab=model',
+        apiKeyPrefix: 'sk-',
+      ),
+      ProviderEndpointPreset(
+        id: 'qwen_pay_as_you_go_us',
+        defaultBaseUrl: 'https://dashscope-us.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://modelstudio.console.aliyun.com/us-east-1',
+        apiKeyPrefix: 'sk-',
+      ),
+      ProviderEndpointPreset(
+        id: 'qwen_token_beijing',
+        defaultBaseUrl:
+            'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+        apiKeyUrl: 'https://bailian.console.aliyun.com/cn-beijing?tab=plan',
+        apiKeyPrefix: 'sk-sp-',
+        isPlan: true,
+      ),
+      ProviderEndpointPreset(
+        id: 'qwen_coding_beijing',
+        defaultBaseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+        apiKeyUrl:
+            'https://bailian.console.aliyun.com/cn-beijing/?tab=coding-plan#/efm/coding-plan-index',
+        apiKeyPrefix: 'sk-sp-',
+        isPlan: true,
+      ),
+    ],
   ),
 ];
