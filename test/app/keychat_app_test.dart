@@ -35,6 +35,18 @@ void main() {
       expect(find.byTooltip('设置'), findsNothing);
     });
 
+    testWidgets('globally prevents tooltip overlays',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(KeyChatApp(localeService: FakeLocaleService()));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.longPress(find.byIcon(Icons.history));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('历史'), findsNothing);
+    });
+
     testWidgets('shows English UI when saved locale is English',
         (WidgetTester tester) async {
       await tester.pumpWidget(KeyChatApp(
