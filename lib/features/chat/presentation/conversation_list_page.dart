@@ -80,11 +80,14 @@ class _ConversationListPageState extends State<ConversationListPage> {
   }
 
   String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final localDateTime = dt.toLocal();
+    final now = widget.now().toLocal();
+    if (localDateTime.year == now.year &&
+        localDateTime.month == now.month &&
+        localDateTime.day == now.day) {
+      return '${localDateTime.hour.toString().padLeft(2, '0')}:${localDateTime.minute.toString().padLeft(2, '0')}';
     }
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    return '${localDateTime.month.toString().padLeft(2, '0')}-${localDateTime.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _showRenameDialog(ChatConversation conv) async {

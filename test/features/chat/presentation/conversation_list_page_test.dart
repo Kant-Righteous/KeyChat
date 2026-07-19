@@ -134,6 +134,73 @@ void main() {
       expect(find.text('openai · gpt-4'), findsOneWidget);
     });
 
+    testWidgets('shows hour and minute for conversations updated today',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_today',
+          title: 'Today Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026, 7, 18, 9, 5),
+          updatedAt: DateTime(2026, 7, 18, 9, 5),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_today',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2026, 7, 18, 9, 5),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+            now: () => DateTime(2026, 7, 18, 20, 30),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('09:05'), findsOneWidget);
+    });
+
+    testWidgets('shows month and day without year for earlier conversations',
+        (WidgetTester tester) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'conv_earlier',
+          title: 'Earlier Chat',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2025, 12, 31, 23, 59),
+          updatedAt: DateTime(2025, 12, 31, 23, 59),
+        ),
+        firstMessage: ChatMessage(
+          id: 'msg_earlier',
+          role: ChatRole.user,
+          content: 'Hello',
+          createdAt: DateTime(2025, 12, 31, 23, 59),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConversationListPage(
+            historyStore: historyStore,
+            configStore: configStore,
+            now: () => DateTime(2026, 7, 18, 20, 30),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('12-31'), findsOneWidget);
+      expect(find.textContaining('2025'), findsNothing);
+    });
+
     testWidgets('shows provider displayName when config exists',
         (WidgetTester tester) async {
       await configStore.saveConfig(ProviderConfigData(
