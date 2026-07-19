@@ -427,7 +427,7 @@ class _ChatPageState extends State<ChatPage> {
           _persistWarning = 'Provider is no longer available';
         }
       });
-      _syncBottomStateAfterLayout();
+      _jumpToBottomAfterLayout();
 
       if (selectedProvider != null) {
         unawaited(_loadModels(selectedProvider));
@@ -905,7 +905,7 @@ class _ChatPageState extends State<ChatPage> {
           _pendingAttachments.clear();
           _clearStoppedState();
         });
-        _syncBottomStateAfterLayout();
+        _jumpToBottomAfterLayout();
       }
     } catch (_) {
       if (mounted) {
@@ -1773,6 +1773,16 @@ class _ChatPageState extends State<ChatPage> {
   void _syncBottomStateAfterLayout() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _handleScrollPositionChanged();
+    });
+  }
+
+  void _jumpToBottomAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(
+        _scrollController.position.maxScrollExtent,
+      );
+      _syncBottomStateAfterLayout();
     });
   }
 

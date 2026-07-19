@@ -60,6 +60,101 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> seedLongConversation({
+      required String id,
+      required String title,
+      required DateTime updatedAt,
+    }) async {
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: id,
+          title: title,
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: updatedAt,
+          updatedAt: updatedAt,
+        ),
+        firstMessage: ChatMessage(
+          id: '${id}_message_0',
+          role: ChatRole.user,
+          content: 'Oldest message',
+          createdAt: updatedAt,
+        ),
+      );
+
+      for (var index = 1; index < 30; index++) {
+        await historyStore.appendMessage(
+          conversationId: id,
+          message: ChatMessage(
+            id: '${id}_message_$index',
+            role: index.isEven ? ChatRole.user : ChatRole.assistant,
+            content: index == 29
+                ? 'Latest message marker'
+                : 'Historical message $index with enough content for scrolling.',
+            createdAt: updatedAt.add(Duration(minutes: index)),
+          ),
+        );
+      }
+    }
+
+    ScrollPosition messageScrollPosition(WidgetTester tester) {
+      final messageList = find.byType(ListView);
+      expect(messageList, findsOneWidget);
+      return tester.widget<ListView>(messageList).controller!.position;
+    }
+
+    testWidgets('restored conversation opens at the latest message',
+        (WidgetTester tester) async {
+      await seedLongConversation(
+        id: 'restored_conversation',
+        title: 'Restored Conversation',
+        updatedAt: DateTime(2026, 7, 19),
+      );
+
+      await setupConfig(tester);
+
+      final position = messageScrollPosition(tester);
+      expect(position.maxScrollExtent, greaterThan(0));
+      expect(position.extentAfter, lessThanOrEqualTo(1));
+      expect(find.text('Latest message marker'), findsOneWidget);
+    });
+
+    testWidgets('switching history opens the selected conversation at bottom',
+        (WidgetTester tester) async {
+      await seedLongConversation(
+        id: 'historical_conversation',
+        title: 'Long History',
+        updatedAt: DateTime(2026, 7, 18),
+      );
+      await historyStore.createConversationWithFirstMessage(
+        conversation: ChatConversation(
+          id: 'current_conversation',
+          title: 'Current Conversation',
+          providerId: 'openai',
+          model: 'gpt-4',
+          createdAt: DateTime(2026, 7, 19),
+          updatedAt: DateTime(2026, 7, 19),
+        ),
+        firstMessage: ChatMessage(
+          id: 'current_message',
+          role: ChatRole.user,
+          content: 'Current message',
+          createdAt: DateTime(2026, 7, 19),
+        ),
+      );
+      await setupConfig(tester);
+
+      await tester.tap(find.byIcon(Icons.history));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Long History'));
+      await tester.pumpAndSettle();
+
+      final position = messageScrollPosition(tester);
+      expect(position.maxScrollExtent, greaterThan(0));
+      expect(position.extentAfter, lessThanOrEqualTo(1));
+      expect(find.text('Latest message marker'), findsOneWidget);
+    });
+
     testWidgets('short conversation send makes message visible',
         (WidgetTester tester) async {
       await setupConfig(tester);
