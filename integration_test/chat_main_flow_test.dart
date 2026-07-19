@@ -8,7 +8,7 @@ import 'package:keychat/features/chat/data/chat_completion_client.dart';
 import 'package:keychat/features/chat/domain/chat_conversation.dart';
 import 'package:keychat/features/providers/data/provider_config.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 import '../test/features/agents/data/fake_agent_profile_store.dart';
 import '../test/features/chat/data/fake_chat_client_resolver.dart';

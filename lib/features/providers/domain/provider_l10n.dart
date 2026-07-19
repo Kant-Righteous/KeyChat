@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:keychat/features/providers/data/provider_presets.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 String localizedProviderName(
   BuildContext context,

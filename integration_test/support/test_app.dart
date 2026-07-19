@@ -9,7 +9,7 @@ import 'package:keychat/features/providers/data/connection_tester_resolver.dart'
 import 'package:keychat/features/providers/data/provider_config_store.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class TestAppShell extends StatefulWidget {
   final ApiKeyStore apiKeyStore;

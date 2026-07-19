@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class LanguagePage extends StatefulWidget {
   final void Function(Locale) onLocaleChanged;
@@ -22,41 +22,31 @@ class _LanguagePageState extends State<LanguagePage> {
       appBar: AppBar(
         title: Text(l10n.languageSettings),
       ),
-      body: ListView(
-        children: [
-          RadioListTile<String>(
-            title: Text(l10n.chinese),
-            value: 'zh',
-            groupValue: currentLocale.languageCode,
-            onChanged: _saving
-                ? null
-                : (value) async {
-                    if (value != null) {
-                      setState(() => _saving = true);
-                      widget.onLocaleChanged(Locale(value));
-                      if (mounted) {
-                        setState(() => _saving = false);
-                      }
-                    }
-                  },
-          ),
-          RadioListTile<String>(
-            title: Text(l10n.english),
-            value: 'en',
-            groupValue: currentLocale.languageCode,
-            onChanged: _saving
-                ? null
-                : (value) async {
-                    if (value != null) {
-                      setState(() => _saving = true);
-                      widget.onLocaleChanged(Locale(value));
-                      if (mounted) {
-                        setState(() => _saving = false);
-                      }
-                    }
-                  },
-          ),
-        ],
+      body: RadioGroup<String>(
+        groupValue: currentLocale.languageCode,
+        onChanged: (value) async {
+          if (value == null || _saving) return;
+
+          setState(() => _saving = true);
+          widget.onLocaleChanged(Locale(value));
+          if (mounted) {
+            setState(() => _saving = false);
+          }
+        },
+        child: ListView(
+          children: [
+            RadioListTile<String>(
+              title: Text(l10n.chinese),
+              value: 'zh',
+              enabled: !_saving,
+            ),
+            RadioListTile<String>(
+              title: Text(l10n.english),
+              value: 'en',
+              enabled: !_saving,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -29,7 +29,7 @@ import 'package:keychat/features/providers/domain/model_attachment_capability.da
 import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 import 'package:keychat/features/providers/domain/provider_protocol.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class _ReadyProvider {
   final String providerId;
@@ -2493,7 +2493,7 @@ class _ChatPageState extends State<ChatPage> {
                                 transitionBuilder: (child, animation) {
                                   return SizeTransition(
                                     sizeFactor: animation,
-                                    axisAlignment: -1,
+                                    alignment: AlignmentDirectional.topStart,
                                     child: FadeTransition(
                                       opacity: animation,
                                       child: child,

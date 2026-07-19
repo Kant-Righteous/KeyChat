@@ -50,10 +50,7 @@ dependencies:
   markdown: ^7.3.0
   file_picker: ^10.3.10
   mime: ^2.0.0
-  flutter_math_fork:
-    git:
-      url: https://github.com/simpleclub/flutter_math.git
-      ref: 6e84b607c5c0e00dd1f3d4bd30ef3f1628053328
+  flutter_math_fork: ^0.7.4
 
 dev_dependencies:
   flutter_test:

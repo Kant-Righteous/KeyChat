@@ -12,7 +12,7 @@ import 'package:keychat/features/providers/domain/model_attachment_capability.da
 import 'package:keychat/features/providers/domain/model_attachment_capability_resolver.dart';
 import 'package:keychat/features/providers/domain/provider_l10n.dart';
 import 'package:keychat/features/providers/domain/provider_url_policy.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 typedef ExternalUrlLauncher = Future<bool> Function(Uri uri);
@@ -579,7 +579,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                       children: [
                         if (widget.preset.isCustom) ...[
                           DropdownButtonFormField<String>(
-                            value: _selectedTemplateId,
+                            initialValue: _selectedTemplateId,
                             decoration: InputDecoration(
                               labelText: l10n.providerPresetLabel,
                               border: const OutlineInputBorder(),
@@ -603,7 +603,7 @@ class _ProviderConfigPageState extends State<ProviderConfigPage> {
                           if (_selectedTemplate.endpoints.length > 1) ...[
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
-                              value: _selectedEndpointId,
+                              initialValue: _selectedEndpointId,
                               decoration: InputDecoration(
                                 labelText: l10n.accessOptionLabel,
                                 border: const OutlineInputBorder(),

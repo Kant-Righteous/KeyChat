@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:keychat/features/settings/presentation/language_page.dart';
 import 'package:keychat/features/settings/presentation/usage_guide_page.dart';
 import 'package:keychat/features/settings/presentation/about_page.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class SettingsPage extends StatelessWidget {
   final void Function(Locale) onLocaleChanged;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:keychat/app/app_shell.dart';
 import 'package:keychat/features/settings/data/locale_service.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class KeyChatApp extends StatefulWidget {
   final LocaleService? localeService;
@@ -61,6 +61,7 @@ class _KeyChatAppState extends State<KeyChatApp> {
   Widget build(BuildContext context) {
     if (_loading) {
       return MaterialApp(
+        builder: _buildWithoutTooltips,
         locale: const Locale('zh'),
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -77,6 +78,7 @@ class _KeyChatAppState extends State<KeyChatApp> {
     }
 
     return MaterialApp(
+      builder: _buildWithoutTooltips,
       title: 'KeyChat',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
@@ -94,6 +96,13 @@ class _KeyChatAppState extends State<KeyChatApp> {
         Locale('en'),
       ],
       home: AppShell(onLocaleChanged: _onLocaleChanged),
+    );
+  }
+
+  Widget _buildWithoutTooltips(BuildContext context, Widget? child) {
+    return TooltipVisibility(
+      visible: false,
+      child: child ?? const SizedBox.shrink(),
     );
   }
 }

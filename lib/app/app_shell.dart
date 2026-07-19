@@ -14,7 +14,7 @@ import 'package:keychat/features/providers/data/drift/drift_model_attachment_cap
 import 'package:keychat/features/providers/data/secure_api_key_store.dart';
 import 'package:keychat/features/providers/presentation/providers_page.dart';
 import 'package:keychat/features/settings/presentation/settings_page.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class AppShell extends StatefulWidget {
   final void Function(Locale) onLocaleChanged;

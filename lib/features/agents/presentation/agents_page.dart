@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:keychat/features/agents/data/agent_profile_store.dart';
 import 'package:keychat/features/agents/domain/agent_profile.dart';
 import 'package:keychat/features/agents/presentation/agent_edit_page.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:keychat/l10n/generated/app_localizations.dart';
 
 class AgentsPage extends StatefulWidget {
   final AgentProfileStore agentStore;
