@@ -107,10 +107,10 @@ void main() {
       expect(matches, equals(9));
     });
 
-    test('backup_rules all excludes have path="./"', () {
+    test('backup_rules all excludes have path="."', () {
       final content = File('android/app/src/main/res/xml/backup_rules.xml')
           .readAsStringSync();
-      final pathPattern = RegExp(r'path="\./"');
+      final pathPattern = RegExp(r'path="\."');
       final matches = pathPattern.allMatches(content).length;
       expect(matches, equals(9));
     });
@@ -175,14 +175,14 @@ void main() {
       expect(matches, equals(9));
     });
 
-    test('cloud-backup all excludes have path="./"', () {
+    test('cloud-backup all excludes have path="."', () {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
       final cloudBackupSection = content.substring(
           content.indexOf('<cloud-backup>'),
           content.indexOf('</cloud-backup>'));
-      final pathPattern = RegExp(r'path="\./"');
+      final pathPattern = RegExp(r'path="\."');
       final matches = pathPattern.allMatches(cloudBackupSection).length;
       expect(matches, equals(9));
     });
@@ -235,14 +235,14 @@ void main() {
       expect(matches, equals(9));
     });
 
-    test('device-transfer all excludes have path="./"', () {
+    test('device-transfer all excludes have path="."', () {
       final content =
           File('android/app/src/main/res/xml/data_extraction_rules.xml')
               .readAsStringSync();
       final deviceTransferSection = content.substring(
           content.indexOf('<device-transfer>'),
           content.indexOf('</device-transfer>'));
-      final pathPattern = RegExp(r'path="\./"');
+      final pathPattern = RegExp(r'path="\."');
       final matches = pathPattern.allMatches(deviceTransferSection).length;
       expect(matches, equals(9));
     });
