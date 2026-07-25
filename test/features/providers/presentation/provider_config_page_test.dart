@@ -209,6 +209,36 @@ void main() {
       expect(find.textContaining('套餐地址必须与套餐专用 API Key'), findsOneWidget);
     });
 
+    testWidgets('Agnes AI preset fills name and Base URL',
+        (WidgetTester tester) async {
+      final preset = providerPresets[3]; // Custom
+
+      await tester.pumpWidget(
+        buildTestAppZh(
+          home: ProviderConfigPage(
+            preset: preset,
+            apiKeyStore: apiKeyStore,
+            configStore: configStore,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('其他（手动填写）'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Agnes AI').last);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextFormField, 'Agnes AI'), findsOneWidget);
+      expect(
+        find.widgetWithText(
+          TextFormField,
+          'https://apihub.agnes-ai.com/v1',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('Visit official website opens selected endpoint API key page',
         (WidgetTester tester) async {
       final preset = providerPresets[3]; // Custom
