@@ -117,6 +117,17 @@ const providerTemplatePresets = [
     endpoints: [],
   ),
   ProviderTemplatePreset(
+    id: 'agnes',
+    name: 'Agnes AI',
+    endpoints: [
+      ProviderEndpointPreset(
+        id: 'agnes_default',
+        defaultBaseUrl: 'https://apihub.agnes-ai.com/v1',
+        apiKeyUrl: 'https://platform.agnes-ai.com',
+      ),
+    ],
+  ),
+  ProviderTemplatePreset(
     id: 'openai',
     name: 'OpenAI',
     endpoints: [
