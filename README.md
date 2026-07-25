@@ -1,16 +1,43 @@
-# keychat
+<div align="center">
+  <img src="assets/branding/keychat_icon.png" alt="KeyChat icon" width="96">
+</div>
 
-A local-first BYOK AI chat application.
+# KeyChat
 
-## Getting Started
+**English** | [简体中文](./README.zh-CN.md)
 
-This project is a starting point for a Flutter application.
+KeyChat is a local-first BYOK AI chat client for Android and iOS. It connects directly to the AI provider configured by the user and does not use a KeyChat backend.
 
-A few resources to get you started if this is your first Flutter project:
+The project is currently under development.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Current scope
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- OpenAI, DeepSeek, OpenRouter, and custom OpenAI-compatible providers
+- Local conversation history and provider configuration
+- API key storage through the platform's secure storage
+- Streaming responses, Markdown rendering, and file attachments
+- Custom agent profiles
+- English and Simplified Chinese interfaces
+
+## Development
+
+Requirements: Flutter with a Dart SDK compatible with `^3.6.1`.
+
+```bash
+flutter pub get
+flutter run
+```
+
+Before submitting changes:
+
+```bash
+flutter analyze
+flutter test
+dart format .
+```
+
+Only Android and iOS are supported.
+
+## Security
+
+API keys must not be written to the database, logs, exception messages, or test snapshots. Authorization headers must be redacted from request logs.

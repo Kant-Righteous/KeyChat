@@ -48,3 +48,7 @@ app.*.map.json
 /android/key.properties
 /android/app/*.jks
 /android/app/*.keystore
+
+# Local test run outputs
+/test_output*.txt
+/test-results.json
