@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="KeyChat 隐私政策：说明本地数据存储、第三方 AI 服务、系统权限以及用户的数据权利。"
+    />
+    <title>KeyChat 隐私政策</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --background: #f5f7fb;
+        --surface: #ffffff;
+        --text: #172033;
+        --muted: #5f6b7c;
+        --border: #dfe5ee;
+        --accent: #315ee7;
+        --accent-soft: #eef3ff;
+        --warning: #8a4b08;
+        --warning-soft: #fff5df;
+        --shadow: 0 18px 50px rgba(23, 32, 51, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        font-size: 16px;
+        line-height: 1.75;
+      }
+
+      a {
+        color: var(--accent);
+        overflow-wrap: anywhere;
+      }
+
+      .page {
+        width: min(960px, calc(100% - 32px));
+        margin: 48px auto;
+        padding: 56px clamp(24px, 6vw, 72px);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      header {
+        padding-bottom: 28px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.35;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 7vw, 3.2rem);
+        letter-spacing: -0.04em;
+      }
+
+      h2 {
+        margin: 44px 0 14px;
+        font-size: 1.5rem;
+      }
+
+      h3 {
+        margin: 26px 0 8px;
+        font-size: 1.08rem;
+      }
+
+      p,
+      ul {
+        margin: 10px 0;
+      }
+
+      ul {
+        padding-left: 1.4em;
+      }
+
+      .meta {
+        color: var(--muted);
+      }
+
+      .summary {
+        margin-top: 24px;
+        padding: 20px;
+        background: var(--accent-soft);
+        border-radius: 16px;
+      }
+
+      .draft-notice {
+        margin-bottom: 24px;
+        padding: 16px 18px;
+        color: var(--warning);
+        background: var(--warning-soft);
+        border: 1px solid #f1d39b;
+        border-radius: 14px;
+      }
+
+      .placeholder {
+        padding: 1px 6px;
+        color: var(--warning);
+        background: var(--warning-soft);
+        border-radius: 4px;
+        font-weight: 700;
+      }
+
+      .table-wrap {
+        margin: 18px 0;
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 680px;
+      }
+
+      th,
+      td {
+        padding: 14px 16px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        background: #f8faff;
+        font-weight: 700;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .note {
+        padding: 16px 18px;
+        background: #f8faff;
+        border-left: 4px solid var(--accent);
+        border-radius: 6px 12px 12px 6px;
+      }
+
+      footer {
+        margin-top: 48px;
+        padding-top: 24px;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --background: #0d1220;
+          --surface: #151c2d;
+          --text: #eef3ff;
+          --muted: #aeb8ca;
+          --border: #2a354a;
+          --accent: #8facff;
+          --accent-soft: #1d2a48;
+          --warning: #ffd28a;
+          --warning-soft: #3c2c13;
+          --shadow: none;
+        }
+
+        th,
+        .note {
+          background: #192238;
+        }
+
+        .draft-notice {
+          border-color: #70552a;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          width: 100%;
+          margin: 0;
+          border: 0;
+          border-radius: 0;
+          padding: 32px 20px 48px;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="draft-notice" role="note">
+        <strong>发布前提示：</strong>
+        请先将文中的开发者姓名和联系邮箱替换为真实、可公开的信息，再发布到
+        GitHub Pages。
+      </div>
+
+      <header>
+        <h1>KeyChat 隐私政策</h1>
+        <p class="meta">
+          版本：1.0　｜　更新日期：2026 年 7 月 26 日　｜　生效日期：2026
+          年 7 月 26 日
+        </p>
+        <div class="summary">
+          <strong>概要：</strong>
+          KeyChat 是一款本地优先的 BYOK（用户自备 API Key）AI
+          对话客户端。KeyChat
+          不设自有账号体系，不运营用于中转聊天内容的服务器，也不集成广告、行为分析或崩溃上报服务。API
+          Key、提供商配置、聊天记录、智能体配置和附件主要保存在用户设备本地。只有当用户主动测试连接或发起对话时，相关请求数据才会直接发送至用户选择或配置的第三方
+          AI 服务。
+        </div>
+      </header>
+
+      <section>
+        <h2>一、适用范围与开发者信息</h2>
+        <p>
+          本政策适用于 Android 版 KeyChat（应用包名：
+          <code>io.github.kantrighteous.keychat</code>，当前版本：1.0.0）。
+        </p>
+        <ul>
+          <li>
+            开发者：
+            <span class="placeholder">【请填写个人开发者真实姓名或公司全称】</span>
+          </li>
+          <li>
+            联系邮箱：
+            <span class="placeholder">【请填写长期有效的联系邮箱】</span>
+          </li>
+        </ul>
+        <p>
+          如对本政策或个人信息处理有疑问、意见或请求，请通过上述邮箱联系我们。
+        </p>
+      </section>
+
+      <section>
+        <h2>二、KeyChat 如何处理数据</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>数据类型</th>
+                <th>用途与处理方式</th>
+                <th>保存位置与期限</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>API Key</td>
+                <td>
+                  用于向用户选定的 AI 服务进行身份验证。发起连接测试或对话请求时，API
+                  Key 会作为认证信息直接发送给相应服务。
+                </td>
+                <td>
+                  保存在设备的系统安全存储中，直至用户在提供商配置中删除、清除应用数据或卸载应用。
+                </td>
+              </tr>
+              <tr>
+                <td>AI 提供商配置</td>
+                <td>
+                  包括提供商名称、HTTPS Base URL、模型 ID、协议类型、启用状态和模型附件能力，用于建立和管理连接。
+                </td>
+                <td>
+                  保存在设备本地数据库中，直至用户删除配置、清除应用数据或卸载应用。
+                </td>
+              </tr>
+              <tr>
+                <td>聊天与智能体数据</td>
+                <td>
+                  包括会话标题、消息内容、模型信息、系统提示词、智能体名称和描述，用于展示本地历史记录以及构造用户主动发起的
+                  AI 请求。
+                </td>
+                <td>
+                  保存在设备本地数据库中，直至用户删除对应内容、清除应用数据或卸载应用。
+                </td>
+              </tr>
+              <tr>
+                <td>用户主动选择的附件</td>
+                <td>
+                  包括文件名称、类型、大小和文件内容。用于本地聊天记录；当用户使用支持附件的模型发送消息时，附件内容会直接发送给用户选择的
+                  AI 服务。
+                </td>
+                <td>
+                  复制并保存在应用私有目录。当前版本删除对话会删除相应的数据库记录，但已复制的附件文件可能继续保留，直至用户清除应用数据或卸载应用。
+                </td>
+              </tr>
+              <tr>
+                <td>应用设置</td>
+                <td>
+                  例如语言偏好，用于记住用户选择并提供相应界面。
+                </td>
+                <td>
+                  保存在设备本地，直至用户清除应用数据或卸载应用。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="note">
+          KeyChat
+          不要求注册账号，不主动收集手机号码、通讯录、精确位置、广告标识符或设备唯一标识符。用户可能在对话或附件中自行输入个人信息；发送前请确认确有必要，并了解所选
+          AI 服务的隐私规则。
+        </p>
+      </section>
+
+      <section>
+        <h2>三、向第三方 AI 服务发送数据</h2>
+        <p>
+          KeyChat
+          本身不提供大语言模型。用户只有在主动测试连接、获取模型列表或发送消息时，应用才会按照用户选择的
+          HTTPS Base URL 直接访问相应服务。可能发送的数据包括：
+        </p>
+        <ul>
+          <li>用于认证的 API Key；</li>
+          <li>所选模型 ID、提供商所需的请求参数；</li>
+          <li>当前请求所需的聊天消息、系统提示词和会话上下文；</li>
+          <li>用户主动添加且由所选模型接收的图片或文件附件。</li>
+        </ul>
+        <p>
+          内置入口包括 OpenAI、DeepSeek 和 OpenRouter。自定义提供商预设可能包括
+          Kimi、Xiaomi MiMo、智谱 GLM、Google Gemini 和阿里云百炼
+          Qwen；用户也可以自行配置兼容 OpenAI Chat Completions 的 HTTPS
+          服务或网关。实际接收方、服务器所在地、保存期限和后续处理规则取决于用户最终选择的服务。
+        </p>
+        <p>
+          在使用第三方 AI
+          服务前，用户应阅读并同意该服务的服务条款和隐私政策。若用户选择位于境外或在境外处理数据的服务，相关信息可能被跨境传输和处理。请不要发送无权披露的信息、国家秘密、商业秘密或非必要的敏感个人信息。
+        </p>
+      </section>
+
+      <section>
+        <h2>四、系统权限说明</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>权限或系统能力</th>
+                <th>用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>网络访问</td>
+                <td>
+                  根据用户配置访问 AI 服务、测试连接、获取模型列表并完成聊天请求。KeyChat
+                  只允许应用内配置使用 HTTPS 地址。
+                </td>
+              </tr>
+              <tr>
+                <td>通知</td>
+                <td>
+                  在 Android
+                  系统要求许可的版本上显示生成任务的状态或控制通知。用户可以在系统设置中关闭通知权限。
+                </td>
+              </tr>
+              <tr>
+                <td>前台服务与数据同步</td>
+                <td>
+                  在用户主动发起生成任务后维持请求，并通过系统可见的前台服务通知展示运行状态。
+                </td>
+              </tr>
+              <tr>
+                <td>系统文件选择器</td>
+                <td>
+                  仅在用户主动选择图片或文件时访问所选内容。KeyChat
+                  不申请读取全部存储空间的权限。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>五、数据共享、转让与公开披露</h2>
+        <p>
+          除用户主动调用所选 AI
+          服务、主动通过系统分享功能导出内容，或法律法规另有要求外，开发者不会将本地数据出售、出租或提供给其他主体，也不会公开披露用户数据。
+        </p>
+        <p>
+          当用户使用“分享”或“导出”功能时，数据将交由用户自行选择的其他应用处理；后续处理受该接收应用的隐私政策约束。
+        </p>
+      </section>
+
+      <section>
+        <h2>六、数据安全</h2>
+        <ul>
+          <li>API Key 使用设备系统提供的安全存储保存；</li>
+          <li>提供商连接仅允许使用 HTTPS；</li>
+          <li>Android 端禁止系统云备份 KeyChat 的应用数据；</li>
+          <li>应用不在开发者自有服务器中转聊天请求；</li>
+          <li>应用不集成广告、用户行为分析或崩溃上报服务。</li>
+        </ul>
+        <p>
+          互联网传输和终端设备不存在绝对安全。用户应妥善保护设备和 API
+          Key，避免在截图、录屏、聊天内容或问题反馈中暴露完整密钥，并建议为第三方服务设置合理的额度限制。
+        </p>
+      </section>
+
+      <section>
+        <h2>七、用户如何管理和删除数据</h2>
+        <ul>
+          <li>在“提供商”配置中查看、修改或删除提供商配置和 API Key；</li>
+          <li>在会话列表中删除聊天记录；</li>
+          <li>在智能体页面修改或删除智能体配置；</li>
+          <li>通过系统设置清除 KeyChat 的全部应用数据；</li>
+          <li>卸载 KeyChat，以移除应用在设备上的本地数据。</li>
+        </ul>
+        <p>
+          如需就本政策所述处理活动提出查询、更正、删除、解释或投诉请求，请通过本政策顶部列出的邮箱联系开发者。对于第三方
+          AI 服务保存的数据，请同时按照该服务提供的渠道直接行使相关权利。
+        </p>
+      </section>
+
+      <section>
+        <h2>八、未成年人保护</h2>
+        <p>
+          KeyChat
+          面向具备相应民事行为能力并能够自行管理第三方 API 服务的用户。未满 14
+          周岁的未成年人应在监护人阅读并同意本政策及相应第三方 AI
+          服务规则后，在监护人指导下使用。请勿通过 KeyChat
+          输入或发送非必要的未成年人敏感个人信息。
+        </p>
+      </section>
+
+      <section>
+        <h2>九、政策更新</h2>
+        <p>
+          如 KeyChat
+          的功能、数据处理方式、系统权限或第三方服务发生变化，本政策将相应更新，并修改页面顶部的更新日期。涉及处理目的、方式或个人信息种类的重大变化时，将依法另行提示或征得同意。
+        </p>
+      </section>
+
+      <section>
+        <h2>十、关于本网页</h2>
+        <p>
+          本隐私政策网页不使用 Cookie，不加载广告、统计分析、追踪脚本或第三方字体，也不设置收集个人信息的在线表单。
+        </p>
+      </section>
+
+      <footer>
+        <p>KeyChat 隐私政策 · 版本 1.0</p>
+      </footer>
+    </main>
+  </body>
+</html>
